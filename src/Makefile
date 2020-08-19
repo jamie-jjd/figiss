@@ -1,5 +1,5 @@
 CC									:= g++
-WARNING_ERROR_FLAGS	:= -Wall -Werror -Wextra -Wfatal-errors -Wpedantic
+WARNING_ERROR_FLAGS	:= -Wall -Werror -Wextra -Wpedantic #-Wfatal-errors
 CXXFLAGS						:= $(WARNING_ERROR_FLAGS) -std=c++17
 OBJECTS							:= main.o
 EXECUTABLE					:= main
