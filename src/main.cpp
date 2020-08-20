@@ -1,8 +1,14 @@
 #include <algorithm>
 #include <fstream>
+#include <map>
+#include <memory>
 #include <numeric>
 #include <stdexcept>
 #include <vector>
+
+// #include "sl_types.hpp"
+// #include "text_index_buckets.hpp"
+#include "lib/utility.hpp"
 
 template <typename Character_Type>
 struct SL_Types
@@ -91,19 +97,6 @@ struct Text_Index_Buckets
   }
 
 };
-
-void print
-(
-  std::ofstream &output_file_stream,
-  std::vector<int32_t> const &vector_
-)
-{
-  for (auto it {vector_.cbegin()}; it != vector_.cend(); )
-  {
-    output_file_stream << *it;
-    output_file_stream << ((++it != vector_.cend()) ? ',' : '\n');
-  }
-}
 
 template <typename Character_Type>
 void text_parsing
@@ -234,9 +227,9 @@ int main (int argc, char **argv)
 
   text_parsing<uint8_t>(alphabet_sizes, grammar_rules_sizes, text, text_sizes);
 
-  print(output_file_stream, alphabet_sizes);
-  print(output_file_stream, grammar_rules_sizes);
-  print(output_file_stream, text_sizes);
+  output_comma_separated_vector<int32_t>(output_file_stream, alphabet_sizes);
+  output_comma_separated_vector<int32_t>(output_file_stream, grammar_rules_sizes);
+  output_comma_separated_vector<int32_t>(output_file_stream, text_sizes);
 
   return 0;
 }
