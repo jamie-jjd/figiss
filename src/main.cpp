@@ -6,55 +6,9 @@
 #include <stdexcept>
 #include <vector>
 
-// #include "sl_types.hpp"
+#include "lib/sl_types.hpp"
 // #include "text_index_buckets.hpp"
 #include "lib/utility.hpp"
-
-template <typename Character_Type>
-struct SL_Types
-{
-  constexpr static uint8_t S_type_ {1};
-  constexpr static uint8_t L_type_ {0};
-
-  std::vector<uint8_t> SL_types_;
-
-  SL_Types (std::vector<Character_Type> const &text)
-  {
-    int32_t text_size {static_cast<int32_t>(text.size())};
-
-    SL_types_.resize(text_size, S_type_);
-    for (int32_t i {text_size - 2}; i != -1; --i)
-    {
-      if
-      (
-        (text[i] > text[i + 1]) ||
-        (
-          (text[i] == text[i + 1]) &&
-          (SL_types_[i + 1] == L_type_)
-        )
-      )
-      {
-        SL_types_[i] = L_type_;
-      }
-    }
-  }
-
-  bool is_S_type (int32_t text_index)
-  {
-    return (SL_types_[text_index] == S_type_);
-  }
-
-  bool is_L_type (int32_t text_index)
-  {
-    return (SL_types_[text_index] == L_type_);
-  }
-
-  bool is_rightmost_L_type (int32_t text_index)
-  {
-    return ((SL_types_[text_index] == L_type_) && (SL_types_[text_index + 1] == S_type_));
-  }
-
-};
 
 template <typename Character_Type>
 struct Text_Index_Buckets
