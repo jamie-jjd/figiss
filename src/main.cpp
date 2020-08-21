@@ -7,50 +7,8 @@
 #include <vector>
 
 #include "lib/sl_types.hpp"
-// #include "text_index_buckets.hpp"
+#include "lib/text_index_buckets.hpp"
 #include "lib/utility.hpp"
-
-template <typename Character_Type>
-struct Text_Index_Buckets
-{
-  int32_t alphabet_size_;
-  std::vector<int32_t> character_counts_;
-  std::vector<int32_t> bucket_begins_;
-  std::vector<int32_t> bucket_ends_;
-
-  Text_Index_Buckets (std::vector<Character_Type> const &text)
-  {
-    alphabet_size_ = (static_cast<int32_t>(*std::max_element(text.begin(), text.end())) + 1);
-
-    character_counts_.resize(alphabet_size_, 0);
-    for (auto const &character : text) { ++character_counts_[character]; }
-
-    bucket_begins_.resize(alphabet_size_, 0);
-    bucket_ends_.resize(alphabet_size_, 0);
-  }
-
-  void generate_bucket_begins ()
-  {
-    std::partial_sum(character_counts_.begin(), character_counts_.end(), bucket_begins_.begin());
-    for (int32_t i {0}; i != alphabet_size_; ++i) { bucket_begins_[i] -= character_counts_[i]; }
-  }
-
-  void generate_bucket_ends ()
-  {
-    std::partial_sum(character_counts_.begin(), character_counts_.end(), bucket_ends_.begin());
-  }
-
-  int32_t get_end (int32_t character)
-  {
-    return (--bucket_ends_[character]);
-  }
-
-  int32_t get_begin (int32_t character)
-  {
-    return (bucket_begins_[character]++);
-  }
-
-};
 
 template <typename Character_Type>
 void text_parsing
@@ -181,9 +139,9 @@ int main (int argc, char **argv)
 
   text_parsing<uint8_t>(alphabet_sizes, grammar_rules_sizes, text, text_sizes);
 
-  output_comma_separated_vector<int32_t>(output_file_stream, alphabet_sizes);
-  output_comma_separated_vector<int32_t>(output_file_stream, grammar_rules_sizes);
-  output_comma_separated_vector<int32_t>(output_file_stream, text_sizes);
+  output_comma_separated_vector(output_file_stream, alphabet_sizes);
+  output_comma_separated_vector(output_file_stream, grammar_rules_sizes);
+  output_comma_separated_vector(output_file_stream, text_sizes);
 
   return 0;
 }
