@@ -114,13 +114,6 @@ void text_parsing
   return;
 }
 
-int32_t get_effective_alphabet_size (std::vector<uint8_t> const &text)
-{
-  auto is_effective_characters {std::vector<int32_t>(*std::max_element(text.begin(), text.end()) + 1, 0)};
-  for (const auto &character : text) { is_effective_characters[character] = 1; }
-  return std::accumulate(is_effective_characters.begin(), is_effective_characters.end(), 0);
-}
-
 int main (int argc, char **argv)
 {
   if (argc != 3) throw std::runtime_error("usage: ./main [input file] [output file]");
