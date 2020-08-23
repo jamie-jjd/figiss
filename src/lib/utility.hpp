@@ -14,21 +14,20 @@ int32_t get_effective_alphabet_size (std::vector<Character_Type> const &text)
   return std::accumulate(is_effective_characters.begin(), is_effective_characters.end(), static_cast<int32_t>(0));
 }
 
-template <typename Value_Type>
+template <typename Const_Iterator_Type>
 void output_comma_separated_vector
 (
   std::ofstream &output_file_stream,
-  std::vector<Value_Type> const &vector_
+  Const_Iterator_Type vector_cbegin,
+  Const_Iterator_Type vector_cend
 )
 {
-  if (!vector_.empty())
+  if (vector_cbegin != vector_cend)
   {
-    auto vector_iterator {vector_.cbegin()};
-    output_file_stream << (*vector_iterator);
-
-    while ((++vector_iterator) != vector_.cend())
+    output_file_stream << (*vector_cbegin);
+    for (auto it {++vector_cbegin}; it != vector_cend; ++it)
     {
-      output_file_stream << ',' << (*vector_iterator);
+      output_file_stream << ',' << (*it);
     }
     output_file_stream << '\n';
   }
