@@ -6,6 +6,16 @@
 #include <numeric>
 #include <vector>
 
+template <typename Type>
+class Type_Displayer;
+
+template <typename Type>
+void display_type (Type &parameter)
+{
+  Type_Displayer<Type> type_;
+  Type_Displayer<decltype(parameter)> paramter_type_;
+}
+
 template <typename Character_Type>
 int32_t get_effective_alphabet_size (std::vector<Character_Type> const &text)
 {
