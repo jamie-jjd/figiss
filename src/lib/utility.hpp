@@ -10,7 +10,7 @@ template <typename Type>
 class Type_Displayer;
 
 template <typename Type>
-void display_type (Type &parameter)
+void display_type (Type &&parameter)
 {
   Type_Displayer<Type> type_;
   Type_Displayer<decltype(parameter)> paramter_type_;
@@ -24,23 +24,19 @@ int32_t get_effective_alphabet_size (std::vector<Character_Type> const &text)
   return std::accumulate(is_effective_characters.begin(), is_effective_characters.end(), static_cast<int32_t>(0));
 }
 
-template <typename Const_Iterator_Type>
-void output_comma_separated_vector
-(
-  std::ofstream &output_file_stream,
-  Const_Iterator_Type vector_cbegin,
-  Const_Iterator_Type vector_cend
-)
+template <typename Character_Type>
+std::ofstream& operator<< (std::ofstream &output_file_stream, std::vector<Character_Type> const &vector_)
 {
-  if (vector_cbegin != vector_cend)
+  if (!vector_.empty())
   {
-    output_file_stream << (*vector_cbegin);
-    for (auto it {++vector_cbegin}; it != vector_cend; ++it)
+    output_file_stream << *(vector_.cbegin());
+    for (auto vector_iterator {++(vector_.cbegin())}; vector_iterator != vector_.cend(); ++vector_iterator)
     {
-      output_file_stream << ',' << (*it);
+      output_file_stream << ',' << *vector_iterator;
     }
     output_file_stream << '\n';
   }
+  return output_file_stream;
 }
 
 #endif
