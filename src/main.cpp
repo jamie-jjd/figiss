@@ -1,25 +1,22 @@
-#include <algorithm>
 #include <fstream>
-#include <map>
-#include <memory>
-#include <numeric>
 #include <stdexcept>
 #include <vector>
 
 #include "lib/sl_types.hpp"
+#include "lib/compact_trie.hpp"
 #include "lib/text_index_buckets.hpp"
 #include "lib/utility.hpp"
 
 template <typename Character_Type>
 void text_parsing
 (
+  std::vector<Character_Type> const &text,
   std::vector<int32_t> &alphabet_sizes,
   std::vector<int32_t> &grammar_rules_sizes,
-  std::vector<Character_Type> const &text,
+  std::vector<int32_t> &grammar_trie_sizes,
   std::vector<int32_t> &text_sizes
 )
 {
-
   auto SL_types {SL_Types<Character_Type>(text)};
   auto text_index_buckets {Text_Index_Buckets<Character_Type>(text)};
   auto text_indices {std::vector<int32_t>(text_sizes.back(), -1)};
@@ -61,6 +58,8 @@ void text_parsing
   grammar_rules_sizes.push_back(0);
   text_sizes.push_back(1);
 
+  auto grammar_trie {Compact_Trie<Character_Type>()};
+
   int32_t temporary_new_text_size {(text_size / 2) + 1};
   auto temporary_new_text {std::vector<int32_t>(temporary_new_text_size, 0)};
   for (int32_t i {1}, previous_token_begin {text_size - 1}; i != text_indices_size; ++i)
@@ -91,11 +90,14 @@ void text_parsing
         while (!SL_types.is_rightmost_L_type(current_token_end - 1)) { ++current_token_end; }
         ++(alphabet_sizes.back());
         grammar_rules_sizes.back() += (current_token_end - current_token_begin);
+        grammar_trie.insert(text, current_token_begin, current_token_end);
       }
       temporary_new_text[(current_token_begin + 1) / 2] = (alphabet_sizes.back() - 1);
       previous_token_begin = current_token_begin;
     }
   }
+  grammar_trie_sizes.push_back(grammar_trie.size());
+  grammar_trie.clear();
 
   auto &new_text {temporary_new_text};
   for (int32_t i {0}, j {0}; i != temporary_new_text_size; ++i)
@@ -109,7 +111,7 @@ void text_parsing
 
   if (alphabet_sizes.back() == text_sizes.back()) return;
 
-  text_parsing<int32_t>(alphabet_sizes, grammar_rules_sizes, new_text, text_sizes);
+  text_parsing<int32_t>(new_text, alphabet_sizes, grammar_rules_sizes, grammar_trie_sizes, text_sizes);
 
   return;
 }
@@ -118,23 +120,25 @@ int main (int argc, char **argv)
 {
   if (argc != 3) throw std::runtime_error("usage: ./main [input file] [output file]");
 
-  auto input_file_stream {std::basic_ifstream<char>(argv[1], std::ios_base::binary)};
+  auto input_file_stream {std::ifstream(argv[1], std::ios_base::binary)};
   input_file_stream.unsetf(std::ios_base::skipws);
 
-  auto output_file_stream {std::basic_ofstream<char>(argv[2])};
+  auto output_file_stream {std::ofstream(argv[2])};
 
   auto text {std::vector<uint8_t>(std::istreambuf_iterator<char>(input_file_stream), std::istreambuf_iterator<char>())};
   text.push_back(0);
 
-  auto text_sizes {std::vector<int32_t>(1, text.size())};
   auto alphabet_sizes {std::vector<int32_t>(1, get_effective_alphabet_size(text))};
   auto grammar_rules_sizes {std::vector<int32_t>(1, 0)};
+  auto grammar_trie_sizes {std::vector<int32_t>(1, 0)};
+  auto text_sizes {std::vector<int32_t>(1, text.size())};
 
-  text_parsing<uint8_t>(alphabet_sizes, grammar_rules_sizes, text, text_sizes);
+  text_parsing<uint8_t>(text, alphabet_sizes, grammar_rules_sizes, grammar_trie_sizes, text_sizes);
 
-  output_comma_separated_vector(output_file_stream, alphabet_sizes);
-  output_comma_separated_vector(output_file_stream, grammar_rules_sizes);
-  output_comma_separated_vector(output_file_stream, text_sizes);
+  output_file_stream << alphabet_sizes;
+  output_file_stream << grammar_rules_sizes;
+  output_file_stream << grammar_trie_sizes;
+  output_file_stream << text_sizes;
 
   return 0;
 }
