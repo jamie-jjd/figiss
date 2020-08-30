@@ -2,10 +2,10 @@
 #include <stdexcept>
 #include <vector>
 
-#include "lib/sl_types.hpp"
-#include "lib/compact_trie.hpp"
-#include "lib/text_index_buckets.hpp"
-#include "lib/utility.hpp"
+#include "sl_types.hpp"
+#include "compact_trie.hpp"
+#include "text_index_buckets.hpp"
+#include "utility.hpp"
 
 template <typename Character_Type>
 void text_parsing

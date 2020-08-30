@@ -1,16 +1,14 @@
 CC									:= g++
 WARNING_ERROR_FLAGS	:= -Wall -Werror -Wextra -Wpedantic -Wfatal-errors
 CXXFLAGS						:= $(WARNING_ERROR_FLAGS) -std=c++17
-CXXHEADERS					:= lib/sl_types.hpp lib/text_index_buckets.hpp lib/compact_trie.hpp lib/utility.hpp
-OBJECTS							:=
-EXECUTABLE					:= main
 
-all: $(EXECUTABLE)
+all:
+	$(CC) $(CXXFLAGS) -I$(CURDIR)/include/ main.cpp -o main
 
-$(EXECUTABLE): main.cpp $(CXXHEADERS) $(OBJECTS)
-	$(CC) $(CXXFLAGS) $^ -o $@
+test:
+	$(CC) $(CXXFLAGS) -I$(CURDIR)/include/ test.cpp -o test
 
 clean:
-	rm -f $(EXECUTABLE) $(OBJECTS)
+	rm -f main test
 
 .PHONY: all clean
