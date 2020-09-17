@@ -1,5 +1,5 @@
-#ifndef TEXT_INDEX_BUCKETS_
-#define TEXT_INDEX_BUCKETS_
+#ifndef SUBSTRING_BUCKETS_
+#define SUBSTRING_BUCKETS_
 
 #include <algorithm>
 #include <cstdint>
@@ -7,14 +7,14 @@
 #include <vector>
 
 template <typename Character_Type>
-struct Text_Index_Buckets
+struct Substring_Buckets
 {
   int32_t alphabet_size_;
   std::vector<int32_t> character_counts_;
   std::vector<int32_t> bucket_begins_;
   std::vector<int32_t> bucket_ends_;
 
-  Text_Index_Buckets (std::vector<Character_Type> const &text)
+  Substring_Buckets (std::vector<Character_Type> const &text)
   {
     alphabet_size_ = (static_cast<int32_t>(*std::max_element(text.begin(), text.end())) + 1);
 
