@@ -1,12 +1,13 @@
 CC									:= g++
-WARNING_ERROR_FLAGS	:= -Wall -Werror -Wextra -Wpedantic -Wfatal-errors
-CXXFLAGS						:= $(WARNING_ERROR_FLAGS) -std=c++17
+WARNING_ERROR_FLAGS	:= -Wall -Wfatal-errors #-Wextra -Wpedantic -Werror
+CXX_FLAGS						:= -O3 -std=c++17
+LIBRARIES						:= -ldivsufsort -ldivsufsort64 -lsdsl
 
-all:
-	$(CC) $(CXXFLAGS) -I$(CURDIR)/include/ main.cpp -o main
+all: main.cpp
+	$(CC) -DNDEBUG $(WARNING_ERROR_FLAGS) $(CPP_FLAGS) $(CXX_FLAGS) $^ -o main $(LIBRARIES)
 
-test:
-	$(CC) $(CXXFLAGS) -I$(CURDIR)/include/ test.cpp -o test
+test: test.cpp
+	$(CC) -DNDEBUG $(WARNING_ERROR_FLAGS) $(CXX_FLAGS) $^ -o $@ $(LIBRARIES)
 
 clean:
 	rm -f main test
