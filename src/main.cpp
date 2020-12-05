@@ -4,7 +4,7 @@
 
 #include "sl_types.hpp"
 #include "compact_trie.hpp"
-#include "text_index_buckets.hpp"
+#include "substring_buckets.hpp"
 #include "utility.hpp"
 
 template <typename Character_Type>
@@ -18,18 +18,18 @@ void text_parsing
 )
 {
   auto SL_types {SL_Types<Character_Type>(text)};
-  auto text_index_buckets {Text_Index_Buckets<Character_Type>(text)};
+  auto substring_buckets {Substring_Buckets<Character_Type>(text)};
   auto text_indices {std::vector<int32_t>(text_sizes.back(), -1)};
 
   int32_t text_size {text_sizes.back()};
   auto &text_indices_size {text_size};
 
-  text_index_buckets.generate_bucket_begins();
+  substring_buckets.generate_bucket_begins();
   for (int32_t i {text_size - 2}; i != -1; --i)
   {
     if (SL_types.is_rightmost_L_type(i))
     {
-      text_indices[text_index_buckets.get_begin(text[i])] = i;
+      text_indices[substring_buckets.get_begin(text[i])] = i;
     }
   }
 
@@ -38,18 +38,18 @@ void text_parsing
     int32_t j {text_indices[i] - 1};
     if ((j >= 0) && SL_types.is_L_type(j))
     {
-      text_indices[text_index_buckets.get_begin(text[j])] = j;
+      text_indices[substring_buckets.get_begin(text[j])] = j;
       text_indices[i] = -1;
     }
   }
 
-  text_index_buckets.generate_bucket_ends();
+  substring_buckets.generate_bucket_ends();
   for (int32_t i {text_indices_size - 1}; i != 0; --i)
   {
     int32_t j {text_indices[i] - 1};
     if ((j >= 0) && SL_types.is_S_type(j))
     {
-      text_indices[text_index_buckets.get_end(text[j])] = j;
+      text_indices[substring_buckets.get_end(text[j])] = j;
       text_indices[i] = -1;
     }
   }
