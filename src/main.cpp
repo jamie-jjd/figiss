@@ -1,144 +1,16 @@
-#include <fstream>
 #include <stdexcept>
-#include <vector>
-
-#include "sl_types.hpp"
-#include "compact_trie.hpp"
-#include "substring_buckets.hpp"
-#include "utility.hpp"
-
-template <typename Character_Type>
-void text_parsing
-(
-  std::vector<Character_Type> const &text,
-  std::vector<int32_t> &alphabet_sizes,
-  std::vector<int32_t> &grammar_rules_sizes,
-  std::vector<int32_t> &grammar_trie_sizes,
-  std::vector<int32_t> &text_sizes
-)
-{
-  auto SL_types {SL_Types<Character_Type>(text)};
-  auto substring_buckets {Substring_Buckets<Character_Type>(text)};
-  auto text_indices {std::vector<int32_t>(text_sizes.back(), -1)};
-
-  int32_t text_size {text_sizes.back()};
-  auto &text_indices_size {text_size};
-
-  substring_buckets.generate_bucket_begins();
-  for (int32_t i {text_size - 2}; i != -1; --i)
-  {
-    if (SL_types.is_rightmost_L_type(i))
-    {
-      text_indices[substring_buckets.get_begin(text[i])] = i;
-    }
-  }
-
-  for (int32_t i {1}; i != text_indices_size; ++i)
-  {
-    int32_t j {text_indices[i] - 1};
-    if ((j >= 0) && SL_types.is_L_type(j))
-    {
-      text_indices[substring_buckets.get_begin(text[j])] = j;
-      text_indices[i] = -1;
-    }
-  }
-
-  substring_buckets.generate_bucket_ends();
-  for (int32_t i {text_indices_size - 1}; i != 0; --i)
-  {
-    int32_t j {text_indices[i] - 1};
-    if ((j >= 0) && SL_types.is_S_type(j))
-    {
-      text_indices[substring_buckets.get_end(text[j])] = j;
-      text_indices[i] = -1;
-    }
-  }
-
-  alphabet_sizes.push_back(1);
-  grammar_rules_sizes.push_back(0);
-  text_sizes.push_back(1);
-
-  auto grammar_trie {Compact_Trie<Character_Type>()};
-
-  int32_t temporary_new_text_size {(text_size / 2) + 1};
-  auto temporary_new_text {std::vector<int32_t>(temporary_new_text_size, 0)};
-  for (int32_t i {1}, previous_token_begin {text_size - 1}; i != text_indices_size; ++i)
-  {
-    int32_t current_token_begin {text_indices[i]};
-    if (current_token_begin != -1)
-    {
-      ++(text_sizes.back());
-      int32_t previous_token_index {previous_token_begin};
-      int32_t current_token_index {current_token_begin};
-      while
-      (
-        (text[previous_token_index] == text[current_token_index]) &&
-        !SL_types.is_rightmost_L_type(previous_token_index) &&
-        !SL_types.is_rightmost_L_type(current_token_index)
-      )
-      {
-        ++previous_token_index;
-        ++current_token_index;
-      }
-      if
-      (
-        !SL_types.is_rightmost_L_type(previous_token_index) ||
-        !SL_types.is_rightmost_L_type(current_token_index)
-      )
-      {
-        int32_t current_token_end {current_token_begin + 1};
-        while (!SL_types.is_rightmost_L_type(current_token_end - 1)) { ++current_token_end; }
-        ++(alphabet_sizes.back());
-        grammar_rules_sizes.back() += (current_token_end - current_token_begin);
-        grammar_trie.insert(text, current_token_begin, current_token_end);
-      }
-      temporary_new_text[(current_token_begin + 1) / 2] = (alphabet_sizes.back() - 1);
-      previous_token_begin = current_token_begin;
-    }
-  }
-  grammar_trie_sizes.push_back(grammar_trie.size());
-  grammar_trie.clear();
-
-  auto &new_text {temporary_new_text};
-  for (int32_t i {0}, j {0}; i != temporary_new_text_size; ++i)
-  {
-    if (temporary_new_text[i] != 0)
-    {
-      new_text[j++] = temporary_new_text[i];
-    }
-  }
-  new_text.resize(text_sizes.back());
-
-  if (alphabet_sizes.back() == text_sizes.back()) return;
-
-  text_parsing<int32_t>(new_text, alphabet_sizes, grammar_rules_sizes, grammar_trie_sizes, text_sizes);
-
-  return;
-}
+#include <string>
+#include <sdsl/suffix_trees.hpp>
+#include "grammar_compressed_index.hpp"
 
 int main (int argc, char **argv)
 {
-  if (argc != 3) throw std::runtime_error("usage: ./main [input file] [output file]");
+  if (argc != 2)
+  {
+    throw std::runtime_error(std::string("usage: ") + argv[0] + " [input path]");
+  }
 
-  auto input_file_stream {std::ifstream(argv[1], std::ios_base::binary)};
-  input_file_stream.unsetf(std::ios_base::skipws);
-
-  auto output_file_stream {std::ofstream(argv[2])};
-
-  auto text {std::vector<uint8_t>(std::istreambuf_iterator<char>(input_file_stream), std::istreambuf_iterator<char>())};
-  text.push_back(0);
-
-  auto alphabet_sizes {std::vector<int32_t>(1, get_effective_alphabet_size(text))};
-  auto grammar_rules_sizes {std::vector<int32_t>(1, 0)};
-  auto grammar_trie_sizes {std::vector<int32_t>(1, 0)};
-  auto text_sizes {std::vector<int32_t>(1, text.size())};
-
-  text_parsing<uint8_t>(text, alphabet_sizes, grammar_rules_sizes, grammar_trie_sizes, text_sizes);
-
-  output_file_stream << alphabet_sizes;
-  output_file_stream << grammar_rules_sizes;
-  output_file_stream << grammar_trie_sizes;
-  output_file_stream << text_sizes;
+  Grammar_Compressed_Index gci {argv[1]};
 
   return 0;
 }
