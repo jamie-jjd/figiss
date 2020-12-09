@@ -1,20 +1,15 @@
-#ifndef SUBSTRING_BUCKETS_
-#define SUBSTRING_BUCKETS_
+#ifndef CHARACTER_BUCKET_VECTOR_
+#define CHARACTER_BUCKET_VECTOR_
 
-#include <algorithm>
-#include <cstdint>
-#include <numeric>
-#include <vector>
-
-template <typename Character_Type>
-struct Substring_Buckets
+template <typename Text_Type>
+struct Character_Bucket_Vector
 {
   int32_t alphabet_size_;
   std::vector<int32_t> character_counts_;
   std::vector<int32_t> bucket_begins_;
   std::vector<int32_t> bucket_ends_;
 
-  Substring_Buckets (std::vector<Character_Type> const &text)
+  Substring_Buckets (I const &text)
   {
     alphabet_size_ = (static_cast<int32_t>(*std::max_element(text.begin(), text.end())) + 1);
 
