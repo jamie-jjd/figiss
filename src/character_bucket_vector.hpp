@@ -40,7 +40,7 @@ public:
 
   void calculate_cumulative_bucket_end (Text_Type const &text)
   {
-    calculate_all_character_bucket_sizes(text);
+    calculate_character_bucket_sizes(text);
     std::partial_sum
     (
       character_bucket_vector.begin(),
@@ -73,7 +73,7 @@ private:
 
   Bucket_Vector_Type character_bucket_vector;
 
-  void calculate_all_character_bucket_sizes (Text_Type const &text)
+  void calculate_character_bucket_sizes (Text_Type const &text)
   {
     sdsl::util::_set_zero_bits(character_bucket_vector);
     for (auto const &character : text)
