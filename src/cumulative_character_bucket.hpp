@@ -6,20 +6,23 @@
 #include <numeric>
 #include <sdsl/int_vector.hpp>
 
-template <typename Int_Vector_Type>
+template
+<
+  typename Text_Type = sdsl::int_vector<8>
+>
 class Cumulative_Character_Bucket
 {
 public:
 
-  using Char_Type = typename Int_Vector_Type::value_type;
+  using Char_Type = typename Text_Type::value_type;
 
-  Cumulative_Character_Bucket (Int_Vector_Type const &text)
+  Cumulative_Character_Bucket (Text_Type const &text)
   {
     auto character_upper_bound {*std::max_element(text.begin(), text.end()) + 1};
     cumulative_character_bucket.resize(character_upper_bound);
   }
 
-  void calculate_cumulative_bucket_begin (Int_Vector_Type const &text)
+  void calculate_cumulative_bucket_begin (Text_Type const &text)
   {
     calculate_cumulative_bucket_end(text);
     if (cumulative_character_bucket.size() > 1)
@@ -35,7 +38,7 @@ public:
     return;
   }
 
-  void calculate_cumulative_bucket_end (Int_Vector_Type const &text)
+  void calculate_cumulative_bucket_end (Text_Type const &text)
   {
     calculate_character_bucket(text);
     std::partial_sum
@@ -70,7 +73,7 @@ private:
 
   sdsl::int_vector<32> cumulative_character_bucket;
 
-  void calculate_character_bucket (Int_Vector_Type const &text)
+  void calculate_character_bucket (Text_Type const &text)
   {
     sdsl::util::_set_zero_bits(cumulative_character_bucket);
     for (auto const &character : text)
