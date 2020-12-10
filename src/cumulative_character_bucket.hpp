@@ -50,12 +50,12 @@ public:
     return;
   }
 
-  uint32_t get_current_cumulative_bucket_begin (Char_Type character)
+  uint64_t get_current_cumulative_bucket_begin (Char_Type character)
   {
     return (cumulative_character_bucket[character]++);
   }
 
-  uint32_t get_current_cumulative_bucket_end (Char_Type character)
+  uint64_t get_current_cumulative_bucket_end (Char_Type character)
   {
     return (--cumulative_character_bucket[character]);
   }
@@ -71,7 +71,7 @@ public:
 
 private:
 
-  sdsl::int_vector<32> cumulative_character_bucket;
+  sdsl::int_vector<> cumulative_character_bucket;
 
   void calculate_character_bucket (Text_Type const &text)
   {
