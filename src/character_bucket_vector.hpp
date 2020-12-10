@@ -2,8 +2,8 @@
 #define CHARACTER_BUCKET_VECTOR_
 
 #include <algorithm>
-#include <iostream>
 #include <numeric>
+#include <ostream>
 #include <sdsl/int_vector.hpp>
 
 template
@@ -29,7 +29,7 @@ public:
     calculate_cumulative_bucket_end(text);
     if (character_bucket_vector.size() > 1)
     {
-      for (auto i {character_bucket_vector.size() - 1}; i != 0; --i)
+      for (auto i {character_bucket_vector.size() - 1}; i > 0; --i)
       {
         character_bucket_vector[i] = character_bucket_vector[i - 1];
       }
@@ -64,7 +64,7 @@ public:
   {
     for (Value_Type value : cbv.character_bucket_vector)
     {
-      out << value << ' ';
+      out << std::setw(4) << value;
     }
     return out;
   }
