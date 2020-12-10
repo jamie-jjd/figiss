@@ -6,8 +6,8 @@
 
 template
 <
-  typename Bit_Vector_Type,
-  typename Int_Vector_Type
+  typename Bit_Vector_Type = sdsl::bit_vector,
+  typename Int_Vector_Type = sdsl::int_vector<8>
 >
 class SL_Type_Vector
 {
