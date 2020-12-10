@@ -26,7 +26,7 @@ public:
       std::fill(SL_type_vector.begin(), SL_type_vector.end(), SL_Type_Vector::S_type);
       if (text.size() > 1)
       {
-        for (Size_Type position {text.size() - 1}; position != 0; --position)
+        for (Size_Type position {text.size() - 1}; position > 0; --position)
         {
           if
           (
@@ -106,12 +106,12 @@ public:
 
   friend std::ostream& operator<< (std::ostream &out, SL_Type_Vector const &sltv)
   {
-    for (Size_Type position {0}; position != sltv.SL_type_vector.size(); ++position)
+    for (Size_Type position {0}; position < sltv.SL_type_vector.size(); ++position)
     {
       out << std::setw(4) << position;
     }
     std::cout << '\n';
-    for (Size_Type position {0}; position != sltv.SL_type_vector.size(); ++position)
+    for (Size_Type position {0}; position < sltv.SL_type_vector.size(); ++position)
     {
       if (sltv.is_leftmost_S_type(position))
       {
