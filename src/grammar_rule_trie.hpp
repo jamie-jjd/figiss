@@ -7,8 +7,8 @@
 
 template
 <
-  grammar_rule_size_vector_type = sdsl::int_vector<>,
-  grammar_rule_vector_type = sdsl::int_vector<>
+  typename grammar_rule_size_vector_type = sdsl::int_vector<>,
+  typename grammar_rule_vector_type = sdsl::int_vector<>
 >
 struct grammar_rule_trie
 {
@@ -34,7 +34,7 @@ struct grammar_rule_trie
 
     trie_node
     (
-      range_type edge_range_,
+      edge_range_type edge_range_,
       size_type non_terminal
     )
     : edge_range {edge_range_},
@@ -62,7 +62,7 @@ struct grammar_rule_trie
   {
     insert_grammar_rule_vector();
     calculate_contiguous_non_terminal_range();
-    insert_reverse_grammar_rule_set();
+    insert_reverse_grammar_rule_vector();
     calculate_non_terminal_permutation_vector();
   }
 
@@ -84,8 +84,8 @@ struct grammar_rule_trie
           node->branch[*grammar_rule_it] = std::make_shared<trie_node>
           (
             {
-              std::distance(grammar_rule_vector.begin(), grammar_rule_it);
-              std::distance(grammar_rule_vector.begin(), grammar_rule_end);
+              std::distance(grammar_rule_vector.begin(), grammar_rule_it),
+              std::distance(grammar_rule_vector.begin(), grammar_rule_end)
             },
             non_terminal
           );
@@ -120,8 +120,8 @@ struct grammar_rule_trie
             internal_node->branch[*grammar_rule_it] = std::make_shared<trie_node>
             (
               {
-                std::distance(grammar_rule_vector.begin(), grammar_rule_it);
-                std::distance(grammar_rule_vector.begin(), grammar_rule_end);
+                std::distance(grammar_rule_vector.begin(), grammar_rule_it),
+                std::distance(grammar_rule_vector.begin(), grammar_rule_end)
               },
               non_terminal
             );
@@ -138,7 +138,7 @@ struct grammar_rule_trie
 
   void calculate_contiguous_non_terminal_range ()
   {
-    calculate_non_terminal_related_range(grammar_trie_root);
+    calculate_non_terminal_related_range(grammar_rule_trie_root);
     return;
   }
 
@@ -185,8 +185,8 @@ struct grammar_rule_trie
           node->branch[*grammar_rule_rit] = std::make_shared<trie_node>
           (
             {
-              std::distance(grammar_rule_vector.begin(), grammar_rule_rit);
-              std::distance(grammar_rule_vector.begin(), grammar_rule_rend);
+              std::distance(grammar_rule_vector.begin(), grammar_rule_rit),
+              std::distance(grammar_rule_vector.begin(), grammar_rule_rend)
             },
             non_terminal
           );
@@ -207,7 +207,7 @@ struct grammar_rule_trie
           )
           {
             std::advance(grammar_rule_rit, -1);
-            std::advance(edge_it, -1);
+            std::advance(edge_rit, -1);
           }
           if (edge_rit == edge_rend)
           {
@@ -220,13 +220,13 @@ struct grammar_rule_trie
             std::get<0>(child->edge_range) = edge_rit_distance;
             new_child = internal_node;
             internal_node->branch[*edge_rit] = child;
-            if (grammar_rule_it != grammar_rule_end)
+            if (grammar_rule_rit != grammar_rule_rend)
             {
               internal_node->branch[*grammar_rule_rit] = std::make_shared<trie_node>
               (
                 {
-                  std::distance(grammar_rule_vector.begin(), grammar_rule_rit);
-                  std::distance(grammar_rule_vector.begin(), grammar_rule_rend);
+                  std::distance(grammar_rule_vector.begin(), grammar_rule_rit),
+                  std::distance(grammar_rule_vector.begin(), grammar_rule_rend)
                 },
                 non_terminal
               );
@@ -247,7 +247,7 @@ struct grammar_rule_trie
 
   void calculate_non_terminal_permutation_vector ()
   {
-    calculate_non_terminal_permutation_vector_range(reverse_grammar_trie_root);
+    calculate_non_terminal_permutation_vector_range(reverse_grammar_rule_trie_root);
     return;
   }
 
