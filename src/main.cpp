@@ -224,15 +224,15 @@ void induce_sort_s_type_characters
 
 template
 <
-  typename temporary_grammar_rule_vector_iterator_type,
+  typename grammar_rule_begin_distance_vector_iterator_type,
   typename temporary_grammar_compressed_text_iterator_type,
   typename text_iterator_type,
   typename sl_type_vector_iterator_type
 >
-calculate_temporary_grammar_rule_and_temporary_grammar_compressed_text
+calculate_grammar_rule_begin_distance_and_temporary_grammar_compressed_text
 (
-  temporary_grammar_rule_vector_iterator_type begin,
-  temporary_grammar_rule_vector_iterator_type end,
+  grammar_rule_begin_distance_vector_iterator_type begin,
+  grammar_rule_begin_distance_vector_iterator_type end,
   temporary_grammar_compressed_text_iterator_type temporary_grammar_compressed_text_begin,
   temporary_grammar_compressed_text_iterator_type temporary_grammar_compressed_text_end,
   text_iterator_type text_begin,
@@ -251,7 +251,7 @@ calculate_temporary_grammar_rule_and_temporary_grammar_compressed_text
     {
       std::next
       (
-        temporary_grammar_rule_vector_begin,
+        grammar_rule_begin_distance_vector_begin,
         (*it + 1) / 2
       )
     };
@@ -297,63 +297,60 @@ calculate_temporary_grammar_rule_and_temporary_grammar_compressed_text
 
 template
 <
-  temporary_grammar_rule_vector_iterator_type,
+  grammar_rule_size_vector_iterator_type
+  grammar_rule_begin_distance_vector_iterator_type,
   sl_type_vector_iterator_type
 >
-auto calculate_grammar_rule_vector_size
+void calculate_grammar_rule_size_vector
 (
-  temporary_grammar_rule_vector_iterator_type begin,
-  temporary_grammar_rule_vector_iterator_type end,
+  grammar_rule_size_vector_iterator_type begin,
+  grammar_rule_size_vector_iterator_type end,
+  grammar_rule_begin_distance_vector_iterator_type begin_distance_begin,
   sl_type_vector_iterator_type sl_type_vector_begin
 )
 {
-  decltype(text_begin)::difference_type size {1};
+  auto begin_distance_it {begin_distance_begin};
   for (auto it {begin}; it != end; std::advance(it))
   {
-    auto sl_type_vector_it {std::next(sl_type_vector_begin, *it)};
+    auto sl_type_vector_it {std::next(sl_type_vector_begin, *begin_distance_it)};
+    *it = 0;
     do
     {
+      ++(*it);
       std::advance(sl_type_vector_it);
     }
     while (!is_leftmost_s_type(sl_type_vector_it);
-    size += (std::distance(std::next(sl_type_begin, *it), sl_type_vector_it) + 1);
+    std::advance(begin_distance_it);
   }
-  return size;
+  return;
 }
 
 template
 <
   grammar_rule_vector_iterator_type,
-  temporary_grammar_rule_vector_iterator_type,
+  grammar_rule_begin_distance_vector_iterator_type,
   text_iterator_type,
-  sl_type_vector_iterator_type
 >
 void calculate_grammar_rule_vector
 (
   grammar_rule_vector_iterator_type begin,
-  temporary_grammar_rule_vector_iterator_type distance_begin,
-  temporary_grammar_rule_vector_iterator_type distance_end,
-  text_iterator_type text_begin,
-  sl_type_vector_iterator_type sl_type_vector_begin
+  grammar_rule_size_vector_iterator_type size_begin,
+  grammar_rule_size_vector_iterator_type size_end,
+  grammar_rule_begin_distance_vector_iterator_type begin_distance_begin,
+  text_iterator_type text_begin
 )
 {
-  auto grammar_rule_vector_it {grammar_rule_vector_begin};
-  *grammar_rule_vector_it = 0;
-  std::advance(grammar_rule_vector_it);
-  for (auto distance_it {distance_begin}; distance_it != end; std::advance(distance_it))
+  auto it {begin};
+  auto begin_distance_it {begin_distance_begin};
+  for (auto size_it {size_begin}; size_it != size_end; std::advance(size_it))
   {
-    auto grammar_rule_it {*std::next(text_begin, *distance_it)};
-    auto sl_type_vector_it {*std::next(sl_type_vector_begin, *distance_it)};
-    do
+    auto grammar_rule_it {std::next(text_begin, *begin_distance_it)};
+    auto grammar_rule_end {std::next(text_begin, *begin_distance_it + *size_it)}
+    while (grammar_rule_it != grammar_rule_end)
     {
-      *grammar_rule_vector_it = *grammar_rule_it;
-      std::advance(grammar_rule_vector_it);
-      std::advance(grammar_rule_it);
-      std::advance(sl_type_begin_it);
+      *it = *grammar_rule_it;
+      std::advance(it);
     }
-    while (!is_leftmost_s_type(sl_type_vector_it));
-    *grammar_rule_vector_it = 0;
-    std::advance(grammar_rule_vector_it);
   }
   return;
 }
@@ -436,13 +433,13 @@ int main (int argc, char **argv)
   };
   auto temporary_grammar_compressed_text_end {text_distance_vector.end()};
 
-  auto temporary_grammar_rule_vector_begin {text_distance_vector.begin()};
-  auto temporary_grammar_rule_vector_end {temporary_grammar_compressed_text_begin};
+  auto grammar_rule_begin_distance_vector_begin {text_distance_vector.begin()};
+  auto grammar_rule_begin_distance_vector_end {temporary_grammar_compressed_text_begin};
 
-  calculate_temporary_grammar_rule_vector_and_temporary_grammar_compressed_text
+  calculate_grammar_rule_begin_distance_vector_and_temporary_grammar_compressed_text
   (
-    temporary_grammar_rule_vector_begin,
-    temporary_grammar_rule_vector_end,
+    grammar_rule_begin_distance_vector_begin,
+    grammar_rule_begin_distance_vector_end,
     temporary_grammar_compressed_text_begin,
     temporary_grammar_compressed_text_end,
     text.begin(),
@@ -453,14 +450,14 @@ int main (int argc, char **argv)
   (
     std::distance
     (
-      temporary_grammar_rule_vector_begin,
-      temporary_grammar_rule_vector_end
+      grammar_rule_begin_distance_vector_begin,
+      grammar_rule_begin_distance_vector_end
     )
   );
   std::copy_if
   (
-    temporary_grammar_rule_vector_begin,
-    temporary_grammar_rule_vector_end,
+    grammar_rule_begin_distance_vector_begin,
+    grammar_rule_begin_distance_vector_end,
     grammar_compressed_text.begin(),
     [&] (auto const &text_distance)
     {
@@ -471,38 +468,56 @@ int main (int argc, char **argv)
   sdsl::csa_wt<sdsl::wt_int<>> grammar_compressed_text_index;
   sdsl::construct_im(grammar_compressed_text_index, grammar_compressed_text);
 
-  temporary_grammar_rule_vector_end = std::stable_partition
+  grammar_rule_begin_distance_vector_end = std::stable_partition
   (
-    temporary_grammar_rule_vector_begin,
-    temporary_grammar_rule_vector_end,
-    temporary_grammar_rule_vector_begin,
+    grammar_rule_begin_distance_vector_begin,
+    grammar_rule_begin_distance_vector_end,
+    grammar_rule_begin_distance_vector_begin,
     [&] (auto const &text_distance)
     {
       return (text_distance != invalid_text_distance);
     }
   );
 
-  sdsl::int_vector<> grammar_rule_vector
+  sdsl::int_vector<> grammar_rule_size_vector
   (
-    calculate_grammar_rule_vector_size
+    std::distance
     (
-      temporary_grammar_rule_vector_begin,
-      temporary_grammar_rule_vector_end,
-      text.begin(),
-      sl_type_vector.begin()
+      grammar_rule_begin_distance_vector_begin,
+      grammar_rule_begin_distance_vector_end
     )
   );
+  calculate_grammar_rule_size_vector
+  (
+    grammar_rule_size_vector.begin(),
+    grammar_rule_size_vector.end(),
+    grammar_rule_begin_distance_vector_begin,
+    sl_type_vector.begin()
+  )
 
+  sdsl::int_vector<> grammar_rule_vector
+  (
+    *std::accumulate
+    (
+      grammar_rule_size_vector.begin(),
+      grammar_rule_size_vector.end(),
+      0
+    )
+  );
   calculate_grammar_rule_vector
   (
     grammar_rule_vector.begin(),
-    temporary_grammar_rule_vector_begin,
-    temporary_grammar_rule_vector_end,
-    text.begin(),
-    sl_type_vector.begin()
+    grammar_rule_size_vector.begin(),
+    grammar_rule_size_vector.end(),
+    grammar_rule_begin_distance_vector_begin,
+    text.begin()
   );
 
-  grammar_rule_trie<> grammar_rule_trie_(std::move(grammar_rule_vector));
+  grammar_rule_trie<> grammar_rule_trie_
+  (
+    std::move(grammar_rule_size_vector),
+    std::move(grammar_rule_vector)
+  );
 
   return 0;
 }
