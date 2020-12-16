@@ -8,7 +8,7 @@
 template
 <
   typename grammar_rule_size_vector_type = sdsl::int_vector<>,
-  typename grammar_rule_vector_type = sdsl::int_vector<>
+  typename grammar_rule_vector_type = sdsl::int_vector<8>
 >
 struct grammar_rule_trie
 {
