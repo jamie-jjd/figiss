@@ -174,6 +174,14 @@ void induce_sort_grammar_rule
   text_distance_vector_type &text_distance_vector
 )
 {
+  auto invalid_text_distance {text.size()};
+  text_distance_vector.resize(text.size());
+  std::fill
+  (
+    std::begin(text_distance_vector),
+    std::end(text_distance_vector),
+    invalid_text_distance
+  );
   auto character_upper_bound {*std::max_element(std::begin(text), std::end(text)) + 1};
   sdsl::int_vector<> character_bucket_range_vector(character_upper_bound);
   calculate_cumulative_character_bucket_begin
