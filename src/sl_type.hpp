@@ -37,6 +37,13 @@ void calculate_sl_type_vector
   sl_type_vector_type &sl_type_vector
 )
 {
+  sl_type_vector.resize(string.size());
+  std::fill
+  (
+    std::begin(sl_type_vector),
+    std::end(sl_type_vector),
+    S_TYPE
+  );
   auto string_rit {std::prev(std::end(string))};
   auto string_rend {std::begin(string)};
   auto rit {std::prev(std::end(sl_type_vector))};
