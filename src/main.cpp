@@ -5,45 +5,10 @@
 
 #include <sdsl/suffix_trees.hpp>
 
-#include "calculate_grammar.hpp"
 #include "grammar_rule_trie.hpp"
-#include "sl_type.hpp"
 
-template
-<
-  typename grammar_compressed_text_type,
-  typename grammar_compressed_text_index_type,
-  typename temporary_grammar_compressed_text_iterator_type
->
-void calculate_grammar_compressed_text_index
-(
-  grammar_compressed_text_type &grammar_compressed_text,
-  grammar_compressed_text_index_type &grammar_compressed_text_index,
-  temporary_grammar_compressed_text_iterator_type temporary_grammar_compressed_text_begin,
-  temporary_grammar_compressed_text_iterator_type temporary_grammar_compressed_text_end
-)
-{
-  grammar_compressed_text.resize
-  (
-    std::distance
-    (
-      temporary_grammar_compressed_text_begin,
-      temporary_grammar_compressed_text_end
-    )
-  );
-  std::copy
-  (
-    temporary_grammar_compressed_text_begin,
-    temporary_grammar_compressed_text_end,
-    grammar_compressed_text.begin()
-  );
-  sdsl::construct_im
-  (
-    grammar_compressed_text_index,
-    grammar_compressed_text
-  );
-  return;
-}
+constexpr uint8_t S_TYPE {1};
+constexpr uint8_t L_TYPE {0};
 
 int main (int argc, char **argv)
 {
@@ -53,45 +18,64 @@ int main (int argc, char **argv)
   }
 
   sdsl::int_vector<8> text;
-  sdsl::bit_vector sl_type_vector;
-  sdsl::int_vector<> text_distance_vector;
-  sdsl::int_vector<> grammar_compressed_text;
-  sdsl::csa_wt<sdsl::wt_int<>> grammar_compressed_text_index;
+  sdsl::int_vector<> compressed_text;
+  sdsl::sd_vector<> sorted_lex_compressed_text_range_vector;
+  sdsl::wt_int<> compressed_bwt;
+  sdsl::wt_int<> colex_compressed_bwt;
+
+  grammar_rule_trie<> grammar_rule_set;
 
   sdsl::load_vector_from_file(text, argv[1], 1);
   sdsl::append_zero_symbol(text);
 
-  auto
-  [
-    grammar_rule_begin_distance_vector_begin,
-    grammar_rule_begin_distance_vector_end,
-    temporary_grammar_compressed_text_begin,
-    temporary_grammar_compressed_text_end
-  ]
+  size_t size_compressed_text {0};
+  uint8_t prev_sl_type {S_TYPE};
+  auto text_rfirst {std::prev(std::end(text), 2)};
+  auto text_rit {text_rfirst};
+  auto text_rlast {std::prev(std::begin(text))};
+  while (text_rit != text_rlast)
   {
-    calculate_grammar
+    ++size_compressed_text;
+    prev_sl_type = L_TYPE;
+    --text_rit;
+    while
     (
-      text,
-      sl_type_vector,
-      text_distance_vector
+      (text_rit != text_rlast)
+      &&
+      ! (
+          (prev_sl_type == S_TYPE)
+          &&
+          (*text_rit > *std::next(text_rit))
+        )
     )
-  };
-
-  calculate_grammar_compressed_text_index
-  (
-    grammar_compressed_text,
-    grammar_compressed_text_index,
-    temporary_grammar_compressed_text_begin,
-    temporary_grammar_compressed_text_end
-  );
-
-  grammar_rule_trie<> grammar_rule_trie
-  (
-    text,
-    sl_type_vector,
-    grammar_rule_begin_distance_vector_begin,
-    grammar_rule_begin_distance_vector_end
-  );
-
+    {
+      if
+      (
+        (prev_sl_type == L_TYPE)
+        &&
+        (*text_rit < *std::next(text_rit))
+      )
+      {
+        prev_sl_type = S_TYPE;
+      }
+      --text_rit;
+    }
+    grammar_rule_set.insert_grammar_rule
+    (
+      std::begin(text),
+      std::next(text_rit),
+      std::next(text_rfirst),
+      1
+    );
+    grammar_rule_set.insert_grammar_rule
+    (
+      std::begin(text),
+      text_rfirst,
+      text_rit,
+      -1
+    );
+  }
+  grammar_rule_set.print(std::begin(text), grammar_rule_set.root, 1);
+  grammar_rule_set.print(std::begin(text), grammar_rule_set.colex_root, -1);
   return 0;
 }
