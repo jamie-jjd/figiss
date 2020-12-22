@@ -1,52 +1,52 @@
 #ifndef SL_TYPE_HPP_
 #define SL_TYPE_HPP_
 
-constexpr uint8_t S_TYPE {1};
-constexpr uint8_t L_TYPE {0};
+constexpr uint8_t S {1};
+constexpr uint8_t L {0};
 
-template <typename sl_type_vector_iterator_type>
-constexpr bool is_rightmost_l_type (sl_type_vector_iterator_type it)
+template <typename sl_types_iterator_type>
+constexpr bool is_rightmost_l (sl_types_iterator_type it)
 {
   return
   (
-    (*it == L_TYPE)
+    (*it == L)
     &&
-    (*std::next(it) == S_TYPE)
+    (*std::next(it) == S)
   );
 }
 
-template <typename sl_type_vector_iterator_type>
-constexpr bool is_leftmost_s_type (sl_type_vector_iterator_type it)
+template <typename sl_types_iterator_type>
+constexpr bool is_leftmost_s (sl_types_iterator_type it)
 {
   return
   (
-    (*it == S_TYPE)
+    (*it == S)
     &&
-    (*std::prev(it) == L_TYPE)
+    (*std::prev(it) == L)
   );
 }
 
 template
 <
   typename string_type,
-  typename sl_type_vector_type
+  typename sl_types_type
 >
-void calculate_sl_type_vector
+void calculate_sl_types
 (
   string_type const &string,
-  sl_type_vector_type &sl_type_vector
+  sl_types_type &sl_types
 )
 {
-  sl_type_vector.resize(string.size());
+  sl_types.resize(string.size());
   std::fill
   (
-    std::begin(sl_type_vector),
-    std::end(sl_type_vector),
-    S_TYPE
+    std::begin(sl_types),
+    std::end(sl_types),
+    S
   );
   auto string_rit {std::prev(std::end(string))};
   auto string_rend {std::begin(string)};
-  auto rit {std::prev(std::end(sl_type_vector))};
+  auto rit {std::prev(std::end(sl_types))};
   while (string_rit != string_rend)
   {
     if
@@ -56,11 +56,11 @@ void calculate_sl_type_vector
       (
         (*std::prev(string_rit) == *string_rit)
         &&
-        (*rit == L_TYPE)
+        (*rit == L)
       )
     )
     {
-      *std::prev(rit) = L_TYPE;
+      *std::prev(rit) = L;
     }
     --rit;
     --string_rit;
