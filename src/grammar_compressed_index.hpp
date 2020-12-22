@@ -434,29 +434,149 @@ void calculate_grammar_rules
   return;
 }
 
-// template
-// <
-//   typename text_type,
-//   typename grammar_rule_begin_dists_iterator_type,
-//   typename grammar_rule_sizes_type,
-//   typename grammar_rules_type,
-//   typename trie_node_pointer_type
-// >
-// void insert_grammar_rules
-// (
-//   text_type const &text,
-//   grammar_rule_begin_dists_iterator_type grammar_rule_begin_dists_begin,
-//   grammar_rule_begin_dists_iterator_type grammar_rule_begin_dists_end,
-//   grammar_rule_sizes_type const &grammar_rule_sizes,
-//   grammar_rules_uint32_t &grammar_rules,
-//   trie_node_pointer_type lex_trie_root,
-//   trie_node_pointer_type colex_trie_root
-// )
-// {
-//   grammar_rules.resize(*std::accumulate(std::begin(grammar_rule_sizes), std::end(grammar_rule_sizes), 0));
-//
-//   return;
-// }
+template
+<
+  typename trie_node_pointer_type,
+  typename grammar_rules_iterator_type
+>
+void insert_grammar_rule
+(
+  trie_node_pointer_type node,
+  grammar_rules_iterator_type rules_begin,
+  grammar_rules_iterator_type rule_it,
+  grammar_rules_iterator_type rule_end,
+  int32_t dist
+)
+{
+  while (rule_it != rule_end)
+  {
+    auto character {*rule_it};
+    if (node->branch.find(character) == std::end(node->branch))
+    {
+      node->branch[character] = std::make_shared<trie_node>
+      (
+        std::distance(rules_begin, rule_it),
+        std::distance(rules_begin, rule_end),
+        1
+      );
+      return;
+    }
+    else
+    {
+      auto child {node->branch[character]};
+      auto edge_it {std::next(rules_begin, child->begin_dist)};
+      auto edge_end {std::next(rules_begin, child->end_dist)};
+      while
+      (
+        (rule_it != rule_end)
+        &&
+        (edge_it != edge_end)
+        &&
+        (*rule_it == *edge_it)
+      )
+      {
+        rule_it += dist;
+        edge_it += dist;
+      }
+      if (edge_it == edge_end)
+      {
+        node = child;
+      }
+      else
+      {
+        auto edge_it_dist {std::distance(rules_begin, edge_it)};
+        auto internal_node {std::make_shared<trie_node>(child->begin_dist, edge_it_dist, 0)};
+        child->begin_dist = edge_it_dist;
+        internal_node->branch[*edge_it] = child;
+        if (rule_it != rule_end)
+        {
+          internal_node->branch[*rule_it] = std::make_shared<trie_node>
+          (
+            std::distance(rules_begin, rule_it),
+            std::distance(rules_begin, rule_end),
+            1
+          );
+        }
+        else
+        {
+          internal_node->leftmost_rank = internal_node->rightmost_rank = 1;
+        }
+        node->branch[character] = internal_node;
+        return;
+      }
+    }
+  }
+  return;
+}
+
+template
+<
+  typename grammar_rule_sizes_type,
+  typename grammar_rules_type,
+  typename trie_node_pointer_type
+>
+void insert_grammar_rules
+(
+  grammar_rule_sizes_type const &grammar_rule_sizes,
+  grammar_rules_type const &grammar_rules,
+  trie_node_pointer_type &lex_trie_root,
+  trie_node_pointer_type &colex_trie_root
+)
+{
+  lex_trie_root = std::make_shared<trie_node>();
+  colex_trie_root = std::make_shared<trie_node>();
+  auto sizes_it {std::begin(grammar_rule_sizes)};
+  auto rules_begin {std::begin(grammar_rules)};
+  auto rules_it {rules_begin};
+  auto rules_end {std::end(grammar_rules)};
+  while (rules_it != rules_end)
+  {
+    auto rule_begin {rules_it};
+    auto rule_end {std::next(rule_begin, *sizes_it)};
+    insert_grammar_rule(lex_trie_root, rules_begin, rule_begin, rule_end, 1);
+    insert_grammar_rule(colex_trie_root, rules_begin, std::prev(rule_end), std::prev(rule_begin), -1);
+    ++sizes_it;
+    rules_it = rule_end;
+  }
+  return;
+}
+
+template
+<
+  typename grammar_rules_iterator_type,
+  typename trie_node_pointer_type
+>
+void print_trie
+(
+  grammar_rules_iterator_type const &rules_begin,
+  trie_node_pointer_type node,
+  int32_t dist
+)
+{
+  static size_t depth {0};
+  if (node != nullptr)
+  {
+    std::cout << depth << ": ";
+    if (node->begin_dist != node->end_dist)
+    {
+      auto it {std::next(rules_begin, node->begin_dist)};
+      auto end {std::next(rules_begin, node->end_dist)};
+      while (it != end)
+      {
+        std::cout << *it;
+        it += dist;
+      }
+    }
+    std::cout << '(' << node->leftmost_rank << ", " << node->rightmost_rank << ")\n";
+    for (auto character_child_pair : node->branch)
+    {
+      ++depth;
+      print_trie(rules_begin, std::get<1>(character_child_pair), dist);
+      --depth;
+    }
+  }
+  return;
+}
 
 struct gc_index
 {
@@ -522,6 +642,14 @@ struct gc_index
       grammar_rule_sizes,
       grammar_rules,
       grammar_rule_begin_dists_begin
+    );
+
+    insert_grammar_rules
+    (
+      grammar_rule_sizes,
+      grammar_rules,
+      lex_trie_root,
+      colex_trie_root
     );
 
     temporary_gc_text_end =
