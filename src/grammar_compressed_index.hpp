@@ -76,20 +76,20 @@ void calculate_sl_types
 template
 <
   typename text_type,
-  typename character_buckets_type
+  typename character_bucket_dists_type
 >
-void calculate_character_bucket_ends
+void calculate_character_bucket_end_dists
 (
   text_type const &text,
-  character_buckets_type &character_buckets
+  character_bucket_dists_type &character_bucket_dists
 )
 {
-  auto begin {std::begin(character_buckets)};
-  auto end {std::end(character_buckets)};
+  auto begin {std::begin(character_bucket_dists)};
+  auto end {std::end(character_bucket_dists)};
   std::fill(begin, end, 0);
   for (auto const &character : text)
   {
-    ++character_buckets[character];
+    ++character_bucket_dists[character];
   }
   std::partial_sum(begin, end, begin);
   return;
@@ -98,17 +98,17 @@ void calculate_character_bucket_ends
 template
 <
   typename text_type,
-  typename character_buckets_type
+  typename character_bucket_dists_type
 >
-void calculate_character_bucket_begins
+void calculate_character_bucket_begin_dists
 (
   text_type const &text,
-  character_buckets_type &character_buckets
+  character_bucket_dists_type &character_bucket_dists
 )
 {
-  calculate_character_bucket_ends(text, character_buckets);
-  auto rfirst {std::prev(std::end(character_buckets))};
-  auto rlast {std::begin(character_buckets)};
+  calculate_character_bucket_end_dists(text, character_bucket_dists);
+  auto rfirst {std::prev(std::end(character_bucket_dists))};
+  auto rlast {std::begin(character_bucket_dists)};
   for (auto rit {rfirst}; rit != rlast; --rit)
   {
     *rit = *std::prev(rit);
@@ -121,14 +121,14 @@ template
 <
   typename text_type,
   typename sl_types_type,
-  typename character_buckets_type,
+  typename character_bucket_dists_type,
   typename text_dists_type
 >
 void bucket_sort_rightmost_l_type_characters
 (
   text_type const &text,
   sl_types_type const &sl_types,
-  character_buckets_type &character_buckets,
+  character_bucket_dists_type &character_bucket_dists,
   text_dists_type &text_dists
 )
 {
@@ -137,7 +137,7 @@ void bucket_sort_rightmost_l_type_characters
     auto text_dist {std::distance(std::begin(text), text_it)};
     if (is_rightmost_l(std::next(std::begin(sl_types), text_dist)))
     {
-      auto bucket_begin_dist {character_buckets[*text_it]++};
+      auto bucket_begin_dist {character_bucket_dists[*text_it]++};
       text_dists[bucket_begin_dist] = text_dist;
     }
   }
@@ -148,14 +148,14 @@ template
 <
   typename text_type,
   typename sl_types_type,
-  typename character_buckets_type,
+  typename character_bucket_dists_type,
   typename text_dists_type
 >
 void induce_sort_l_type_characters
 (
   text_type const &text,
   sl_types_type const &sl_types,
-  character_buckets_type &character_buckets,
+  character_bucket_dists_type &character_bucket_dists,
   text_dists_type &text_dists
 )
 {
@@ -179,7 +179,7 @@ void induce_sort_l_type_characters
       (sl_types[text_dist - 1] == L)
     )
     {
-      auto bucket_begin_dist {character_buckets[text[text_dist - 1]]++};
+      auto bucket_begin_dist {character_bucket_dists[text[text_dist - 1]]++};
       text_dists[bucket_begin_dist] = (text_dist - 1);
       *text_dist_it = invalid_text_dist;
     }
@@ -191,14 +191,14 @@ template
 <
   typename text_type,
   typename sl_types_type,
-  typename character_buckets_type,
+  typename character_bucket_dists_type,
   typename text_dists_type
 >
 void induce_sort_s_type_characters
 (
   text_type const &text,
   sl_types_type const &sl_types,
-  character_buckets_type &character_buckets,
+  character_bucket_dists_type &character_bucket_dists,
   text_dists_type &text_dists
 )
 {
@@ -217,7 +217,7 @@ void induce_sort_s_type_characters
       (sl_types[text_dist - 1] == S)
     )
     {
-      auto bucket_end_dist {--character_buckets[text[text_dist - 1]]};
+      auto bucket_end_dist {--character_bucket_dists[text[text_dist - 1]]};
       text_dists[bucket_end_dist] = (text_dist - 1);
       *text_dist_rit = invalid_text_dist;
     }
@@ -351,8 +351,8 @@ void calculate_grammar_rule_sizes
 
 struct trie_node
 {
-  int32_t begin_dist;
-  int32_t end_dist;
+  int32_t edge_begin_dist;
+  int32_t edge_end_dist;
   std::map<uint8_t, std::shared_ptr<trie_node>> branch;
   uint32_t leftmost_rank;
   uint32_t rightmost_rank;
@@ -361,12 +361,12 @@ struct trie_node
 
   trie_node
   (
-    int32_t begin_dist_,
-    int32_t end_dist_,
+    int32_t edge_begin_dist_,
+    int32_t edge_end_dist_,
     uint32_t rank
   )
-  : begin_dist {begin_dist_},
-    end_dist {end_dist_},
+  : edge_begin_dist {edge_begin_dist_},
+    edge_end_dist {edge_end_dist_},
     leftmost_rank {rank},
     rightmost_rank {rank}
   {
@@ -425,10 +425,10 @@ void print_trie
   if (node != nullptr)
   {
     std::cout << depth << ':';
-    if (node->begin_dist != node->end_dist)
+    if (node->edge_begin_dist != node->edge_end_dist)
     {
-      auto it {std::next(rules_begin, node->begin_dist)};
-      auto end {std::next(rules_begin, node->end_dist)};
+      auto it {std::next(rules_begin, node->edge_begin_dist)};
+      auto end {std::next(rules_begin, node->edge_end_dist)};
       while (it != end)
       {
         if (*it != '\n')
@@ -484,8 +484,8 @@ void insert_grammar_rule
     else
     {
       auto child {node->branch[character]};
-      auto edge_it {std::next(rules_begin, child->begin_dist)};
-      auto edge_end {std::next(rules_begin, child->end_dist)};
+      auto edge_it {std::next(rules_begin, child->edge_begin_dist)};
+      auto edge_end {std::next(rules_begin, child->edge_end_dist)};
       while
       (
         (rule_it != rule_end)
@@ -513,8 +513,8 @@ void insert_grammar_rule
       else
       {
         auto edge_it_dist {std::distance(rules_begin, edge_it)};
-        auto internal_node {std::make_shared<trie_node>(child->begin_dist, edge_it_dist, 0)};
-        child->begin_dist = edge_it_dist;
+        auto internal_node {std::make_shared<trie_node>(child->edge_begin_dist, edge_it_dist, 0)};
+        child->edge_begin_dist = edge_it_dist;
         internal_node->branch[*edge_it] = child;
         if (rule_it != rule_end)
         {
@@ -705,7 +705,7 @@ struct gc_index
   sdsl::int_vector<8> grammar_rules;
   std::shared_ptr<trie_node> lex_trie_root;
   std::shared_ptr<trie_node> colex_trie_root;
-  sdsl::int_vector<> lex_gc_character_accu;
+  sdsl::int_vector<> lex_gc_character_bucket_begin_dists;
   sdsl::wt_int<> lex_gc_bwt;
   sdsl::wt_int<> colex_gc_bwt;
 
@@ -719,12 +719,12 @@ struct gc_index
     auto invalid_text_dist {text.size()};
     std::fill(std::begin(text_dists), std::end(text_dists), invalid_text_dist);
 
-    sdsl::int_vector<> character_buckets(256);
-    calculate_character_bucket_begins(text, character_buckets);
-    bucket_sort_rightmost_l_type_characters(text, sl_types, character_buckets, text_dists);
-    induce_sort_l_type_characters(text, sl_types, character_buckets, text_dists);
-    calculate_character_bucket_ends(text, character_buckets);
-    induce_sort_s_type_characters(text, sl_types, character_buckets, text_dists);
+    sdsl::int_vector<> character_bucket_dists(256);
+    calculate_character_bucket_begin_dists(text, character_bucket_dists);
+    bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+    induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+    calculate_character_bucket_end_dists(text, character_bucket_dists);
+    induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
 
     auto text_dists_boundary {collect_valid_entries(std::begin(text_dists), std::end(text_dists), invalid_text_dist)};
     auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
@@ -781,6 +781,9 @@ struct gc_index
     caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
 
     calculate_lex_gc_bwt(gc_text, lex_gc_bwt);
+
+    lex_gc_character_bucket_begin_dists.resize(grammar_rule_sizes.size() + 1);
+    calculate_character_bucket_begin_dists(gc_text, lex_gc_character_bucket_begin_dists);
   }
 };
 
