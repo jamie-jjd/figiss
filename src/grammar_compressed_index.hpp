@@ -4,7 +4,7 @@
 #include <map>
 #include <memory>
 
-#include <sdsl/wavelet_trees.hpp>
+#include <sdsl/suffix_trees.hpp>
 
 constexpr uint8_t S {1};
 constexpr uint8_t L {0};
@@ -225,25 +225,21 @@ void induce_sort_s_type_characters
   return;
 }
 
-template
-<
-  typename text_type,
-  typename text_dists_type
->
-auto calculate_text_dists_boundary
+template <typename random_access_iterator_type>
+auto collect_valid_entries
 (
-  text_type const &text,
-  text_dists_type &text_dists
+  random_access_iterator_type begin,
+  random_access_iterator_type end,
+  uint64_t const invalid_value
 )
 {
-  auto invalid_text_dist {std::size(text)};
   return std::stable_partition
   (
-    std::begin(text_dists),
-    std::end(text_dists),
-    [&] (auto const &text_dist)
+    begin,
+    end,
+    [&] (auto const &value)
     {
-      return (text_dist != invalid_text_dist);
+      return (value != invalid_value);
     }
   );
 }
@@ -253,15 +249,16 @@ template
   typename text_type,
   typename sl_types_type,
   typename grammar_rule_begin_dists_iterator_type,
-  typename temporary_gc_text_iterator_type
+  typename temp_gc_text_iterator_type
 >
-void filter_grammar_rule_begin_dists_and_calculate_temporary_gc_text
+void calculate_grammar_rule_begin_dists_and_temp_gc_text
 (
   text_type const &text,
   sl_types_type const &sl_types,
   grammar_rule_begin_dists_iterator_type begin_dists_begin,
-  grammar_rule_begin_dists_iterator_type begin_dists_end,
-  temporary_gc_text_iterator_type temporary_gc_text_begin
+  grammar_rule_begin_dists_iterator_type &begin_dists_end,
+  temp_gc_text_iterator_type temp_gc_text_begin,
+  temp_gc_text_iterator_type &temp_gc_text_end
 )
 {
   auto invalid_text_dist {std::size(text)};
@@ -309,36 +306,14 @@ void filter_grammar_rule_begin_dists_and_calculate_temporary_gc_text
         *begin_dists_it = invalid_text_dist;
       }
     }
-    *std::next(temporary_gc_text_begin, (begin_dist + 1) / 2) = ++lex_rank;
+    *std::next(temp_gc_text_begin, (begin_dist + 1) / 2) = ++lex_rank;
     prev_grammar_rule_it = std::next(std::begin(text), begin_dist);
     prev_sl_types_it = std::next(std::begin(sl_types), begin_dist);
     ++begin_dists_it;
   }
+  begin_dists_end = collect_valid_entries(begin_dists_begin, begin_dists_end, invalid_text_dist);
+  temp_gc_text_end = collect_valid_entries(temp_gc_text_begin, temp_gc_text_end, invalid_text_dist);
   return;
-}
-
-template
-<
-  typename text_type,
-  typename random_access_iterator_type
->
-auto collect_valid_entries
-(
-  text_type const &text,
-  random_access_iterator_type begin,
-  random_access_iterator_type end
-)
-{
-  auto invalid_value {std::size(text)};
-  return std::stable_partition
-  (
-    begin,
-    end,
-    [&] (auto const &value)
-    {
-      return (value != invalid_value);
-    }
-  );
 }
 
 template
@@ -680,12 +655,57 @@ void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
   return;
 }
 
+template
+<
+  typename gc_text_type,
+  typename temp_gc_text_iterator_type
+>
+void caculate_gc_text
+(
+  gc_text_type &gc_text,
+  temp_gc_text_iterator_type temp_gc_text_begin,
+  temp_gc_text_iterator_type temp_gc_text_end
+)
+{
+  gc_text.resize(std::distance(temp_gc_text_begin, temp_gc_text_end) + 1);
+  gc_text[gc_text.size() - 1] = 0;
+  std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
+  return;
+}
+
+template
+<
+  typename gc_text_type,
+  typename lex_gc_bwt_type
+>
+void calculate_lex_gc_bwt
+(
+  gc_text_type const &gc_text,
+  lex_gc_bwt_type &lex_gc_bwt
+)
+{
+  sdsl::int_vector<> sa_bwt;
+  sdsl::qsufsort::construct_sa(sa_bwt, gc_text);
+  auto sa_bwt_it {std::begin(sa_bwt)};
+  auto sa_bwt_end {std::end(sa_bwt)};
+  while (sa_bwt_it != sa_bwt_end)
+  {
+    if (*sa_bwt_it != 0)
+    {
+      *sa_bwt_it = gc_text[*sa_bwt_it - 1];
+    }
+    ++sa_bwt_it;
+  }
+  construct_im(lex_gc_bwt, sa_bwt);
+  return;
+}
+
 struct gc_index
 {
   sdsl::int_vector<8> grammar_rules;
   std::shared_ptr<trie_node> lex_trie_root;
   std::shared_ptr<trie_node> colex_trie_root;
-  sdsl::int_vector<> lex_gc_character_begins;
+  sdsl::int_vector<> lex_gc_character_accu;
   sdsl::wt_int<> lex_gc_bwt;
   sdsl::wt_int<> colex_gc_bwt;
 
@@ -706,27 +726,20 @@ struct gc_index
     calculate_character_bucket_ends(text, character_buckets);
     induce_sort_s_type_characters(text, sl_types, character_buckets, text_dists);
 
-    auto text_dists_boundary {calculate_text_dists_boundary(text, text_dists)};
+    auto text_dists_boundary {collect_valid_entries(std::begin(text_dists), std::end(text_dists), invalid_text_dist)};
     auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
     auto grammar_rule_begin_dists_end {text_dists_boundary};
-    auto temporary_gc_text_begin {text_dists_boundary};
-    auto temporary_gc_text_end {std::end(text_dists)};
+    auto temp_gc_text_begin {text_dists_boundary};
+    auto temp_gc_text_end {std::end(text_dists)};
 
-    filter_grammar_rule_begin_dists_and_calculate_temporary_gc_text
+    calculate_grammar_rule_begin_dists_and_temp_gc_text
     (
       text,
       sl_types,
       grammar_rule_begin_dists_begin,
       grammar_rule_begin_dists_end,
-      temporary_gc_text_begin
-    );
-
-    grammar_rule_begin_dists_end =
-    collect_valid_entries
-    (
-      text,
-      grammar_rule_begin_dists_begin,
-      grammar_rule_begin_dists_end
+      temp_gc_text_begin,
+      temp_gc_text_end
     );
 
     sdsl::int_vector<> grammar_rule_sizes;
@@ -764,17 +777,10 @@ struct gc_index
       lex_colex_permutation
     );
 
-    print_trie(std::begin(grammar_rules), colex_trie_root, -1);
-    std::cout << lex_colex_permutation << '\n';
+    sdsl::int_vector<> gc_text;
+    caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
 
-    temporary_gc_text_end =
-    collect_valid_entries
-    (
-      text,
-      temporary_gc_text_begin,
-      temporary_gc_text_end
-    );
-
+    calculate_lex_gc_bwt(gc_text, lex_gc_bwt);
   }
 };
 
