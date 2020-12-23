@@ -525,7 +525,15 @@ void insert_grammar_rule
       }
       if (edge_it == edge_end)
       {
-        node = child;
+        if (rule_it != rule_end)
+        {
+          node = child;
+        }
+        else
+        {
+          child->leftmost_rank = lex_rank;
+          child->rightmost_rank = lex_rank;
+        }
       }
       else
       {
@@ -629,44 +637,48 @@ void calculate_lex_trie_rank_ranges (trie_node_pointer_type node)
   return;
 }
 
-// template
-// <
-//   typename trie_node_pointer_type,
-//   typename lex_colex_permutation_type
-// >
-// void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
-// (
-//   trie_node_pointer_type node,
-//   lex_colex_permutation_type &lex_colex_permutation
-// )
-// {
-//   static uint32_t colex_rank {1};
-//   if (node->leftmost_rank != 0)
-//   {
-//     auto lex_rank {};
-//     lex_colex_permutation[node->leftmost_rank - 1] = colex_rank;
-//     node->leftmost_rank = node->rightmost_rank = colex_rank;
-//     ++colex_rank;
-//   }
-//   if (!node->branch.empty())
-//   {
-//     auto branch_rit = std::prev(std::end(node->branch));
-//     auto branch_rend = std::prev(std::begin(node->branch));
-//     while (branch_rit != branch_rend)
-//     {
-//       calculate_non_terminal_distance_range_and_permutation_vector(std::get<1>(*branch_rit));
-//       --branch_rit;
-//     }
-//     auto last_child {std::get<1>(*std::prev(std::end(node->branch)))};
-//     auto first_child {std::get<1>(*std::begin(node->branch))};
-//     if (node->non_terminal_end_distance == 0)
-//     {
-//       node->non_terminal_end_distance = last_child->non_terminal_end_distance;
-//     }
-//     node->non_terminal_begin_distance = first_child->non_terminal_begin_distance;
-//   }
-//   return;
-// }
+template
+<
+  typename trie_node_pointer_type,
+  typename lex_colex_permutation_type
+>
+void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+(
+  trie_node_pointer_type node,
+  lex_colex_permutation_type &lex_colex_permutation
+)
+{
+  static uint32_t colex_rank {1};
+  if (node->leftmost_rank != 0)
+  {
+    lex_colex_permutation[node->leftmost_rank] = colex_rank;
+    node->leftmost_rank = node->rightmost_rank = colex_rank;
+    ++colex_rank;
+  }
+  if (!node->branch.empty())
+  {
+    auto branch_begin {std::begin(node->branch)};
+    auto branch_it {branch_begin};
+    auto branch_end {std::end(node->branch)};
+    while (branch_it != branch_end)
+    {
+      calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+      (
+        std::get<1>(*branch_it),
+        lex_colex_permutation
+      );
+      ++branch_it;
+    }
+    auto first_child {std::get<1>(*branch_begin)};
+    auto last_child {std::get<1>(*std::prev(branch_end))};
+    if (node->leftmost_rank == 0)
+    {
+      node->leftmost_rank = first_child->leftmost_rank;
+    }
+    node->rightmost_rank = last_child->rightmost_rank;
+  }
+  return;
+}
 
 struct gc_index
 {
@@ -746,13 +758,14 @@ struct gc_index
 
     sdsl::int_vector<> lex_colex_permutation(grammar_rule_sizes.size() + 1);
     lex_colex_permutation[0] = 0;
-    // calculate_colex_trie_rank_ranges_and_lex_colex_permutation
-    // (
-    //   colex_trie_root,
-    //   lex_colex_permutation
-    // );
+    calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+    (
+      colex_trie_root,
+      lex_colex_permutation
+    );
 
-    print_trie(std::begin(grammar_rules), lex_trie_root, 1);
+    print_trie(std::begin(grammar_rules), colex_trie_root, -1);
+    std::cout << lex_colex_permutation << '\n';
 
     temporary_gc_text_end =
     collect_valid_entries
