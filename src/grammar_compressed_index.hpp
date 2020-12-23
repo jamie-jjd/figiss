@@ -436,6 +436,50 @@ void calculate_grammar_rules
 
 template
 <
+  typename grammar_rules_iterator_type,
+  typename trie_node_pointer_type
+>
+void print_trie
+(
+  grammar_rules_iterator_type const &rules_begin,
+  trie_node_pointer_type node,
+  int32_t dist
+)
+{
+  static size_t depth {0};
+  if (node != nullptr)
+  {
+    std::cout << depth << ':';
+    if (node->begin_dist != node->end_dist)
+    {
+      auto it {std::next(rules_begin, node->begin_dist)};
+      auto end {std::next(rules_begin, node->end_dist)};
+      while (it != end)
+      {
+        if (*it != '\n')
+        {
+          std::cout << *it;
+        }
+        else
+        {
+          std::cout << "\\n";
+        }
+        it += dist;
+      }
+    }
+    std::cout << "(" << node->leftmost_rank << ',' << node->rightmost_rank << ")\n";
+    for (auto character_child_pair : node->branch)
+    {
+      ++depth;
+      print_trie(rules_begin, std::get<1>(character_child_pair), dist);
+      --depth;
+    }
+  }
+  return;
+}
+
+template
+<
   typename trie_node_pointer_type,
   typename grammar_rules_iterator_type
 >
@@ -445,7 +489,8 @@ void insert_grammar_rule
   grammar_rules_iterator_type rules_begin,
   grammar_rules_iterator_type rule_it,
   grammar_rules_iterator_type rule_end,
-  int32_t dist
+  int32_t dist,
+  uint32_t lex_rank
 )
 {
   while (rule_it != rule_end)
@@ -457,7 +502,7 @@ void insert_grammar_rule
       (
         std::distance(rules_begin, rule_it),
         std::distance(rules_begin, rule_end),
-        1
+        lex_rank
       );
       return;
     }
@@ -494,12 +539,13 @@ void insert_grammar_rule
           (
             std::distance(rules_begin, rule_it),
             std::distance(rules_begin, rule_end),
-            1
+            lex_rank
           );
         }
         else
         {
-          internal_node->leftmost_rank = internal_node->rightmost_rank = 1;
+          internal_node->leftmost_rank = lex_rank;
+          internal_node->rightmost_rank = lex_rank;
         }
         node->branch[character] = internal_node;
         return;
@@ -525,6 +571,7 @@ void insert_grammar_rules
 {
   lex_trie_root = std::make_shared<trie_node>();
   colex_trie_root = std::make_shared<trie_node>();
+  uint32_t lex_rank {1};
   auto sizes_it {std::begin(grammar_rule_sizes)};
   auto rules_begin {std::begin(grammar_rules)};
   auto rules_it {rules_begin};
@@ -533,50 +580,93 @@ void insert_grammar_rules
   {
     auto rule_begin {rules_it};
     auto rule_end {std::next(rule_begin, *sizes_it)};
-    insert_grammar_rule(lex_trie_root, rules_begin, rule_begin, rule_end, 1);
-    insert_grammar_rule(colex_trie_root, rules_begin, std::prev(rule_end), std::prev(rule_begin), -1);
+    insert_grammar_rule
+    (
+      lex_trie_root,
+      rules_begin,
+      rule_begin,
+      rule_end,
+      1,
+      lex_rank
+    );
+    insert_grammar_rule
+    (
+      colex_trie_root,
+      rules_begin,
+      std::prev(rule_end),
+      std::prev(rule_begin),
+      -1,
+      lex_rank
+    );
+    ++lex_rank;
     ++sizes_it;
     rules_it = rule_end;
   }
   return;
 }
 
-template
-<
-  typename grammar_rules_iterator_type,
-  typename trie_node_pointer_type
->
-void print_trie
-(
-  grammar_rules_iterator_type const &rules_begin,
-  trie_node_pointer_type node,
-  int32_t dist
-)
+template <typename trie_node_pointer_type>
+void calculate_lex_trie_rank_ranges (trie_node_pointer_type node)
 {
-  static size_t depth {0};
-  if (node != nullptr)
+  if (!node->branch.empty())
   {
-    std::cout << depth << ": ";
-    if (node->begin_dist != node->end_dist)
+    auto branch_begin {std::begin(node->branch)};
+    auto branch_it {branch_begin};
+    auto branch_end {std::end(node->branch)};
+    while (branch_it != branch_end)
     {
-      auto it {std::next(rules_begin, node->begin_dist)};
-      auto end {std::next(rules_begin, node->end_dist)};
-      while (it != end)
-      {
-        std::cout << *it;
-        it += dist;
-      }
+      calculate_lex_trie_rank_ranges(std::get<1>(*branch_it));
+      ++branch_it;
     }
-    std::cout << '(' << node->leftmost_rank << ", " << node->rightmost_rank << ")\n";
-    for (auto character_child_pair : node->branch)
+    auto first_child {std::get<1>(*branch_begin)};
+    auto last_child {std::get<1>(*std::prev(branch_end))};
+    if (node->leftmost_rank == 0)
     {
-      ++depth;
-      print_trie(rules_begin, std::get<1>(character_child_pair), dist);
-      --depth;
+      node->leftmost_rank = first_child->leftmost_rank;
     }
+    node->rightmost_rank = last_child->rightmost_rank;
   }
   return;
 }
+
+// template
+// <
+//   typename trie_node_pointer_type,
+//   typename lex_colex_permutation_type
+// >
+// void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+// (
+//   trie_node_pointer_type node,
+//   lex_colex_permutation_type &lex_colex_permutation
+// )
+// {
+//   static uint32_t colex_rank {1};
+//   if (node->leftmost_rank != 0)
+//   {
+//     auto lex_rank {};
+//     lex_colex_permutation[node->leftmost_rank - 1] = colex_rank;
+//     node->leftmost_rank = node->rightmost_rank = colex_rank;
+//     ++colex_rank;
+//   }
+//   if (!node->branch.empty())
+//   {
+//     auto branch_rit = std::prev(std::end(node->branch));
+//     auto branch_rend = std::prev(std::begin(node->branch));
+//     while (branch_rit != branch_rend)
+//     {
+//       calculate_non_terminal_distance_range_and_permutation_vector(std::get<1>(*branch_rit));
+//       --branch_rit;
+//     }
+//     auto last_child {std::get<1>(*std::prev(std::end(node->branch)))};
+//     auto first_child {std::get<1>(*std::begin(node->branch))};
+//     if (node->non_terminal_end_distance == 0)
+//     {
+//       node->non_terminal_end_distance = last_child->non_terminal_end_distance;
+//     }
+//     node->non_terminal_begin_distance = first_child->non_terminal_begin_distance;
+//   }
+//   return;
+// }
 
 struct gc_index
 {
@@ -651,6 +741,18 @@ struct gc_index
       lex_trie_root,
       colex_trie_root
     );
+
+    calculate_lex_trie_rank_ranges(lex_trie_root);
+
+    sdsl::int_vector<> lex_colex_permutation(grammar_rule_sizes.size() + 1);
+    lex_colex_permutation[0] = 0;
+    // calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+    // (
+    //   colex_trie_root,
+    //   lex_colex_permutation
+    // );
+
+    print_trie(std::begin(grammar_rules), lex_trie_root, 1);
 
     temporary_gc_text_end =
     collect_valid_entries
