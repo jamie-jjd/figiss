@@ -676,12 +676,12 @@ void caculate_gc_text
 template
 <
   typename gc_text_type,
-  typename lex_gc_bwt_type
+  typename bwt_wt_type
 >
-void calculate_lex_gc_bwt
+void calculate_bwt_wt
 (
   gc_text_type const &gc_text,
-  lex_gc_bwt_type &lex_gc_bwt
+  bwt_wt_type &bwt_wt
 )
 {
   sdsl::int_vector<> sa_bwt;
@@ -696,7 +696,31 @@ void calculate_lex_gc_bwt
     }
     ++sa_bwt_it;
   }
-  construct_im(lex_gc_bwt, sa_bwt);
+  construct_im(bwt_wt, sa_bwt);
+  return;
+}
+
+template
+<
+  typename gc_text_type,
+  typename bwt_wt_type,
+  typename lex_colex_permutation_type
+>
+void calculate_colex_bwt_wt
+(
+  gc_text_type &gc_text,
+  bwt_wt_type &bwt_wt,
+  lex_colex_permutation_type &lex_colex_permutation
+)
+{
+  auto gc_text_it {std::begin(gc_text)};
+  auto gc_text_end {std::end(gc_text)};
+  while (gc_text_it != gc_text_end)
+  {
+    *gc_text_it = lex_colex_permutation[*gc_text_it];
+    ++gc_text_it;
+  }
+  calculate_bwt_wt(gc_text, bwt_wt);
   return;
 }
 
@@ -706,8 +730,8 @@ struct gc_index
   std::shared_ptr<trie_node> lex_trie_root;
   std::shared_ptr<trie_node> colex_trie_root;
   sdsl::int_vector<> lex_gc_character_bucket_begin_dists;
-  sdsl::wt_int<> lex_gc_bwt;
-  sdsl::wt_int<> colex_gc_bwt;
+  sdsl::wt_int<> lex_gc_bwt_wt;
+  sdsl::wt_int<> colex_gc_bwt_wt;
 
   template <typename text_type>
   gc_index (text_type const &text)
@@ -758,7 +782,6 @@ struct gc_index
       grammar_rules,
       grammar_rule_begin_dists_begin
     );
-
     insert_grammar_rules
     (
       grammar_rule_sizes,
@@ -766,7 +789,6 @@ struct gc_index
       lex_trie_root,
       colex_trie_root
     );
-
     calculate_lex_trie_rank_ranges(lex_trie_root);
 
     sdsl::int_vector<> lex_colex_permutation(grammar_rule_sizes.size() + 1);
@@ -778,12 +800,11 @@ struct gc_index
     );
 
     sdsl::int_vector<> gc_text;
-    caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
-
-    calculate_lex_gc_bwt(gc_text, lex_gc_bwt);
-
     lex_gc_character_bucket_begin_dists.resize(grammar_rule_sizes.size() + 1);
+    caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
+    calculate_bwt_wt(gc_text, lex_gc_bwt_wt);
     calculate_character_bucket_begin_dists(gc_text, lex_gc_character_bucket_begin_dists);
+    calculate_colex_bwt_wt(gc_text, colex_gc_bwt_wt, lex_colex_permutation);
   }
 };
 
