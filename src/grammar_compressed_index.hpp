@@ -42,7 +42,7 @@ void calculate_sl_types
   sl_types_type &sl_types
 )
 {
-  sl_types.resize(string.size());
+  sl_types.resize(std::size(string));
   std::fill
   (
     std::begin(sl_types),
@@ -230,7 +230,7 @@ auto collect_valid_entries
 (
   random_access_iterator_type begin,
   random_access_iterator_type end,
-  uint64_t const invalid_value
+  uint32_t const invalid_value
 )
 {
   return std::stable_partition
@@ -262,13 +262,13 @@ void calculate_grammar_rule_begin_dists_and_temp_gc_text
 )
 {
   auto invalid_text_dist {std::size(text)};
-  uint64_t lex_rank {0};
+  uint32_t lex_rank {0};
   auto prev_grammar_rule_it {std::prev(std::end(text))};
   auto prev_sl_types_it {std::prev(std::end(sl_types))};
   auto begin_dists_it {begin_dists_begin};
   while (begin_dists_it != begin_dists_end)
   {
-    uint64_t begin_dist {*begin_dists_it};
+    uint32_t begin_dist {*begin_dists_it};
     auto grammar_rule_it {std::next(std::begin(text), begin_dist)};
     auto sl_types_it {std::next(std::begin(sl_types), begin_dist)};
     if
@@ -353,7 +353,7 @@ struct trie_node
 {
   int32_t edge_begin_dist;
   int32_t edge_end_dist;
-  std::map<uint8_t, std::shared_ptr<trie_node>> branch;
+  std::map<uint8_t, std::shared_ptr<trie_node>> branches;
   uint32_t leftmost_rank;
   uint32_t rightmost_rank;
 
@@ -443,7 +443,7 @@ void print_trie
       }
     }
     std::cout << "(" << node->leftmost_rank << ',' << node->rightmost_rank << ")\n";
-    for (auto character_child_pair : node->branch)
+    for (auto character_child_pair : node->branches)
     {
       ++depth;
       print_trie(rules_begin, std::get<1>(character_child_pair), dist);
@@ -471,9 +471,9 @@ void insert_grammar_rule
   while (rule_it != rule_end)
   {
     auto character {*rule_it};
-    if (node->branch.find(character) == std::end(node->branch))
+    if (node->branches.find(character) == std::end(node->branches))
     {
-      node->branch[character] = std::make_shared<trie_node>
+      node->branches[character] = std::make_shared<trie_node>
       (
         std::distance(rules_begin, rule_it),
         std::distance(rules_begin, rule_end),
@@ -483,7 +483,7 @@ void insert_grammar_rule
     }
     else
     {
-      auto child {node->branch[character]};
+      auto child {node->branches[character]};
       auto edge_it {std::next(rules_begin, child->edge_begin_dist)};
       auto edge_end {std::next(rules_begin, child->edge_end_dist)};
       while
@@ -515,10 +515,10 @@ void insert_grammar_rule
         auto edge_it_dist {std::distance(rules_begin, edge_it)};
         auto internal_node {std::make_shared<trie_node>(child->edge_begin_dist, edge_it_dist, 0)};
         child->edge_begin_dist = edge_it_dist;
-        internal_node->branch[*edge_it] = child;
+        internal_node->branches[*edge_it] = child;
         if (rule_it != rule_end)
         {
-          internal_node->branch[*rule_it] = std::make_shared<trie_node>
+          internal_node->branches[*rule_it] = std::make_shared<trie_node>
           (
             std::distance(rules_begin, rule_it),
             std::distance(rules_begin, rule_end),
@@ -530,7 +530,7 @@ void insert_grammar_rule
           internal_node->leftmost_rank = lex_rank;
           internal_node->rightmost_rank = lex_rank;
         }
-        node->branch[character] = internal_node;
+        node->branches[character] = internal_node;
         return;
       }
     }
@@ -591,18 +591,18 @@ void insert_grammar_rules
 template <typename trie_node_pointer_type>
 void calculate_lex_trie_rank_ranges (trie_node_pointer_type node)
 {
-  if (!node->branch.empty())
+  if (!node->branches.empty())
   {
-    auto branch_begin {std::begin(node->branch)};
-    auto branch_it {branch_begin};
-    auto branch_end {std::end(node->branch)};
-    while (branch_it != branch_end)
+    auto branches_begin {std::begin(node->branches)};
+    auto branches_it {branches_begin};
+    auto branches_end {std::end(node->branches)};
+    while (branches_it != branches_end)
     {
-      calculate_lex_trie_rank_ranges(std::get<1>(*branch_it));
-      ++branch_it;
+      calculate_lex_trie_rank_ranges(std::get<1>(*branches_it));
+      ++branches_it;
     }
-    auto first_child {std::get<1>(*branch_begin)};
-    auto last_child {std::get<1>(*std::prev(branch_end))};
+    auto first_child {std::get<1>(*branches_begin)};
+    auto last_child {std::get<1>(*std::prev(branches_end))};
     if (node->leftmost_rank == 0)
     {
       node->leftmost_rank = first_child->leftmost_rank;
@@ -630,22 +630,22 @@ void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
     node->leftmost_rank = node->rightmost_rank = colex_rank;
     ++colex_rank;
   }
-  if (!node->branch.empty())
+  if (!node->branches.empty())
   {
-    auto branch_begin {std::begin(node->branch)};
-    auto branch_it {branch_begin};
-    auto branch_end {std::end(node->branch)};
-    while (branch_it != branch_end)
+    auto branches_begin {std::begin(node->branches)};
+    auto branches_it {branches_begin};
+    auto branches_end {std::end(node->branches)};
+    while (branches_it != branches_end)
     {
       calculate_colex_trie_rank_ranges_and_lex_colex_permutation
       (
-        std::get<1>(*branch_it),
+        std::get<1>(*branches_it),
         lex_colex_permutation
       );
-      ++branch_it;
+      ++branches_it;
     }
-    auto first_child {std::get<1>(*branch_begin)};
-    auto last_child {std::get<1>(*std::prev(branch_end))};
+    auto first_child {std::get<1>(*branches_begin)};
+    auto last_child {std::get<1>(*std::prev(branches_end))};
     if (node->leftmost_rank == 0)
     {
       node->leftmost_rank = first_child->leftmost_rank;
@@ -668,7 +668,7 @@ void caculate_gc_text
 )
 {
   gc_text.resize(std::distance(temp_gc_text_begin, temp_gc_text_end) + 1);
-  gc_text[gc_text.size() - 1] = 0;
+  gc_text[std::size(gc_text) - 1] = 0;
   std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
   return;
 }
@@ -684,7 +684,7 @@ void calculate_bwt_wt
   bwt_wt_type &bwt_wt
 )
 {
-  sdsl::int_vector<> sa_bwt;
+  sdsl::int_vector<32> sa_bwt;
   sdsl::qsufsort::construct_sa(sa_bwt, gc_text);
   auto sa_bwt_it {std::begin(sa_bwt)};
   auto sa_bwt_end {std::end(sa_bwt)};
@@ -729,7 +729,7 @@ struct gc_index
   sdsl::int_vector<8> grammar_rules;
   std::shared_ptr<trie_node> lex_trie_root;
   std::shared_ptr<trie_node> colex_trie_root;
-  sdsl::int_vector<> lex_gc_character_bucket_begin_dists;
+  sdsl::int_vector<32> lex_gc_character_bucket_end_dists;
   sdsl::wt_int<> lex_gc_bwt_wt;
   sdsl::wt_int<> colex_gc_bwt_wt;
 
@@ -739,11 +739,11 @@ struct gc_index
     sdsl::bit_vector sl_types;
     calculate_sl_types(text, sl_types);
 
-    sdsl::int_vector<> text_dists(text.size());
-    auto invalid_text_dist {text.size()};
+    sdsl::int_vector<32> text_dists(std::size(text));
+    auto invalid_text_dist {std::size(text)};
     std::fill(std::begin(text_dists), std::end(text_dists), invalid_text_dist);
 
-    sdsl::int_vector<> character_bucket_dists(256);
+    sdsl::int_vector<32> character_bucket_dists(256);
     calculate_character_bucket_begin_dists(text, character_bucket_dists);
     bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
     induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
@@ -766,7 +766,7 @@ struct gc_index
       temp_gc_text_end
     );
 
-    sdsl::int_vector<> grammar_rule_sizes;
+    sdsl::int_vector<32> grammar_rule_sizes;
     calculate_grammar_rule_sizes
     (
       grammar_rule_sizes,
@@ -791,7 +791,7 @@ struct gc_index
     );
     calculate_lex_trie_rank_ranges(lex_trie_root);
 
-    sdsl::int_vector<> lex_colex_permutation(grammar_rule_sizes.size() + 1);
+    sdsl::int_vector<32> lex_colex_permutation(std::size(grammar_rule_sizes) + 1);
     lex_colex_permutation[0] = 0;
     calculate_colex_trie_rank_ranges_and_lex_colex_permutation
     (
@@ -799,13 +799,176 @@ struct gc_index
       lex_colex_permutation
     );
 
-    sdsl::int_vector<> gc_text;
-    lex_gc_character_bucket_begin_dists.resize(grammar_rule_sizes.size() + 1);
+    sdsl::int_vector<32> gc_text;
+    lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
     caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
     calculate_bwt_wt(gc_text, lex_gc_bwt_wt);
-    calculate_character_bucket_begin_dists(gc_text, lex_gc_character_bucket_begin_dists);
+    calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
     calculate_colex_bwt_wt(gc_text, colex_gc_bwt_wt, lex_colex_permutation);
   }
+
+  template <typename pattern_iterator_type>
+  void calculate_rlast
+  (
+    pattern_iterator_type &rlast,
+    pattern_iterator_type const &rend,
+    uint8_t prev_sl_type
+  )
+  {
+    while
+    (
+      (rlast != rend)
+      &&
+      ! (
+          (prev_sl_type == S)
+          &&
+          (*rlast > *std::next(rlast))
+        )
+    )
+    {
+      if
+      (
+        (prev_sl_type == L)
+        &&
+        (*rlast < *std::next(rlast))
+      )
+      {
+        prev_sl_type = S;
+      }
+      --rlast;
+    }
+    return;
+  }
+
+  template
+  <
+    typename trie_node_pointer_type,
+    typename string_iterator_type
+  >
+  void search_grammar_rule
+  (
+    trie_node_pointer_type node,
+    string_iterator_type it,
+    string_iterator_type end,
+    int32_t dist,
+    uint32_t &leftmost_rank,
+    uint32_t &rightmost_rank
+  )
+  {
+    if (node->branch[*it] != std::end(node->branches))
+    {
+      auto child {node->branches[*it]};
+      while (true)
+      {
+        auto edge_it {std::next(std::begin(grammar_rules), child->edge_begin_dist)};
+        auto edge_end {std::next(std::begin(grammar_rules), child->edge_end_dist)};
+        while
+        (
+          (it != end)
+          &&
+          (edge_it != edge_end)
+          &&
+          (*it == *edge_it)
+        )
+        {
+          it += dist;
+          ++edge_it;
+        }
+        if (it != end)
+        {
+          if (edge_it == edge_end)
+          {
+            node = child;
+          }
+          else
+          {
+            return;
+          }
+        }
+        else
+        {
+          leftmost_rank = child->leftmost_rank;
+          rightmost_rank = child->rightmost_rank;
+          return;
+        }
+      }
+    }
+    return;
+  }
+
+  template <typename pattern_iterator_type>
+  void backward_search_suffix
+  (
+    uint32_t &begin_dist,
+    uint32_t &end_dist,
+    pattern_iterator_type begin,
+    pattern_iterator_type end
+  )
+  {
+    uint32_t leftmost_lex_rank {0};
+    uint32_t rightmost_lex_rank {0};
+    search_grammar_rule
+    (
+      lex_trie_root,
+      begin,
+      end,
+      1,
+      leftmost_lex_rank,
+      rightmost_lex_rank
+    );
+    return;
+  }
+
+  template <typename pattern_iterator_type>
+  auto count
+  (
+    pattern_iterator_type rbegin,
+    pattern_iterator_type rend,
+    uint8_t prev_sl_type
+  )
+  {
+    uint32_t begin_dist {0};
+    uint32_t end_dist {0};
+    auto rfirst {rbegin};
+    auto rlast {std::prev(rfirst)};
+    calculate_rlast(rlast, rend, prev_sl_type);
+    backward_search_suffix(begin_dist, end_dist, std::next(rlast), std::next(rfirst));
+    while (begin_dist != end_dist)
+    {
+      rfirst = rlast--;
+      calculate_rlast(rlast, rend, L);
+      if (rlast != rend)
+      {
+        backward_search_pivot(begin_dist, end_dist, std::next(rlast), std::next(rfirst));
+      }
+      else
+      {
+        backward_search_prefix(begin_dist, end_dist, rfirst, rend);
+        break;
+      }
+    }
+    return (end_dist - begin_dist);
+  }
+
+  template <typename pattern_iterator_type>
+  uint32_t count
+  (
+    pattern_iterator_type pattern_begin,
+    pattern_iterator_type pattern_end
+  )
+  {
+    if (std::distance(pattern_begin, pattern_end) != 0)
+    {
+      return
+      (
+        count(std::prev(pattern_end), std::prev(pattern_begin), S)
+        +
+        count(std::prev(pattern_end), std::prev(pattern_begin), L)
+      );
+    }
+    return 0;
+  }
+
 };
 
 #endif
