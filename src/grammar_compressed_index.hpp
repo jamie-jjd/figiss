@@ -737,6 +737,29 @@ void calculate_colex_gc_bwt_wt
   return;
 }
 
+template <typename pattern_iterator_type>
+bool exists_another_factorization
+(
+  pattern_iterator_type rit,
+  pattern_iterator_type rend
+)
+{
+  while
+  (
+    (std::next(rend) != rit)
+    &&
+    (*std::prev(rit) == *rit)
+  )
+  {
+    --rit;
+  }
+  if (std::next(rend) != rit)
+  {
+    return (*std::prev(rit) > *rit);
+  }
+  return false;
+}
+
 struct gc_index
 {
   sdsl::int_vector<> grammar_rule_sizes;
@@ -811,9 +834,6 @@ struct gc_index
       colex_trie_root,
       lex_colex_permutation
     );
-
-    print_trie(std::begin(grammar_rules), lex_trie_root, 1);
-    print_trie(std::begin(grammar_rules), colex_trie_root, -1);
 
     sdsl::int_vector<> gc_text;
     caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
@@ -929,17 +949,11 @@ struct gc_index
       leftmost_lex_rank,
       rightmost_lex_rank
     );
-    for (auto it {begin}; it != end; ++it)
-    {
-      std::cout << *it << ' ';
-    }
-    std::cout << "-> (" << leftmost_lex_rank << ", " << rightmost_lex_rank << ") ";
     if (leftmost_lex_rank != 0)
     {
       begin_dist = lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
       end_dist = lex_gc_character_bucket_end_dists[rightmost_lex_rank];
     }
-    std::cout << "-> (" << begin_dist << ", " << end_dist << ")\n";
     return;
   }
 
@@ -962,11 +976,6 @@ struct gc_index
       lex_rank,
       lex_rank
     );
-    for (auto it {begin}; it != end; ++it)
-    {
-      std::cout << *it << ' ';
-    }
-    std::cout << "-> (" << lex_rank << ") ";
     if (lex_rank != 0)
     {
       auto character_begin_dist {lex_gc_character_bucket_end_dists[lex_rank - 1]};
@@ -977,7 +986,6 @@ struct gc_index
     {
       begin_dist = end_dist;
     }
-    std::cout << "-> (" << begin_dist << ", " << end_dist << ")\n";
     return;
   }
 
@@ -1001,14 +1009,9 @@ struct gc_index
       leftmost_colex_rank,
       rightmost_colex_rank
     );
-    for (auto rit {rbegin}; rit != rend; --rit)
-    {
-      std::cout << *rit << ' ';
-    }
-    std::cout << "-> (" << leftmost_colex_rank << ", " << rightmost_colex_rank << ") ";
     if (leftmost_colex_rank != 0)
     {
-      auto c = std::get<0>
+      return std::get<0>
       (
         colex_gc_bwt_wt.range_search_2d
         (
@@ -1018,8 +1021,6 @@ struct gc_index
           rightmost_colex_rank
         )
       );
-      std::cout << "-> (" << c << ")\n";
-      return c;
     }
     return 0;
   }
@@ -1061,16 +1062,16 @@ struct gc_index
     pattern_iterator_type pattern_end
   )
   {
+    uint32_t count_ {0};
     if (std::distance(pattern_begin, pattern_end) != 0)
     {
-      return
-      (
-        count(std::prev(pattern_end), std::prev(pattern_begin), S)
-        +
-        count(std::prev(pattern_end), std::prev(pattern_begin), L)
-      );
+      count_ = count(std::prev(pattern_end), std::prev(pattern_begin), S);
+      if (exists_another_factorization(std::prev(pattern_end), std::prev(pattern_begin)))
+      {
+        count_ += count(std::prev(pattern_end), std::prev(pattern_begin), L);
+      }
     }
-    return 0;
+    return count_;
   }
 
 };
