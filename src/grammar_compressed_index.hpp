@@ -684,7 +684,7 @@ void calculate_bwt_wt
   bwt_wt_type &bwt_wt
 )
 {
-  sdsl::int_vector<32> sa_bwt;
+  sdsl::int_vector<> sa_bwt;
   sdsl::qsufsort::construct_sa(sa_bwt, gc_text);
   auto sa_bwt_it {std::begin(sa_bwt)};
   auto sa_bwt_end {std::end(sa_bwt)};
@@ -692,7 +692,7 @@ void calculate_bwt_wt
   {
     if (*sa_bwt_it != 0)
     {
-      *sa_bwt_it = gc_text[*sa_bwt_it - 1];
+      *sa_bwt_it = gc_text[(*sa_bwt_it) - 1];
     }
     ++sa_bwt_it;
   }
@@ -726,6 +726,7 @@ void calculate_colex_bwt_wt
 
 struct gc_index
 {
+  sdsl::int_vector<32> grammar_rule_sizes;
   sdsl::int_vector<8> grammar_rules;
   std::shared_ptr<trie_node> lex_trie_root;
   std::shared_ptr<trie_node> colex_trie_root;
@@ -766,7 +767,6 @@ struct gc_index
       temp_gc_text_end
     );
 
-    sdsl::int_vector<32> grammar_rule_sizes;
     calculate_grammar_rule_sizes
     (
       grammar_rule_sizes,
@@ -800,9 +800,9 @@ struct gc_index
     );
 
     sdsl::int_vector<32> gc_text;
-    lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
     caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
     calculate_bwt_wt(gc_text, lex_gc_bwt_wt);
+    lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
     calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
     calculate_colex_bwt_wt(gc_text, colex_gc_bwt_wt, lex_colex_permutation);
   }
@@ -855,42 +855,35 @@ struct gc_index
     uint32_t &rightmost_rank
   )
   {
-    if (node->branch[*it] != std::end(node->branches))
+    while (node->branches.find(*it) != std::end(node->branches))
     {
-      auto child {node->branches[*it]};
-      while (true)
+      node = node->branches[*it];
+      auto edge_it {std::next(std::begin(grammar_rules), node->edge_begin_dist)};
+      auto edge_end {std::next(std::begin(grammar_rules), node->edge_end_dist)};
+      while
+      (
+        (it != end)
+        &&
+        (edge_it != edge_end)
+        &&
+        (*it == *edge_it)
+      )
       {
-        auto edge_it {std::next(std::begin(grammar_rules), child->edge_begin_dist)};
-        auto edge_end {std::next(std::begin(grammar_rules), child->edge_end_dist)};
-        while
-        (
-          (it != end)
-          &&
-          (edge_it != edge_end)
-          &&
-          (*it == *edge_it)
-        )
+        it += dist;
+        ++edge_it;
+      }
+      if (it != end)
+      {
+        if (edge_it != edge_end)
         {
-          it += dist;
-          ++edge_it;
-        }
-        if (it != end)
-        {
-          if (edge_it == edge_end)
-          {
-            node = child;
-          }
-          else
-          {
-            return;
-          }
-        }
-        else
-        {
-          leftmost_rank = child->leftmost_rank;
-          rightmost_rank = child->rightmost_rank;
           return;
         }
+      }
+      else
+      {
+        leftmost_rank = node->leftmost_rank;
+        rightmost_rank = node->rightmost_rank;
+        return;
       }
     }
     return;
@@ -916,7 +909,80 @@ struct gc_index
       leftmost_lex_rank,
       rightmost_lex_rank
     );
+    if (leftmost_lex_rank != 0)
+    {
+      begin_dist = lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
+      end_dist = lex_gc_character_bucket_end_dists[rightmost_lex_rank];
+    }
     return;
+  }
+
+  template <typename pattern_iterator_type>
+  void backward_search_pivot
+  (
+    uint32_t &begin_dist,
+    uint32_t &end_dist,
+    pattern_iterator_type begin,
+    pattern_iterator_type end
+  )
+  {
+    uint32_t lex_rank {0};
+    search_grammar_rule
+    (
+      lex_trie_root,
+      begin,
+      end,
+      1,
+      lex_rank,
+      lex_rank
+    );
+    if (lex_rank != 0)
+    {
+      auto character_begin_dist {lex_gc_character_bucket_end_dists[lex_rank - 1]};
+      begin_dist = character_begin_dist + lex_gc_bwt_wt.rank(begin_dist, lex_rank);
+      end_dist = character_begin_dist + lex_gc_bwt_wt.rank(end_dist, lex_rank);
+    }
+    else
+    {
+      begin_dist = end_dist;
+    }
+    return;
+  }
+
+  template <typename pattern_iterator_type>
+  uint32_t backward_search_prefix
+  (
+    uint32_t begin_dist,
+    uint32_t end_dist,
+    pattern_iterator_type rbegin,
+    pattern_iterator_type rend
+  )
+  {
+    uint32_t leftmost_colex_rank {0};
+    uint32_t rightmost_colex_rank {0};
+    search_grammar_rule
+    (
+      colex_trie_root,
+      rbegin,
+      rend,
+      -1,
+      leftmost_colex_rank,
+      rightmost_colex_rank
+    );
+    if (leftmost_colex_rank != 0)
+    {
+      return std::get<0>
+      (
+        colex_gc_bwt_wt.range_search_2d
+        (
+          begin_dist,
+          end_dist - 1,
+          leftmost_colex_rank,
+          rightmost_colex_rank
+        )
+      );
+    }
+    return 0;
   }
 
   template <typename pattern_iterator_type>
@@ -943,8 +1009,7 @@ struct gc_index
       }
       else
       {
-        backward_search_prefix(begin_dist, end_dist, rfirst, rend);
-        break;
+        return backward_search_prefix(begin_dist, end_dist, rfirst, rend);
       }
     }
     return (end_dist - begin_dist);
