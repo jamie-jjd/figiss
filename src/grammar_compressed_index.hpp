@@ -6,6 +6,13 @@
 
 #include <sdsl/suffix_trees.hpp>
 
+#if 1
+ #define SIZE(x) (x.size())
+#else
+ #define SIZE(x) (std::size(x))
+#endif
+
+
 template <typename T>
 void f (T)
 {
@@ -48,7 +55,8 @@ void calculate_sl_types
   sl_types_type &sl_types
 )
 {
-  sl_types.resize(std::size(string));
+//  sl_types.resize(std::size(string));
+  sl_types.resize(SIZE(string));
   std::fill
   (
     std::begin(sl_types),
@@ -167,7 +175,8 @@ void induce_sort_l_type_characters
 {
   auto text_dist_begin {std::begin(text_dists)};
   auto text_dist_end {std::end(text_dists)};
-  auto invalid_text_dist {std::size(text)};
+//  auto invalid_text_dist {std::size(text)};
+  auto invalid_text_dist {SIZE(text)};
   for
   (
     auto text_dist_it {std::next(text_dist_begin)};
@@ -210,7 +219,8 @@ void induce_sort_s_type_characters
 {
   auto text_dist_rfirst {std::prev(std::end(text_dists))};
   auto text_dist_rlast {std::begin(text_dists)};
-  auto invalid_text_dist {std::size(text)};
+//  auto invalid_text_dist {std::size(text)};
+  auto invalid_text_dist {SIZE(text)};
   for (auto text_dist_rit {text_dist_rfirst}; text_dist_rit != text_dist_rlast; --text_dist_rit)
   {
     auto text_dist {*text_dist_rit};
@@ -267,7 +277,8 @@ void calculate_grammar_rule_begin_dists_and_temp_gc_text
   temp_gc_text_iterator_type &temp_gc_text_end
 )
 {
-  auto invalid_text_dist {std::size(text)};
+//  auto invalid_text_dist {std::size(text)};
+  auto invalid_text_dist {SIZE(text)};
   uint32_t lex_rank {0};
   auto prev_grammar_rule_it {std::prev(std::end(text))};
   auto prev_sl_types_it {std::prev(std::end(sl_types))};
@@ -674,7 +685,8 @@ void caculate_gc_text
 )
 {
   gc_text.resize(std::distance(temp_gc_text_begin, temp_gc_text_end) + 1);
-  gc_text[std::size(gc_text) - 1] = 0;
+//  gc_text[std::size(gc_text) - 1] = 0;
+  gc_text[SIZE(gc_text) - 1] = 0;
   std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
   return;
 }
@@ -776,8 +788,10 @@ struct gc_index
     sdsl::bit_vector sl_types;
     calculate_sl_types(text, sl_types);
 
-    sdsl::int_vector<> text_dists(std::size(text));
-    auto invalid_text_dist {std::size(text)};
+//    sdsl::int_vector<> text_dists(std::size(text));
+    sdsl::int_vector<> text_dists(SIZE(text));
+//    auto invalid_text_dist {std::size(text)};
+    auto invalid_text_dist {SIZE(text)};
     std::fill(std::begin(text_dists), std::end(text_dists), invalid_text_dist);
 
     sdsl::int_vector<> character_bucket_dists(256);
@@ -827,7 +841,8 @@ struct gc_index
     );
     calculate_lex_trie_rank_ranges(lex_trie_root);
 
-    sdsl::int_vector<> lex_colex_permutation(std::size(grammar_rule_sizes) + 1);
+//    sdsl::int_vector<> lex_colex_permutation(std::size(grammar_rule_sizes) + 1);
+    sdsl::int_vector<> lex_colex_permutation(SIZE(grammar_rule_sizes) + 1);
     lex_colex_permutation[0] = 0;
     calculate_colex_trie_rank_ranges_and_lex_colex_permutation
     (
@@ -838,10 +853,12 @@ struct gc_index
     sdsl::int_vector<> gc_text;
     caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
 
-    lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
+//    lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
+    lex_gc_character_bucket_end_dists.resize(SIZE(grammar_rule_sizes) + 1);
     calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
 
-    text_dists.resize(std::size(gc_text));
+//    text_dists.resize(std::size(gc_text));
+    text_dists.resize(SIZE(gc_text));
     auto &temp_sa_bwt {text_dists};
     calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_gc_bwt_wt);
     calculate_colex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_colex_permutation, colex_gc_bwt_wt);

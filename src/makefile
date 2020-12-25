@@ -1,6 +1,6 @@
 CC									:= g++
 WARNING_ERROR_FLAGS	:= -Wall -Wextra -Wpedantic -Werror -Wfatal-errors
-CXX_FLAGS						:= -O3 -std=c++17
+CXX_FLAGS						:= -g -O3 -std=c++17 -I /home/sada/sdsl/include/ -I /home/sada/sdsl/external/libdivsufsort/include/ -L /home/sada/sdsl/lib/ -L /home/sada/sdsl/external/libdivsufsort/lib/
 LIBRARIES						:= -ldivsufsort -ldivsufsort64 -lsdsl
 
 all: main.cpp
