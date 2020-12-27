@@ -1133,8 +1133,8 @@ void construct
     index.colex_trie_root
   );
 
-  // calculate_lex_trie_rank_ranges(lex_trie_root);
-  //
+  calculate_lex_trie_rank_ranges(index.lex_trie_root);
+
   // sdsl::int_vector<> lex_colex_permutation(std::size(grammar_rule_sizes) + 1);
   // lex_colex_permutation[0] = 0;
   // calculate_colex_trie_rank_ranges_and_lex_colex_permutation
