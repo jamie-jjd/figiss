@@ -7,10 +7,14 @@
 #include <sdsl/suffix_trees.hpp>
 
 template <typename T>
-void f (T)
+void show_type (T)
 {
   std::cout << __PRETTY_FUNCTION__ << '\n';
+  return;
 }
+
+namespace gci
+{
 
 constexpr uint8_t S {1};
 constexpr uint8_t L {0};
@@ -39,42 +43,37 @@ constexpr bool is_leftmost_s (sl_types_iterator_type it)
 
 template
 <
-  typename string_type,
+  typename text_type,
   typename sl_types_type
 >
 void calculate_sl_types
 (
-  string_type const &string,
+  text_type const &text,
   sl_types_type &sl_types
 )
 {
-  sl_types.resize(std::size(string));
-  std::fill
-  (
-    std::begin(sl_types),
-    std::end(sl_types),
-    S
-  );
-  auto string_rit {std::prev(std::end(string))};
-  auto string_rend {std::begin(string)};
-  auto rit {std::prev(std::end(sl_types))};
-  while (string_rit != string_rend)
+  sl_types.resize(std::size(text));
+  std::fill(std::begin(sl_types), std::end(sl_types), S);
+  auto text_rit {std::prev(std::end(text))};
+  auto text_rlast {std::begin(text)};
+  auto sl_types_rit {std::prev(std::end(sl_types))};
+  while (text_rit != text_rlast)
   {
     if
     (
-      (*std::prev(string_rit) > *string_rit)
+      (*std::prev(text_rit) > *text_rit)
       ||
       (
-        (*std::prev(string_rit) == *string_rit)
+        (*std::prev(text_rit) == *text_rit)
         &&
-        (*rit == L)
+        (*sl_types_rit == L)
       )
     )
     {
-      *std::prev(rit) = L;
+      *std::prev(sl_types_rit) = L;
     }
-    --rit;
-    --string_rit;
+    --sl_types_rit;
+    --text_rit;
   }
   return;
 }
@@ -762,6 +761,8 @@ bool exists_another_factorization
 
 struct gc_index
 {
+  using text_type = sdsl::int_vector<8>;
+
   sdsl::int_vector<> grammar_rule_sizes;
   sdsl::int_vector<8> grammar_rules;
   std::shared_ptr<trie_node> lex_trie_root;
@@ -770,8 +771,9 @@ struct gc_index
   sdsl::wt_int<> lex_gc_bwt_wt;
   sdsl::wt_int<> colex_gc_bwt_wt;
 
-  template <typename text_type>
-  gc_index (text_type const &text)
+  gc_index () = default;
+
+  gc_index (text_type &text)
   {
     sdsl::bit_vector sl_types;
     calculate_sl_types(text, sl_types);
@@ -1075,5 +1077,24 @@ struct gc_index
   }
 
 };
+
+void construct
+(
+  gc_index &index,
+  char const *input_text_file
+)
+{
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, input_text_file);
+  sdsl::append_zero_symbol(text);
+
+  sdsl::bit_vector sl_types;
+  calculate_sl_types(text, sl_types);
+
+  show_type(index);
+  return;
+}
+
+}
 
 #endif
