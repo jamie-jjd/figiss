@@ -1128,15 +1128,16 @@ void construct
   );
 
   auto gc_text_size {std::distance(temp_gc_text_begin, temp_gc_text_end) + 1};
+  auto gc_text_size_width {sdsl::bits::hi(gc_text_size) + 1};
   sdsl::int_vector<> gc_text(gc_text_size, 0, gc_text_width);
   std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
 
+  index.lex_gc_character_bucket_end_dists.width(gc_text_size_width);
+  index.lex_gc_character_bucket_end_dists.resize(gc_text_sigma);
+  calculate_character_bucket_end_dists(gc_text, index.lex_gc_character_bucket_end_dists);
+
   // text_dists.resize(std::size(gc_text));
   // auto &temp_sa_bwt {text_dists};
-  //
-  // index.lex_gc_character_bucket_end_dists.width(gc_text_sigma_width);
-  // index.lex_gc_character_bucket_end_dists.resize(gc_text_sigma);
-  // calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
   // calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_gc_bwt_wt);
   // calculate_colex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_colex_permutation, colex_gc_bwt_wt);
   return;
