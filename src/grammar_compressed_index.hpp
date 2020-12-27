@@ -652,24 +652,6 @@ void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
 template
 <
   typename gc_text_type,
-  typename temp_gc_text_iterator_type
->
-void calculate_gc_text
-(
-  gc_text_type &gc_text,
-  temp_gc_text_iterator_type temp_gc_text_begin,
-  temp_gc_text_iterator_type temp_gc_text_end
-)
-{
-  gc_text.resize(std::distance(temp_gc_text_begin, temp_gc_text_end) + 1);
-  std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
-  gc_text[std::size(gc_text) - 1] = 0;
-  return;
-}
-
-template
-<
-  typename gc_text_type,
   typename temp_sa_bwt_type,
   typename lex_gc_bwt_wt_type
 >
@@ -827,7 +809,7 @@ struct gc_index
     );
 
     sdsl::int_vector<> gc_text;
-    calculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
+    // calculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
 
     lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
     calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
@@ -1136,17 +1118,25 @@ void construct
   calculate_lex_trie_rank_ranges(index.lex_trie_root);
 
   auto gc_text_sigma {std::size(index.grammar_rule_sizes) + 1};
-  sdsl::int_vector<> lex_colex_permutation(gc_text_sigma, 0, sdsl::bits::hi(gc_text_sigma) + 1);
+  auto gc_text_width {sdsl::bits::hi(gc_text_sigma) + 1};
+
+  sdsl::int_vector<> lex_colex_permutation(gc_text_sigma, 0,  gc_text_width);
   calculate_colex_trie_rank_ranges_and_lex_colex_permutation
   (
     index.colex_trie_root,
     lex_colex_permutation
   );
-  // lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
-  // calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
-  //
+
+  auto gc_text_size {std::distance(temp_gc_text_begin, temp_gc_text_end) + 1};
+  sdsl::int_vector<> gc_text(gc_text_size, 0, gc_text_width);
+  std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
+
   // text_dists.resize(std::size(gc_text));
   // auto &temp_sa_bwt {text_dists};
+  //
+  // index.lex_gc_character_bucket_end_dists.width(gc_text_sigma_width);
+  // index.lex_gc_character_bucket_end_dists.resize(gc_text_sigma);
+  // calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
   // calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_gc_bwt_wt);
   // calculate_colex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_colex_permutation, colex_gc_bwt_wt);
   return;
