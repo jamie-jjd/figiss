@@ -231,15 +231,15 @@ void induce_sort_s_type_characters
 template <typename random_access_iterator_type>
 auto collect_valid_entries
 (
-  random_access_iterator_type begin,
-  random_access_iterator_type end,
-  uint32_t const invalid_value
+  random_access_iterator_type first,
+  random_access_iterator_type last,
+  uint64_t const invalid_value
 )
 {
   return std::stable_partition
   (
-    begin,
-    end,
+    first,
+    last,
     [&] (auto const &value)
     {
       return (value != invalid_value);
@@ -1099,11 +1099,11 @@ void construct
   calculate_character_bucket_end_dists(text, character_bucket_dists);
   induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
 
-  // auto text_dists_boundary {collect_valid_entries(std::begin(text_dists), std::end(text_dists), invalid_text_dist)};
-  // auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
-  // auto grammar_rule_begin_dists_end {text_dists_boundary};
-  // auto temp_gc_text_begin {text_dists_boundary};
-  // auto temp_gc_text_end {std::end(text_dists)};
+  auto text_dists_boundary {collect_valid_entries(std::begin(text_dists), std::end(text_dists), invalid_text_dist)};
+  auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
+  auto grammar_rule_begin_dists_end {text_dists_boundary};
+  auto temp_gc_text_begin {text_dists_boundary};
+  auto temp_gc_text_end {std::end(text_dists)};
   //
   // calculate_grammar_rule_begin_dists_and_temp_gc_text
   // (
