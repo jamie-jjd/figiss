@@ -1094,6 +1094,71 @@ void construct
   auto invalid_text_dist {std::size(text)};
   sdsl::int_vector<> text_dists(std::size(text), invalid_text_dist, sdsl::bits::hi(std::size(text)) + 1);
 
+  sdsl::int_vector<> character_bucket_dists(256, 0, sdsl::bits::hi(std::size(text)) + 1);
+  // calculate_character_bucket_begin_dists(text, character_bucket_dists);
+  // bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+  // induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+  // calculate_character_bucket_end_dists(text, character_bucket_dists);
+  // induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
+  //
+  // auto text_dists_boundary {collect_valid_entries(std::begin(text_dists), std::end(text_dists), invalid_text_dist)};
+  // auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
+  // auto grammar_rule_begin_dists_end {text_dists_boundary};
+  // auto temp_gc_text_begin {text_dists_boundary};
+  // auto temp_gc_text_end {std::end(text_dists)};
+  //
+  // calculate_grammar_rule_begin_dists_and_temp_gc_text
+  // (
+  //   text,
+  //   sl_types,
+  //   grammar_rule_begin_dists_begin,
+  //   grammar_rule_begin_dists_end,
+  //   temp_gc_text_begin,
+  //   temp_gc_text_end
+  // );
+  //
+  // calculate_grammar_rule_sizes
+  // (
+  //   grammar_rule_sizes,
+  //   sl_types,
+  //   grammar_rule_begin_dists_begin,
+  //   grammar_rule_begin_dists_end
+  // );
+  //
+  // calculate_grammar_rules
+  // (
+  //   text,
+  //   grammar_rule_sizes,
+  //   grammar_rules,
+  //   grammar_rule_begin_dists_begin
+  // );
+  // insert_grammar_rules
+  // (
+  //   grammar_rule_sizes,
+  //   grammar_rules,
+  //   lex_trie_root,
+  //   colex_trie_root
+  // );
+  // calculate_lex_trie_rank_ranges(lex_trie_root);
+  //
+  // sdsl::int_vector<> lex_colex_permutation(std::size(grammar_rule_sizes) + 1);
+  // lex_colex_permutation[0] = 0;
+  // calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+  // (
+  //   colex_trie_root,
+  //   lex_colex_permutation
+  // );
+  //
+  // sdsl::int_vector<> gc_text;
+  // caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
+  //
+  // lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
+  // calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
+  //
+  // text_dists.resize(std::size(gc_text));
+  // auto &temp_sa_bwt {text_dists};
+  // calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_gc_bwt_wt);
+  // calculate_colex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_colex_permutation, colex_gc_bwt_wt);
   show_type(index);
   return;
 }
