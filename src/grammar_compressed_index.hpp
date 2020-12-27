@@ -467,8 +467,8 @@ void insert_grammar_rule
   grammar_rules_iterator_type rules_begin,
   grammar_rules_iterator_type rule_it,
   grammar_rules_iterator_type rule_end,
-  int32_t dist,
-  uint32_t lex_rank
+  int32_t const dist,
+  uint32_t const lex_rank
 )
 {
   while (rule_it != rule_end)
@@ -559,17 +559,15 @@ void insert_grammar_rules
   colex_trie_root = std::make_shared<trie_node>();
   uint32_t lex_rank {1};
   auto sizes_it {std::begin(grammar_rule_sizes)};
-  auto rules_begin {std::begin(grammar_rules)};
-  auto rules_it {rules_begin};
-  auto rules_end {std::end(grammar_rules)};
-  while (rules_it != rules_end)
+  auto rules_it {std::begin(grammar_rules)};
+  while (rules_it != std::end(grammar_rules))
   {
     auto rule_begin {rules_it};
     auto rule_end {std::next(rule_begin, *sizes_it)};
     insert_grammar_rule
     (
       lex_trie_root,
-      rules_begin,
+      std::begin(grammar_rules),
       rule_begin,
       rule_end,
       1,
@@ -578,7 +576,7 @@ void insert_grammar_rules
     insert_grammar_rule
     (
       colex_trie_root,
-      rules_begin,
+      std::begin(grammar_rules),
       std::prev(rule_end),
       std::prev(rule_begin),
       -1,
@@ -663,7 +661,7 @@ template
   typename gc_text_type,
   typename temp_gc_text_iterator_type
 >
-void caculate_gc_text
+void calculate_gc_text
 (
   gc_text_type &gc_text,
   temp_gc_text_iterator_type temp_gc_text_begin,
@@ -671,8 +669,8 @@ void caculate_gc_text
 )
 {
   gc_text.resize(std::distance(temp_gc_text_begin, temp_gc_text_end) + 1);
-  gc_text[std::size(gc_text) - 1] = 0;
   std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
+  gc_text[std::size(gc_text) - 1] = 0;
   return;
 }
 
@@ -836,7 +834,7 @@ struct gc_index
     );
 
     sdsl::int_vector<> gc_text;
-    caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
+    calculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
 
     lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
     calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
@@ -1123,6 +1121,9 @@ void construct
     grammar_rule_begin_dists_begin,
     grammar_rule_begin_dists_end
   );
+
+  sdsl::util::clear(sl_types);
+
   calculate_grammar_rules
   (
     text,
@@ -1133,8 +1134,8 @@ void construct
 
   // insert_grammar_rules
   // (
-  //   grammar_rule_sizes,
-  //   grammar_rules,
+  //   index.grammar_rule_sizes,
+  //   index.grammar_rules,
   //   lex_trie_root,
   //   colex_trie_root
   // );
@@ -1148,8 +1149,6 @@ void construct
   //   lex_colex_permutation
   // );
   //
-  // sdsl::int_vector<> gc_text;
-  // caculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
   //
   // lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
   // calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
