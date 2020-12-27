@@ -421,7 +421,7 @@ void print_trie
 (
   grammar_rules_iterator_type const &rules_begin,
   trie_node_pointer_type node,
-  int32_t dist
+  int32_t const dist
 )
 {
   static size_t depth {0};
@@ -434,14 +434,7 @@ void print_trie
       auto end {std::next(rules_begin, node->edge_end_dist)};
       while (it != end)
       {
-        if (*it != '\n')
-        {
-          std::cout << *it;
-        }
-        else
-        {
-          std::cout << "\\n";
-        }
+        std::cout << *it;
         it += dist;
       }
     }
@@ -1132,13 +1125,14 @@ void construct
     grammar_rule_begin_dists_begin
   );
 
-  // insert_grammar_rules
-  // (
-  //   index.grammar_rule_sizes,
-  //   index.grammar_rules,
-  //   lex_trie_root,
-  //   colex_trie_root
-  // );
+  insert_grammar_rules
+  (
+    index.grammar_rule_sizes,
+    index.grammar_rules,
+    index.lex_trie_root,
+    index.colex_trie_root
+  );
+
   // calculate_lex_trie_rank_ranges(lex_trie_root);
   //
   // sdsl::int_vector<> lex_colex_permutation(std::size(grammar_rule_sizes) + 1);
