@@ -390,6 +390,7 @@ void calculate_grammar_rules
   grammar_rule_begin_dists_iterator_type begin_dists_begin
 )
 {
+  rules.width(8);
   rules.resize(std::accumulate(std::begin(sizes), std::end(sizes), 0));
   auto rules_it {std::begin(rules)};
   auto begin_dists_it {begin_dists_begin};
@@ -1122,14 +1123,14 @@ void construct
     grammar_rule_begin_dists_begin,
     grammar_rule_begin_dists_end
   );
+  calculate_grammar_rules
+  (
+    text,
+    index.grammar_rule_sizes,
+    index.grammar_rules,
+    grammar_rule_begin_dists_begin
+  );
 
-  // calculate_grammar_rules
-  // (
-  //   text,
-  //   grammar_rule_sizes,
-  //   grammar_rules,
-  //   grammar_rule_begin_dists_begin
-  // );
   // insert_grammar_rules
   // (
   //   grammar_rule_sizes,
