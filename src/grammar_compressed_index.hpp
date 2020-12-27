@@ -1091,6 +1091,9 @@ void construct
   sdsl::bit_vector sl_types;
   calculate_sl_types(text, sl_types);
 
+  auto invalid_text_dist {std::size(text)};
+  sdsl::int_vector<> text_dists(std::size(text), invalid_text_dist, sdsl::bits::hi(std::size(text)) + 1);
+
   show_type(index);
   return;
 }
