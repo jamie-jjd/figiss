@@ -339,13 +339,12 @@ void calculate_grammar_rule_sizes
   while (begin_dists_it != begin_dists_end)
   {
     auto sl_types_first {std::next(std::begin(sl_types), *begin_dists_it)};
-    auto sl_types_it {sl_types_first};
-    do
+    auto sl_types_last {std::next(sl_types_first)};
+    while (!is_leftmost_s(sl_types_last))
     {
-      ++sl_types_it;
+      ++sl_types_last;
     }
-    while (!is_leftmost_s(sl_types_it));
-    *grammar_rule_sizes_it = std::distance(sl_types_first, sl_types_it);
+    *grammar_rule_sizes_it = std::distance(sl_types_first, sl_types_last);
     ++grammar_rule_sizes_it;
     ++begin_dists_it;
   }
@@ -1090,6 +1089,7 @@ void construct
   calculate_sl_types(text, sl_types);
 
   auto invalid_text_dist {std::size(text)};
+
   sdsl::int_vector<> text_dists(std::size(text), invalid_text_dist, sdsl::bits::hi(std::size(text)) + 1);
 
   sdsl::int_vector<> character_bucket_dists(256, 0, sdsl::bits::hi(std::size(text)) + 1);
@@ -1115,14 +1115,14 @@ void construct
     temp_gc_text_end
   );
 
-  // calculate_grammar_rule_sizes
-  // (
-  //   grammar_rule_sizes,
-  //   sl_types,
-  //   grammar_rule_begin_dists_begin,
-  //   grammar_rule_begin_dists_end
-  // );
-  //
+  calculate_grammar_rule_sizes
+  (
+    index.grammar_rule_sizes,
+    sl_types,
+    grammar_rule_begin_dists_begin,
+    grammar_rule_begin_dists_end
+  );
+
   // calculate_grammar_rules
   // (
   //   text,
@@ -1157,7 +1157,6 @@ void construct
   // auto &temp_sa_bwt {text_dists};
   // calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_gc_bwt_wt);
   // calculate_colex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_colex_permutation, colex_gc_bwt_wt);
-  show_type(index);
   return;
 }
 
