@@ -1135,15 +1135,13 @@ void construct
 
   calculate_lex_trie_rank_ranges(index.lex_trie_root);
 
-  // sdsl::int_vector<> lex_colex_permutation(std::size(grammar_rule_sizes) + 1);
-  // lex_colex_permutation[0] = 0;
-  // calculate_colex_trie_rank_ranges_and_lex_colex_permutation
-  // (
-  //   colex_trie_root,
-  //   lex_colex_permutation
-  // );
-  //
-  //
+  auto gc_text_sigma {std::size(index.grammar_rule_sizes) + 1};
+  sdsl::int_vector<> lex_colex_permutation(gc_text_sigma, 0, sdsl::bits::hi(gc_text_sigma) + 1);
+  calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+  (
+    index.colex_trie_root,
+    lex_colex_permutation
+  );
   // lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
   // calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
   //
