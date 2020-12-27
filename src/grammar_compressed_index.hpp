@@ -1095,7 +1095,7 @@ void construct
   sdsl::int_vector<> character_bucket_dists(256, 0, sdsl::bits::hi(std::size(text)) + 1);
   calculate_character_bucket_begin_dists(text, character_bucket_dists);
   bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
-  // induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+  induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
   // calculate_character_bucket_end_dists(text, character_bucket_dists);
   // induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
   //
