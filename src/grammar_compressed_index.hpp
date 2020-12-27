@@ -653,13 +653,16 @@ template
 <
   typename gc_text_type,
   typename temp_sa_bwt_type,
-  typename lex_gc_bwt_wt_type
+  typename lex_colex_permutation_type,
+  typename gc_bwt_wt_type
 >
-void calculate_lex_gc_bwt_wt
+void calculate_lex_and_colex_gc_bwt_wt
 (
   gc_text_type const &gc_text,
   temp_sa_bwt_type &temp_sa_bwt,
-  lex_gc_bwt_wt_type &lex_gc_bwt_wt
+  lex_colex_permutation_type const &lex_colex_permutation,
+  gc_bwt_wt_type &lex_gc_bwt_wt,
+  gc_bwt_wt_type &colex_gc_bwt_wt
 )
 {
   sdsl::qsufsort::construct_sa(temp_sa_bwt, gc_text);
@@ -674,33 +677,10 @@ void calculate_lex_gc_bwt_wt
     ++temp_sa_bwt_it;
   }
   construct_im(lex_gc_bwt_wt, temp_sa_bwt);
-  return;
-}
-
-template
-<
-  typename gc_text_type,
-  typename temp_sa_bwt_type,
-  typename lex_colex_permutation_type,
-  typename colex_gc_bwt_wt_type
->
-void calculate_colex_gc_bwt_wt
-(
-  gc_text_type const &gc_text,
-  temp_sa_bwt_type &temp_sa_bwt,
-  lex_colex_permutation_type const &lex_colex_permutation,
-  colex_gc_bwt_wt_type &colex_gc_bwt_wt
-)
-{
-  sdsl::qsufsort::construct_sa(temp_sa_bwt, gc_text);
-  auto temp_sa_bwt_it {std::begin(temp_sa_bwt)};
-  auto temp_sa_bwt_end {std::end(temp_sa_bwt)};
+  temp_sa_bwt_it = std::begin(temp_sa_bwt);
   while (temp_sa_bwt_it != temp_sa_bwt_end)
   {
-    if (*temp_sa_bwt_it != 0)
-    {
-      *temp_sa_bwt_it = lex_colex_permutation[gc_text[(*temp_sa_bwt_it) - 1]];
-    }
+    *temp_sa_bwt_it = lex_colex_permutation[*temp_sa_bwt_it];
     ++temp_sa_bwt_it;
   }
   construct_im(colex_gc_bwt_wt, temp_sa_bwt);
@@ -741,84 +721,6 @@ struct gc_index
   sdsl::int_vector<> lex_gc_character_bucket_end_dists;
   sdsl::wt_int<> lex_gc_bwt_wt;
   sdsl::wt_int<> colex_gc_bwt_wt;
-
-  gc_index () = default;
-
-  gc_index (text_type &text)
-  {
-    sdsl::bit_vector sl_types;
-    calculate_sl_types(text, sl_types);
-
-    sdsl::int_vector<> text_dists(std::size(text));
-    auto invalid_text_dist {std::size(text)};
-    std::fill(std::begin(text_dists), std::end(text_dists), invalid_text_dist);
-
-    sdsl::int_vector<> character_bucket_dists(256);
-    calculate_character_bucket_begin_dists(text, character_bucket_dists);
-    bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
-    induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
-    calculate_character_bucket_end_dists(text, character_bucket_dists);
-    induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
-
-    auto text_dists_boundary {collect_valid_entries(std::begin(text_dists), std::end(text_dists), invalid_text_dist)};
-    auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
-    auto grammar_rule_begin_dists_end {text_dists_boundary};
-    auto temp_gc_text_begin {text_dists_boundary};
-    auto temp_gc_text_end {std::end(text_dists)};
-
-    calculate_grammar_rule_begin_dists_and_temp_gc_text
-    (
-      text,
-      sl_types,
-      grammar_rule_begin_dists_begin,
-      grammar_rule_begin_dists_end,
-      temp_gc_text_begin,
-      temp_gc_text_end
-    );
-
-    calculate_grammar_rule_sizes
-    (
-      grammar_rule_sizes,
-      sl_types,
-      grammar_rule_begin_dists_begin,
-      grammar_rule_begin_dists_end
-    );
-
-    calculate_grammar_rules
-    (
-      text,
-      grammar_rule_sizes,
-      grammar_rules,
-      grammar_rule_begin_dists_begin
-    );
-    insert_grammar_rules
-    (
-      grammar_rule_sizes,
-      grammar_rules,
-      lex_trie_root,
-      colex_trie_root
-    );
-    calculate_lex_trie_rank_ranges(lex_trie_root);
-
-    sdsl::int_vector<> lex_colex_permutation(std::size(grammar_rule_sizes) + 1);
-    lex_colex_permutation[0] = 0;
-    calculate_colex_trie_rank_ranges_and_lex_colex_permutation
-    (
-      colex_trie_root,
-      lex_colex_permutation
-    );
-
-    sdsl::int_vector<> gc_text;
-    // calculate_gc_text(gc_text, temp_gc_text_begin, temp_gc_text_end);
-
-    lex_gc_character_bucket_end_dists.resize(std::size(grammar_rule_sizes) + 1);
-    calculate_character_bucket_end_dists(gc_text, lex_gc_character_bucket_end_dists);
-
-    text_dists.resize(std::size(gc_text));
-    auto &temp_sa_bwt {text_dists};
-    calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_gc_bwt_wt);
-    calculate_colex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_colex_permutation, colex_gc_bwt_wt);
-  }
 
   template <typename pattern_iterator_type>
   void calculate_rlast
@@ -1138,8 +1040,14 @@ void construct
 
   text_dists.resize(std::size(gc_text));
   auto &temp_sa_bwt {text_dists};
-  calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, index.lex_gc_bwt_wt);
-  // calculate_colex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_colex_permutation, colex_gc_bwt_wt);
+  calculate_lex_and_colex_gc_bwt_wt
+  (
+    gc_text,
+    temp_sa_bwt,
+    lex_colex_permutation,
+    index.lex_gc_bwt_wt,
+    index.colex_gc_bwt_wt
+  );
   return;
 }
 
