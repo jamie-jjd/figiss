@@ -1136,9 +1136,9 @@ void construct
   index.lex_gc_character_bucket_end_dists.resize(gc_text_sigma);
   calculate_character_bucket_end_dists(gc_text, index.lex_gc_character_bucket_end_dists);
 
-  // text_dists.resize(std::size(gc_text));
-  // auto &temp_sa_bwt {text_dists};
-  // calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_gc_bwt_wt);
+  text_dists.resize(std::size(gc_text));
+  auto &temp_sa_bwt {text_dists};
+  calculate_lex_gc_bwt_wt(gc_text, temp_sa_bwt, index.lex_gc_bwt_wt);
   // calculate_colex_gc_bwt_wt(gc_text, temp_sa_bwt, lex_colex_permutation, colex_gc_bwt_wt);
   return;
 }
