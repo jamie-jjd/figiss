@@ -1096,9 +1096,9 @@ void construct
   calculate_character_bucket_begin_dists(text, character_bucket_dists);
   bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
   induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
-  // calculate_character_bucket_end_dists(text, character_bucket_dists);
-  // induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
-  //
+  calculate_character_bucket_end_dists(text, character_bucket_dists);
+  induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
+
   // auto text_dists_boundary {collect_valid_entries(std::begin(text_dists), std::end(text_dists), invalid_text_dist)};
   // auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
   // auto grammar_rule_begin_dists_end {text_dists_boundary};
