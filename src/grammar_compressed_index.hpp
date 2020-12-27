@@ -138,14 +138,16 @@ void bucket_sort_rightmost_l_type_characters
   text_dists_type &text_dists
 )
 {
-  for (auto text_it {std::begin(text)}; text_it != std::end(text); ++text_it)
+  auto text_it {std::begin(text)};
+  auto text_end {std::end(text)};
+  while (text_it != text_end)
   {
     auto text_dist {std::distance(std::begin(text), text_it)};
     if (is_rightmost_l(std::next(std::begin(sl_types), text_dist)))
     {
-      auto bucket_begin_dist {character_bucket_dists[*text_it]++};
-      text_dists[bucket_begin_dist] = text_dist;
+      text_dists[character_bucket_dists[*text_it]++] = text_dist;
     }
+    ++text_it;
   }
   return;
 }
@@ -165,17 +167,12 @@ void induce_sort_l_type_characters
   text_dists_type &text_dists
 )
 {
-  auto text_dist_begin {std::begin(text_dists)};
-  auto text_dist_end {std::end(text_dists)};
+  auto text_dists_it {std::next(std::begin(text_dists))};
+  auto text_dists_last {std::end(text_dists)};
   auto invalid_text_dist {std::size(text)};
-  for
-  (
-    auto text_dist_it {std::next(text_dist_begin)};
-    text_dist_it != text_dist_end;
-    ++text_dist_it
-  )
+  while (text_dists_it != text_dists_last)
   {
-    auto text_dist {*text_dist_it};
+    auto text_dist {*text_dists_it};
     if
     (
       (text_dist != invalid_text_dist)
@@ -185,10 +182,10 @@ void induce_sort_l_type_characters
       (sl_types[text_dist - 1] == L)
     )
     {
-      auto bucket_begin_dist {character_bucket_dists[text[text_dist - 1]]++};
-      text_dists[bucket_begin_dist] = (text_dist - 1);
-      *text_dist_it = invalid_text_dist;
+      text_dists[character_bucket_dists[text[text_dist - 1]]++] = (text_dist - 1);
+      *text_dists_it = invalid_text_dist;
     }
+    ++text_dists_it;
   }
   return;
 }
@@ -208,12 +205,12 @@ void induce_sort_s_type_characters
   text_dists_type &text_dists
 )
 {
-  auto text_dist_rfirst {std::prev(std::end(text_dists))};
-  auto text_dist_rlast {std::begin(text_dists)};
+  auto text_dists_rit {std::prev(std::end(text_dists))};
+  auto text_dists_rlast {std::begin(text_dists)};
   auto invalid_text_dist {std::size(text)};
-  for (auto text_dist_rit {text_dist_rfirst}; text_dist_rit != text_dist_rlast; --text_dist_rit)
+  while (text_dists_rit != text_dists_rlast)
   {
-    auto text_dist {*text_dist_rit};
+    auto text_dist {*text_dists_rit};
     if
     (
       (text_dist != invalid_text_dist)
@@ -223,10 +220,10 @@ void induce_sort_s_type_characters
       (sl_types[text_dist - 1] == S)
     )
     {
-      auto bucket_end_dist {--character_bucket_dists[text[text_dist - 1]]};
-      text_dists[bucket_end_dist] = (text_dist - 1);
-      *text_dist_rit = invalid_text_dist;
+      text_dists[--character_bucket_dists[text[text_dist - 1]]] = (text_dist - 1);
+      *text_dists_rit = invalid_text_dist;
     }
+    --text_dists_rit;
   }
   return;
 }
@@ -1097,7 +1094,7 @@ void construct
 
   sdsl::int_vector<> character_bucket_dists(256, 0, sdsl::bits::hi(std::size(text)) + 1);
   calculate_character_bucket_begin_dists(text, character_bucket_dists);
-  // bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+  bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
   // induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
   // calculate_character_bucket_end_dists(text, character_bucket_dists);
   // induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
