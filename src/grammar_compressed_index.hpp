@@ -265,7 +265,7 @@ void calculate_grammar_rule_begin_dists_and_temp_gc_text
 )
 {
   auto invalid_text_dist {std::size(text)};
-  uint32_t lex_rank {0};
+  uint64_t lex_rank {0};
   auto prev_grammar_rule_it {std::prev(std::end(text))};
   auto prev_sl_types_it {std::prev(std::end(sl_types))};
   auto begin_dists_it {begin_dists_begin};
@@ -1104,17 +1104,17 @@ void construct
   auto grammar_rule_begin_dists_end {text_dists_boundary};
   auto temp_gc_text_begin {text_dists_boundary};
   auto temp_gc_text_end {std::end(text_dists)};
-  //
-  // calculate_grammar_rule_begin_dists_and_temp_gc_text
-  // (
-  //   text,
-  //   sl_types,
-  //   grammar_rule_begin_dists_begin,
-  //   grammar_rule_begin_dists_end,
-  //   temp_gc_text_begin,
-  //   temp_gc_text_end
-  // );
-  //
+
+  calculate_grammar_rule_begin_dists_and_temp_gc_text
+  (
+    text,
+    sl_types,
+    grammar_rule_begin_dists_begin,
+    grammar_rule_begin_dists_end,
+    temp_gc_text_begin,
+    temp_gc_text_end
+  );
+
   // calculate_grammar_rule_sizes
   // (
   //   grammar_rule_sizes,
