@@ -112,11 +112,12 @@ void calculate_character_bucket_begin_dists
 )
 {
   calculate_character_bucket_end_dists(text, character_bucket_dists);
-  auto rfirst {std::prev(std::end(character_bucket_dists))};
+  auto rit {std::prev(std::end(character_bucket_dists))};
   auto rlast {std::begin(character_bucket_dists)};
-  for (auto rit {rfirst}; rit != rlast; --rit)
+  while (rit != rlast)
   {
     *rit = *std::prev(rit);
+    --rit;
   }
   *rlast = 0;
   return;
@@ -1095,7 +1096,7 @@ void construct
   sdsl::int_vector<> text_dists(std::size(text), invalid_text_dist, sdsl::bits::hi(std::size(text)) + 1);
 
   sdsl::int_vector<> character_bucket_dists(256, 0, sdsl::bits::hi(std::size(text)) + 1);
-  // calculate_character_bucket_begin_dists(text, character_bucket_dists);
+  calculate_character_bucket_begin_dists(text, character_bucket_dists);
   // bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
   // induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
   // calculate_character_bucket_end_dists(text, character_bucket_dists);
