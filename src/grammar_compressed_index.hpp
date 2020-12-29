@@ -6,13 +6,6 @@
 
 #include <sdsl/suffix_trees.hpp>
 
-template <typename T>
-void show_type (T)
-{
-  std::cout << __PRETTY_FUNCTION__ << '\n';
-  return;
-}
-
 namespace gci
 {
 
@@ -675,14 +668,14 @@ void calculate_lex_and_colex_gc_bwt
     }
     ++temp_sa_bwt_it;
   }
-  construct_im(lex_gc_bwt, temp_sa_bwt);
+  sdsl::construct_im(lex_gc_bwt, temp_sa_bwt);
   temp_sa_bwt_it = std::begin(temp_sa_bwt);
   while (temp_sa_bwt_it != temp_sa_bwt_end)
   {
     *temp_sa_bwt_it = lex_colex_permutation[*temp_sa_bwt_it];
     ++temp_sa_bwt_it;
   }
-  construct_im(colex_gc_bwt, temp_sa_bwt);
+  sdsl::construct_im(colex_gc_bwt, temp_sa_bwt);
   return;
 }
 
@@ -718,33 +711,9 @@ void calculate_trie_rank_ranges
   return;
 }
 
-template <typename pattern_iterator_type>
-bool exists_another_factorization
-(
-  pattern_iterator_type rit,
-  pattern_iterator_type rend
-)
-{
-  while
-  (
-    (std::next(rend) != rit)
-    &&
-    (*std::prev(rit) == *rit)
-  )
-  {
-    --rit;
-  }
-  if (std::next(rend) != rit)
-  {
-    return (*std::prev(rit) > *rit);
-  }
-  return false;
-}
-
 struct gc_index
 {
-  using text_type = sdsl::int_vector<8>;
-
+  uint32_t max_grammar_rule_size;
   sdsl::int_vector<> grammar_rule_sizes;
   sdsl::int_vector<8> grammar_rules;
   std::shared_ptr<trie_node> lex_trie_root;
@@ -752,234 +721,6 @@ struct gc_index
   sdsl::int_vector<> lex_gc_character_bucket_end_dists;
   sdsl::wt_int<> lex_gc_bwt;
   sdsl::wt_int<> colex_gc_bwt;
-
-  template <typename pattern_iterator_type>
-  void calculate_rlast
-  (
-    pattern_iterator_type &rlast,
-    pattern_iterator_type const &rend,
-    uint8_t prev_sl_type
-  )
-  {
-    while
-    (
-      (rlast != rend)
-      &&
-      ! (
-          (prev_sl_type == S)
-          &&
-          (*rlast > *std::next(rlast))
-        )
-    )
-    {
-      if
-      (
-        (prev_sl_type == L)
-        &&
-        (*rlast < *std::next(rlast))
-      )
-      {
-        prev_sl_type = S;
-      }
-      --rlast;
-    }
-    return;
-  }
-
-  template
-  <
-    typename trie_node_pointer_type,
-    typename string_iterator_type
-  >
-  void search_grammar_rule
-  (
-    trie_node_pointer_type node,
-    string_iterator_type it,
-    string_iterator_type end,
-    int32_t dist,
-    uint32_t &leftmost_rank,
-    uint32_t &rightmost_rank
-  )
-  {
-    while (node->branches.find(*it) != std::end(node->branches))
-    {
-      node = node->branches[*it];
-      auto edge_it {std::next(std::begin(grammar_rules), node->edge_begin_dist)};
-      auto edge_end {std::next(std::begin(grammar_rules), node->edge_end_dist)};
-      while
-      (
-        (it != end)
-        &&
-        (edge_it != edge_end)
-        &&
-        (*it == *edge_it)
-      )
-      {
-        it += dist;
-        edge_it += dist;
-      }
-      if (it != end)
-      {
-        if (edge_it != edge_end)
-        {
-          return;
-        }
-      }
-      else
-      {
-        rightmost_rank = node->rightmost_rank;
-        leftmost_rank = node->leftmost_rank;
-        return;
-      }
-    }
-    return;
-  }
-
-  template <typename pattern_iterator_type>
-  void backward_search_suffix
-  (
-    uint32_t &begin_dist,
-    uint32_t &end_dist,
-    pattern_iterator_type begin,
-    pattern_iterator_type end
-  )
-  {
-    uint32_t leftmost_lex_rank {0};
-    uint32_t rightmost_lex_rank {0};
-    search_grammar_rule
-    (
-      lex_trie_root,
-      begin,
-      end,
-      1,
-      leftmost_lex_rank,
-      rightmost_lex_rank
-    );
-    if (leftmost_lex_rank != 0)
-    {
-      begin_dist = lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
-      end_dist = lex_gc_character_bucket_end_dists[rightmost_lex_rank];
-    }
-    return;
-  }
-
-  template <typename pattern_iterator_type>
-  void backward_search_pivot
-  (
-    uint32_t &begin_dist,
-    uint32_t &end_dist,
-    pattern_iterator_type begin,
-    pattern_iterator_type end
-  )
-  {
-    uint32_t lex_rank {0};
-    search_grammar_rule
-    (
-      lex_trie_root,
-      begin,
-      end,
-      1,
-      lex_rank,
-      lex_rank
-    );
-    if (lex_rank != 0)
-    {
-      auto character_begin_dist {lex_gc_character_bucket_end_dists[lex_rank - 1]};
-      begin_dist = character_begin_dist + lex_gc_bwt.rank(begin_dist, lex_rank);
-      end_dist = character_begin_dist + lex_gc_bwt.rank(end_dist, lex_rank);
-    }
-    else
-    {
-      begin_dist = end_dist;
-    }
-    return;
-  }
-
-  template <typename pattern_iterator_type>
-  uint32_t backward_search_prefix
-  (
-    uint32_t begin_dist,
-    uint32_t end_dist,
-    pattern_iterator_type rbegin,
-    pattern_iterator_type rend
-  )
-  {
-    uint32_t leftmost_colex_rank {0};
-    uint32_t rightmost_colex_rank {0};
-    search_grammar_rule
-    (
-      colex_trie_root,
-      rbegin,
-      rend,
-      -1,
-      leftmost_colex_rank,
-      rightmost_colex_rank
-    );
-    if (leftmost_colex_rank != 0)
-    {
-      return std::get<0>
-      (
-        colex_gc_bwt.range_search_2d
-        (
-          begin_dist,
-          end_dist - 1,
-          leftmost_colex_rank,
-          rightmost_colex_rank
-        )
-      );
-    }
-    return 0;
-  }
-
-  template <typename pattern_iterator_type>
-  auto count
-  (
-    pattern_iterator_type rbegin,
-    pattern_iterator_type rend,
-    uint8_t prev_sl_type
-  )
-  {
-    uint32_t begin_dist {0};
-    uint32_t end_dist {0};
-    auto rfirst {rbegin};
-    auto rlast {std::prev(rfirst)};
-    calculate_rlast(rlast, rend, prev_sl_type);
-    backward_search_suffix(begin_dist, end_dist, std::next(rlast), std::next(rfirst));
-    while (begin_dist != end_dist)
-    {
-      rfirst = rlast--;
-      calculate_rlast(rlast, rend, L);
-      if (rlast != rend)
-      {
-        backward_search_pivot(begin_dist, end_dist, std::next(rlast), std::next(rfirst));
-      }
-      else
-      {
-        return backward_search_prefix(begin_dist, end_dist, rfirst, rend);
-      }
-    }
-    return (end_dist - begin_dist);
-  }
-
-  template <typename pattern_iterator_type>
-  uint32_t count
-  (
-    pattern_iterator_type pattern_begin,
-    pattern_iterator_type pattern_end
-  )
-  {
-    uint32_t count_ {0};
-    if (std::distance(pattern_begin, pattern_end) != 0)
-    {
-      count_ = count(std::prev(pattern_end), std::prev(pattern_begin), S);
-      if (exists_another_factorization(std::prev(pattern_end), std::prev(pattern_begin)))
-      {
-        count_ += count(std::prev(pattern_end), std::prev(pattern_begin), L);
-      }
-    }
-    return count_;
-  }
-
 };
 
 void construct
@@ -1113,6 +854,11 @@ void load
 
   temp_index.grammar_rule_sizes.load(fin);
   index.grammar_rule_sizes.swap(temp_index.grammar_rule_sizes);
+  index.max_grammar_rule_size = *std::max_element
+  (
+    std::begin(index.grammar_rule_sizes),
+    std::end(index.grammar_rule_sizes)
+  );
 
   temp_index.grammar_rules.load(fin);
   index.grammar_rules.swap(temp_index.grammar_rules);
@@ -1142,6 +888,264 @@ void load
   calculate_trie_rank_ranges(index.colex_trie_root, rank);
 
   return;
+}
+
+template
+<
+  typename grammar_rules_iterator_type,
+  typename trie_node_pointer_type,
+  typename string_iterator_type
+>
+void lookup_grammar_rule
+(
+  grammar_rules_iterator_type const grammar_rules_begin,
+  trie_node_pointer_type const root,
+  string_iterator_type it,
+  string_iterator_type end,
+  int32_t dist,
+  uint32_t &leftmost_rank,
+  uint32_t &rightmost_rank
+)
+{
+  auto node {root};
+  while (node->branches.find(*it) != std::end(node->branches))
+  {
+    node = node->branches[*it];
+    auto edge_it {std::next(grammar_rules_begin, node->edge_begin_dist)};
+    auto edge_end {std::next(grammar_rules_begin, node->edge_end_dist)};
+    while
+    (
+      (it != end)
+      &&
+      (edge_it != edge_end)
+      &&
+      (*it == *edge_it)
+    )
+    {
+      it += dist;
+      edge_it += dist;
+    }
+    if (it != end)
+    {
+      if (edge_it != edge_end)
+      {
+        return;
+      }
+    }
+    else
+    {
+      rightmost_rank = node->rightmost_rank;
+      leftmost_rank = node->leftmost_rank;
+      return;
+    }
+  }
+  return;
+}
+
+template <typename pattern_iterator_type>
+uint32_t backward_search_pattern_prefix
+(
+  gc_index const &index,
+  uint32_t begin_dist,
+  uint32_t end_dist,
+  pattern_iterator_type rbegin,
+  pattern_iterator_type rend
+)
+{
+  uint32_t leftmost_colex_rank {0};
+  uint32_t rightmost_colex_rank {0};
+  lookup_grammar_rule
+  (
+    std::begin(index.grammar_rules),
+    index.colex_trie_root,
+    rbegin,
+    rend,
+    -1,
+    leftmost_colex_rank,
+    rightmost_colex_rank
+  );
+  if (leftmost_colex_rank != 0)
+  {
+    return std::get<0>
+    (
+      index.colex_gc_bwt.range_search_2d
+      (
+        begin_dist,
+        end_dist - 1,
+        leftmost_colex_rank,
+        rightmost_colex_rank
+      )
+    );
+  }
+  return 0;
+}
+
+template <typename pattern_iterator_type>
+void backward_search_exact_sl_factor
+(
+  gc_index const &index,
+  uint32_t &begin_dist,
+  uint32_t &end_dist,
+  pattern_iterator_type begin,
+  pattern_iterator_type end
+)
+{
+  uint32_t lex_rank {0};
+  lookup_grammar_rule
+  (
+    std::begin(index.grammar_rules),
+    index.lex_trie_root,
+    begin,
+    end,
+    1,
+    lex_rank,
+    lex_rank
+  );
+  if (lex_rank != 0)
+  {
+    auto character_begin_dist {index.lex_gc_character_bucket_end_dists[lex_rank - 1]};
+    begin_dist = character_begin_dist + index.lex_gc_bwt.rank(begin_dist, lex_rank);
+    end_dist = character_begin_dist + index.lex_gc_bwt.rank(end_dist, lex_rank);
+  }
+  else
+  {
+    begin_dist = end_dist;
+  }
+  return;
+}
+
+template <typename pattern_iterator_type>
+void backward_search_pattern_suffix
+(
+  gc_index const &index,
+  uint32_t &begin_dist,
+  uint32_t &end_dist,
+  pattern_iterator_type begin,
+  pattern_iterator_type end
+)
+{
+  uint32_t leftmost_lex_rank {0};
+  uint32_t rightmost_lex_rank {0};
+  lookup_grammar_rule
+  (
+    std::begin(index.grammar_rules),
+    index.lex_trie_root,
+    begin,
+    end,
+    1,
+    leftmost_lex_rank,
+    rightmost_lex_rank
+  );
+  if (leftmost_lex_rank != 0)
+  {
+    begin_dist = index.lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
+    end_dist = index.lex_gc_character_bucket_end_dists[rightmost_lex_rank];
+  }
+  return;
+}
+
+template <typename pattern_iterator_type>
+void calculate_sl_factor_rlast
+(
+  pattern_iterator_type &rlast,
+  pattern_iterator_type const &rend,
+  uint8_t prev_sl_type
+)
+{
+  while
+  (
+    (rlast != rend)
+    &&
+    ! (
+        (prev_sl_type == S)
+        &&
+        (*rlast > *std::next(rlast))
+      )
+  )
+  {
+    if
+    (
+      (prev_sl_type == L)
+      &&
+      (*rlast < *std::next(rlast))
+    )
+    {
+      prev_sl_type = S;
+    }
+    --rlast;
+  }
+  return;
+}
+
+template <typename pattern_iterator_type>
+uint32_t count_with_prev_sl_type
+(
+  gc_index const &index,
+  pattern_iterator_type rbegin,
+  pattern_iterator_type rend,
+  uint8_t prev_sl_type
+)
+{
+  uint32_t begin_dist {0};
+  uint32_t end_dist {0};
+  auto rfirst {rbegin};
+  auto rlast {std::prev(rfirst)};
+  calculate_sl_factor_rlast(rlast, rend, prev_sl_type);
+  backward_search_pattern_suffix(index, begin_dist, end_dist, std::next(rlast), std::next(rfirst));
+  while (begin_dist != end_dist)
+  {
+    rfirst = rlast--;
+    calculate_sl_factor_rlast(rlast, rend, L);
+    if (rlast != rend)
+    {
+      backward_search_exact_sl_factor(index, begin_dist, end_dist, std::next(rlast), std::next(rfirst));
+    }
+    else
+    {
+      return backward_search_pattern_prefix(index, begin_dist, end_dist, rfirst, rlast);
+    }
+  }
+  return (end_dist - begin_dist);
+}
+
+template <typename pattern_iterator_type>
+bool exists_the_other_pattern_suffix
+(
+  pattern_iterator_type rit,
+  pattern_iterator_type rend
+)
+{
+  while
+  (
+    (std::next(rend) != rit)
+    &&
+    (*std::prev(rit) == *rit)
+  )
+  {
+    --rit;
+  }
+  if (std::next(rend) != rit)
+  {
+    return (*std::prev(rit) > *rit);
+  }
+  return false;
+}
+
+template <typename pattern_iterator_type>
+uint32_t count
+(
+  gc_index const &index,
+  pattern_iterator_type pattern_begin,
+  pattern_iterator_type pattern_end
+)
+{
+  uint32_t count_occurences {0};
+  count_occurences = count_with_prev_sl_type(index, std::prev(pattern_end), std::prev(pattern_begin), S);
+  if (exists_the_other_pattern_suffix(std::prev(pattern_end), std::prev(pattern_begin)))
+  {
+    count_occurences += count_with_prev_sl_type(index, std::prev(pattern_end), std::prev(pattern_begin), L);
+  }
+  return count_occurences;
 }
 
 }
