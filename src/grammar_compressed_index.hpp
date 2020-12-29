@@ -421,10 +421,10 @@ void print_trie
 (
   grammar_rules_iterator_type const &rules_begin,
   trie_node_pointer_type node,
-  int32_t const dist
+  int32_t const dist,
+  uint32_t depth = 0
 )
 {
-  static size_t depth {0};
   if (node != nullptr)
   {
     std::cout << depth << ':';
@@ -441,9 +441,7 @@ void print_trie
     std::cout << "(" << node->leftmost_rank << ',' << node->rightmost_rank << ")\n";
     for (auto character_child_pair : node->branches)
     {
-      ++depth;
-      print_trie(rules_begin, std::get<1>(character_child_pair), dist);
-      --depth;
+      print_trie(rules_begin, std::get<1>(character_child_pair), dist, depth + 1);
     }
   }
   return;
@@ -545,12 +543,13 @@ void insert_grammar_rules
   grammar_rule_sizes_type const &grammar_rule_sizes,
   grammar_rules_type const &grammar_rules,
   trie_node_pointer_type &lex_trie_root,
-  trie_node_pointer_type &colex_trie_root
+  trie_node_pointer_type &colex_trie_root,
+  uint32_t const rank_inc
 )
 {
   lex_trie_root = std::make_shared<trie_node>();
   colex_trie_root = std::make_shared<trie_node>();
-  uint32_t lex_rank {1};
+  uint32_t rank {1};
   auto sizes_it {std::begin(grammar_rule_sizes)};
   auto rules_it {std::begin(grammar_rules)};
   while (rules_it != std::end(grammar_rules))
@@ -564,7 +563,7 @@ void insert_grammar_rules
       rule_begin,
       rule_end,
       1,
-      lex_rank
+      rank
     );
     insert_grammar_rule
     (
@@ -573,9 +572,9 @@ void insert_grammar_rules
       std::prev(rule_end),
       std::prev(rule_begin),
       -1,
-      lex_rank
+      rank
     );
-    ++lex_rank;
+    rank += rank_inc;
     ++sizes_it;
     rules_it = rule_end;
   }
@@ -614,10 +613,10 @@ template
 void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
 (
   trie_node_pointer_type node,
-  lex_colex_permutation_type &lex_colex_permutation
+  lex_colex_permutation_type &lex_colex_permutation,
+  uint32_t &colex_rank
 )
 {
-  static uint32_t colex_rank {1};
   if (node->leftmost_rank != 0)
   {
     lex_colex_permutation[node->leftmost_rank] = colex_rank;
@@ -634,7 +633,8 @@ void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
       calculate_colex_trie_rank_ranges_and_lex_colex_permutation
       (
         std::get<1>(*branches_it),
-        lex_colex_permutation
+        lex_colex_permutation,
+        colex_rank
       );
       ++branches_it;
     }
@@ -654,15 +654,15 @@ template
   typename gc_text_type,
   typename temp_sa_bwt_type,
   typename lex_colex_permutation_type,
-  typename gc_bwt_wt_type
+  typename gc_bwt_type
 >
-void calculate_lex_and_colex_gc_bwt_wt
+void calculate_lex_and_colex_gc_bwt
 (
   gc_text_type const &gc_text,
   temp_sa_bwt_type &temp_sa_bwt,
   lex_colex_permutation_type const &lex_colex_permutation,
-  gc_bwt_wt_type &lex_gc_bwt_wt,
-  gc_bwt_wt_type &colex_gc_bwt_wt
+  gc_bwt_type &lex_gc_bwt,
+  gc_bwt_type &colex_gc_bwt
 )
 {
   sdsl::qsufsort::construct_sa(temp_sa_bwt, gc_text);
@@ -676,14 +676,46 @@ void calculate_lex_and_colex_gc_bwt_wt
     }
     ++temp_sa_bwt_it;
   }
-  construct_im(lex_gc_bwt_wt, temp_sa_bwt);
+  construct_im(lex_gc_bwt, temp_sa_bwt);
   temp_sa_bwt_it = std::begin(temp_sa_bwt);
   while (temp_sa_bwt_it != temp_sa_bwt_end)
   {
     *temp_sa_bwt_it = lex_colex_permutation[*temp_sa_bwt_it];
     ++temp_sa_bwt_it;
   }
-  construct_im(colex_gc_bwt_wt, temp_sa_bwt);
+  construct_im(colex_gc_bwt, temp_sa_bwt);
+  return;
+}
+
+template <typename trie_node_pointer_type>
+void calculate_trie_rank_ranges
+(
+  trie_node_pointer_type node,
+  uint32_t &rank
+)
+{
+  if (node->leftmost_rank != 0)
+  {
+    node->leftmost_rank = node->rightmost_rank = rank++;
+  }
+  if (!node->branches.empty())
+  {
+    auto branches_begin {std::begin(node->branches)};
+    auto branches_it {branches_begin};
+    auto branches_end {std::end(node->branches)};
+    while (branches_it != branches_end)
+    {
+      calculate_trie_rank_ranges(std::get<1>(*branches_it), rank);
+      ++branches_it;
+    }
+    auto first_child {std::get<1>(*branches_begin)};
+    auto last_child {std::get<1>(*std::prev(branches_end))};
+    if (node->leftmost_rank == 0)
+    {
+      node->leftmost_rank = first_child->leftmost_rank;
+    }
+    node->rightmost_rank = last_child->rightmost_rank;
+  }
   return;
 }
 
@@ -719,8 +751,8 @@ struct gc_index
   std::shared_ptr<trie_node> lex_trie_root;
   std::shared_ptr<trie_node> colex_trie_root;
   sdsl::int_vector<> lex_gc_character_bucket_end_dists;
-  sdsl::wt_int<> lex_gc_bwt_wt;
-  sdsl::wt_int<> colex_gc_bwt_wt;
+  sdsl::wt_int<> lex_gc_bwt;
+  sdsl::wt_int<> colex_gc_bwt;
 
   template <typename pattern_iterator_type>
   void calculate_rlast
@@ -854,8 +886,8 @@ struct gc_index
     if (lex_rank != 0)
     {
       auto character_begin_dist {lex_gc_character_bucket_end_dists[lex_rank - 1]};
-      begin_dist = character_begin_dist + lex_gc_bwt_wt.rank(begin_dist, lex_rank);
-      end_dist = character_begin_dist + lex_gc_bwt_wt.rank(end_dist, lex_rank);
+      begin_dist = character_begin_dist + lex_gc_bwt.rank(begin_dist, lex_rank);
+      end_dist = character_begin_dist + lex_gc_bwt.rank(end_dist, lex_rank);
     }
     else
     {
@@ -888,7 +920,7 @@ struct gc_index
     {
       return std::get<0>
       (
-        colex_gc_bwt_wt.range_search_2d
+        colex_gc_bwt.range_search_2d
         (
           begin_dist,
           end_dist - 1,
@@ -1014,7 +1046,8 @@ void construct
     index.grammar_rule_sizes,
     index.grammar_rules,
     index.lex_trie_root,
-    index.colex_trie_root
+    index.colex_trie_root,
+    1
   );
 
   calculate_lex_trie_rank_ranges(index.lex_trie_root);
@@ -1023,10 +1056,12 @@ void construct
   auto gc_text_width {sdsl::bits::hi(gc_text_sigma) + 1};
 
   sdsl::int_vector<> lex_colex_permutation(gc_text_sigma, 0,  gc_text_width);
+  uint32_t colex_rank {1};
   calculate_colex_trie_rank_ranges_and_lex_colex_permutation
   (
     index.colex_trie_root,
-    lex_colex_permutation
+    lex_colex_permutation,
+    colex_rank
   );
 
   auto gc_text_size {std::distance(temp_gc_text_begin, temp_gc_text_end) + 1};
@@ -1040,14 +1075,73 @@ void construct
 
   text_dists.resize(std::size(gc_text));
   auto &temp_sa_bwt {text_dists};
-  calculate_lex_and_colex_gc_bwt_wt
+  calculate_lex_and_colex_gc_bwt
   (
     gc_text,
     temp_sa_bwt,
     lex_colex_permutation,
-    index.lex_gc_bwt_wt,
-    index.colex_gc_bwt_wt
+    index.lex_gc_bwt,
+    index.colex_gc_bwt
   );
+  return;
+}
+
+void serialize
+(
+  gc_index &index,
+  char const *output_index_filename
+)
+{
+  auto flag {std::ios_base::out | std::ios_base::binary};
+  std::fstream fout (output_index_filename, flag);
+  index.grammar_rule_sizes.serialize(fout);
+  index.grammar_rules.serialize(fout);
+  index.lex_gc_character_bucket_end_dists.serialize(fout);
+  index.lex_gc_bwt.serialize(fout);
+  index.colex_gc_bwt.serialize(fout);
+  return;
+}
+
+void load
+(
+  gc_index &index,
+  char const *input_index_filename
+)
+{
+  auto flag {std::ios_base::in | std::ios_base::binary};
+  std::fstream fin (input_index_filename, flag);
+  gc_index temp_index;
+
+  temp_index.grammar_rule_sizes.load(fin);
+  index.grammar_rule_sizes.swap(temp_index.grammar_rule_sizes);
+
+  temp_index.grammar_rules.load(fin);
+  index.grammar_rules.swap(temp_index.grammar_rules);
+
+  temp_index.lex_gc_character_bucket_end_dists.load(fin);
+  index.lex_gc_character_bucket_end_dists.swap(temp_index.lex_gc_character_bucket_end_dists);
+
+  temp_index.lex_gc_bwt.load(fin);
+  index.lex_gc_bwt.swap(temp_index.lex_gc_bwt);
+
+  temp_index.colex_gc_bwt.load(fin);
+  index.colex_gc_bwt.swap(temp_index.colex_gc_bwt);
+
+  insert_grammar_rules
+  (
+    index.grammar_rule_sizes,
+    index.grammar_rules,
+    index.lex_trie_root,
+    index.colex_trie_root,
+    0
+  );
+
+  uint32_t rank {1};
+  calculate_trie_rank_ranges(index.lex_trie_root, rank);
+
+  rank = 1;
+  calculate_trie_rank_ranges(index.colex_trie_root, rank);
+
   return;
 }
 
