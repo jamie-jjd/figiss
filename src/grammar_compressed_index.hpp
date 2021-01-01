@@ -713,7 +713,6 @@ void calculate_trie_rank_ranges
 
 struct gc_index
 {
-  uint32_t max_grammar_rule_size;
   sdsl::int_vector<> grammar_rule_sizes;
   sdsl::int_vector<8> grammar_rules;
   std::shared_ptr<trie_node> lex_trie_root;
@@ -854,11 +853,6 @@ void load
 
   temp_index.grammar_rule_sizes.load(fin);
   index.grammar_rule_sizes.swap(temp_index.grammar_rule_sizes);
-  index.max_grammar_rule_size = *std::max_element
-  (
-    std::begin(index.grammar_rule_sizes),
-    std::end(index.grammar_rule_sizes)
-  );
 
   temp_index.grammar_rules.load(fin);
   index.grammar_rules.swap(temp_index.grammar_rules);
@@ -890,12 +884,12 @@ void load
   return;
 }
 
-template <typename pattern_iterator_type>
+template <typename string_iterator_type>
 void calculate_sl_factor
 (
-  pattern_iterator_type &rfirst,
-  pattern_iterator_type &rlast,
-  pattern_iterator_type const &rend,
+  string_iterator_type &rfirst,
+  string_iterator_type &rlast,
+  string_iterator_type const &rend,
   uint8_t &prev_sl_type
 )
 {
@@ -1171,6 +1165,27 @@ uint32_t count
     count_occurences += count_with_prev_sl_type(index, pattern_rbegin, pattern_rend, L);
   }
   return count_occurences;
+}
+
+uint32_t calculate_max_sl_factor_size (char const *text_filename)
+{
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, text_filename);
+  uint32_t max_size {0};
+  auto rfirst {std::prev(std::end(text))};
+  auto rlast {std::prev(std::end(text))};
+  auto rend {std::prev(std::begin(text))};
+  uint8_t prev_sl_type {L};
+  while (rlast != rend)
+  {
+    calculate_sl_factor(rfirst, rlast, rend, prev_sl_type);
+    auto size {static_cast<uint32_t>(std::distance(rlast, rfirst))};
+    if (max_size < size)
+    {
+      max_size = size;
+    }
+  }
+  return max_size;
 }
 
 }
