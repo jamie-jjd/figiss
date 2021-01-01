@@ -5,10 +5,12 @@
 #include <functional>
 #include <random>
 
+namespace gci
+{
 void generate_patterns
 (
-  char *const text_filename,
-  char *const patterns_filename,
+  std::string const text_filename,
+  std::string const patterns_filename,
   uint32_t const number_patterns,
   uint32_t const size_pattern
 )
@@ -37,6 +39,7 @@ void generate_patterns
     }
   }
   return;
+}
 }
 
 #endif
