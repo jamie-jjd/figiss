@@ -5,10 +5,12 @@
 #include <memory>
 
 #include <sdsl/suffix_trees.hpp>
+#include <tudocomp_stat/StatPhase.hpp>
+
+#include "utility.hpp"
 
 namespace gci
 {
-
 constexpr uint8_t S {1};
 constexpr uint8_t L {0};
 
@@ -725,102 +727,267 @@ struct gc_index
 void construct
 (
   gc_index &index,
-  char const *input_text_file
+  std::string const text_path
 )
 {
+  tdc::StatPhase phases {"initialize text"};
   sdsl::int_vector<8> text;
-  sdsl::load_vector_from_file(text, input_text_file);
-  sdsl::append_zero_symbol(text);
 
+  tdc::StatPhase::wrap
+  (
+    "load text",
+    [&] ()
+    {
+      sdsl::load_vector_from_file(text, text_path);
+      sdsl::append_zero_symbol(text);
+    }
+  );
+
+  phases.split("initialize sl_types of text");
   sdsl::bit_vector sl_types;
-  calculate_sl_types(text, sl_types);
 
+  tdc::StatPhase::wrap
+  (
+    "calculate sl_types of text",
+    [&] ()
+    {
+      calculate_sl_types(text, sl_types);
+    }
+  );
+
+  phases.split("initialize text_dists");
   auto invalid_text_dist {std::size(text)};
-
   sdsl::int_vector<> text_dists(std::size(text), invalid_text_dist, sdsl::bits::hi(std::size(text)) + 1);
 
+  phases.split("initialize character_bucket_dists");
   sdsl::int_vector<> character_bucket_dists(256, 0, sdsl::bits::hi(std::size(text)) + 1);
-  calculate_character_bucket_begin_dists(text, character_bucket_dists);
-  bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
-  induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
-  calculate_character_bucket_end_dists(text, character_bucket_dists);
-  induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
 
+  tdc::StatPhase::wrap
+  (
+    "calculate begin dists of character buckets",
+    [&] ()
+    {
+      calculate_character_bucket_begin_dists(text, character_bucket_dists);
+    }
+  );
+
+  tdc::StatPhase::wrap
+  (
+    "bucket sort rightmost L-type characters",
+    [&] ()
+    {
+      bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+    }
+  );
+
+  tdc::StatPhase::wrap
+  (
+    "induce sort L-type characters",
+    [&] ()
+    {
+      induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+    }
+  );
+
+  tdc::StatPhase::wrap
+  (
+    "calculate end dists of character bucket",
+    [&] ()
+    {
+      calculate_character_bucket_end_dists(text, character_bucket_dists);
+    }
+  );
+
+  tdc::StatPhase::wrap
+  (
+    "induce sort S-type characters",
+    [&] ()
+    {
+      induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
+    }
+  );
+
+  phases.split
+  (
+"\
+reuse memory of text_dists for \
+begin dists of grammar rule \
+and temporary grammar-compressed text\
+"
+  );
   auto text_dists_boundary {collect_valid_entries(std::begin(text_dists), std::end(text_dists), invalid_text_dist)};
   auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
   auto grammar_rule_begin_dists_end {text_dists_boundary};
   auto temp_gc_text_begin {text_dists_boundary};
   auto temp_gc_text_end {std::end(text_dists)};
 
-  calculate_grammar_rule_begin_dists_and_temp_gc_text
+  tdc::StatPhase::wrap
   (
-    text,
-    sl_types,
-    grammar_rule_begin_dists_begin,
-    grammar_rule_begin_dists_end,
-    temp_gc_text_begin,
-    temp_gc_text_end
+"\
+calculate begin dists of grammar rule \
+and temporary grammar-compressed text \
+",
+    [&] ()
+    {
+      calculate_grammar_rule_begin_dists_and_temp_gc_text
+      (
+        text,
+        sl_types,
+        grammar_rule_begin_dists_begin,
+        grammar_rule_begin_dists_end,
+        temp_gc_text_begin,
+        temp_gc_text_end
+      );
+    }
   );
 
-  calculate_grammar_rule_sizes
+  tdc::StatPhase::wrap
   (
-    index.grammar_rule_sizes,
-    sl_types,
-    grammar_rule_begin_dists_begin,
-    grammar_rule_begin_dists_end
+    "calculate sizes of grammar rule",
+    [&] ()
+    {
+      calculate_grammar_rule_sizes
+      (
+        index.grammar_rule_sizes,
+        sl_types,
+        grammar_rule_begin_dists_begin,
+        grammar_rule_begin_dists_end
+      );
+    }
   );
 
-  sdsl::util::clear(sl_types);
-
-  calculate_grammar_rules
+  tdc::StatPhase::wrap
   (
-    text,
-    index.grammar_rule_sizes,
-    index.grammar_rules,
-    grammar_rule_begin_dists_begin
+    "calculate concatenated grammar rules",
+    [&] ()
+    {
+      calculate_grammar_rules
+      (
+        text,
+        index.grammar_rule_sizes,
+        index.grammar_rules,
+        grammar_rule_begin_dists_begin
+      );
+    }
   );
 
-  insert_grammar_rules
+  tdc::StatPhase::wrap
   (
-    index.grammar_rule_sizes,
-    index.grammar_rules,
-    index.lex_trie_root,
-    index.colex_trie_root,
-    1
+    "clear sl_types and text (unused later)",
+    [&] ()
+    {
+      sdsl::util::clear(sl_types);
+      sdsl::util::clear(text);
+    }
   );
 
-  calculate_lex_trie_rank_ranges(index.lex_trie_root);
+  tdc::StatPhase::wrap
+  (
+    "insert grammar rules into lex. & colex. trie",
+    [&] ()
+    {
+      insert_grammar_rules
+      (
+        index.grammar_rule_sizes,
+        index.grammar_rules,
+        index.lex_trie_root,
+        index.colex_trie_root,
+        1
+      );
+    }
+  );
+
+  tdc::StatPhase::wrap
+  (
+    "calculate lex. rank ranges on trie node of grammar rules",
+    [&] ()
+    {
+      calculate_lex_trie_rank_ranges(index.lex_trie_root);
+    }
+  );
 
   auto gc_text_sigma {std::size(index.grammar_rule_sizes) + 1};
   auto gc_text_width {sdsl::bits::hi(gc_text_sigma) + 1};
 
+  phases.split("initialize permutation mapping from lex. to colex. rank");
   sdsl::int_vector<> lex_colex_permutation(gc_text_sigma, 0,  gc_text_width);
-  uint32_t colex_rank {1};
-  calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+
+  tdc::StatPhase::wrap
   (
-    index.colex_trie_root,
-    lex_colex_permutation,
-    colex_rank
+"\
+calculate colex. rank ranges on \
+trie node of reverse grammar rules \
+and permutation mapping from lex. \
+to colex. rank\
+",
+    [&] ()
+    {
+      uint32_t colex_rank {1};
+      calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+      (
+        index.colex_trie_root,
+        lex_colex_permutation,
+        colex_rank
+      );
+    }
   );
 
   auto gc_text_size {std::distance(temp_gc_text_begin, temp_gc_text_end) + 1};
   auto gc_text_size_width {sdsl::bits::hi(gc_text_size) + 1};
-  sdsl::int_vector<> gc_text(gc_text_size, 0, gc_text_width);
-  std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
 
+  phases.split("initialize grammar-compressed text");
+  sdsl::int_vector<> gc_text(gc_text_size, 0, gc_text_width);
+
+  tdc::StatPhase::wrap
+  (
+"\
+copy into grammar-compressed text from \
+temporary grammar-compressed text\
+",
+    [&] ()
+    {
+      std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
+    }
+  );
+
+  phases.split
+  (
+"\
+initialize character bucket end dists \
+of grammar-compressed text \
+(for F array in LF mapping)\
+"
+  );
   index.lex_gc_character_bucket_end_dists.width(gc_text_size_width);
   index.lex_gc_character_bucket_end_dists.resize(gc_text_sigma);
-  calculate_character_bucket_end_dists(gc_text, index.lex_gc_character_bucket_end_dists);
 
+  tdc::StatPhase::wrap
+  (
+    "calculate character bucket end dists of grammar-compressed text",
+    [&] ()
+    {
+      calculate_character_bucket_end_dists(gc_text, index.lex_gc_character_bucket_end_dists);
+    }
+  );
+
+  phases.split("reuse (resize) text_dists for temporary suffix array & bwt");
   text_dists.resize(std::size(gc_text));
   auto &temp_sa_bwt {text_dists};
-  calculate_lex_and_colex_gc_bwt
+
+  tdc::StatPhase::wrap
   (
-    gc_text,
-    temp_sa_bwt,
-    lex_colex_permutation,
-    index.lex_gc_bwt,
-    index.colex_gc_bwt
+    "calculate wavelet tree on bwt of lex. & colex. grammar-compressed text",
+    [&] ()
+    {
+      calculate_lex_and_colex_gc_bwt
+      (
+        gc_text,
+        temp_sa_bwt,
+        lex_colex_permutation,
+        index.lex_gc_bwt,
+        index.colex_gc_bwt
+      );
+    }
   );
   return;
 }
@@ -828,11 +995,11 @@ void construct
 void serialize
 (
   gc_index &index,
-  char const *output_index_filename
+  std::string const index_path
 )
 {
   auto flag {std::ios_base::out | std::ios_base::binary};
-  std::fstream fout (output_index_filename, flag);
+  std::fstream fout (index_path, flag);
   index.grammar_rule_sizes.serialize(fout);
   index.grammar_rules.serialize(fout);
   index.lex_gc_character_bucket_end_dists.serialize(fout);
@@ -844,11 +1011,11 @@ void serialize
 void load
 (
   gc_index &index,
-  char const *input_index_filename
+  std::string const index_path
 )
 {
   auto flag {std::ios_base::in | std::ios_base::binary};
-  std::fstream fin (input_index_filename, flag);
+  std::fstream fin (index_path, flag);
   gc_index temp_index;
 
   temp_index.grammar_rule_sizes.load(fin);
@@ -993,11 +1160,6 @@ uint32_t backward_search_pattern_prefix
     leftmost_colex_rank,
     rightmost_colex_rank
   );
-  // for (auto rit {rfirst}; rit != rlast; --rit)
-  // {
-  //   std::cout << *rit;
-  // }
-  // std::cout << " -> (" << leftmost_colex_rank << ", " << rightmost_colex_rank << ")";
   uint32_t count {0};
   if (leftmost_colex_rank != 0)
   {
@@ -1012,7 +1174,6 @@ uint32_t backward_search_pattern_prefix
       )
     );
   }
-  // std::cout << " -> (" << count << ")\n";
   return count;
 }
 
@@ -1047,12 +1208,6 @@ void backward_search_exact_sl_factor
   {
     begin_dist = end_dist;
   }
-  // for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
-  // {
-  //   std::cout << *it;
-  // }
-  // std::cout << " -> (" << lex_rank << ")";
-  // std::cout << " -> (" << begin_dist << ", " << end_dist << ")\n";
   return;
 }
 
@@ -1083,12 +1238,6 @@ void backward_search_pattern_suffix
     begin_dist = index.lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
     end_dist = index.lex_gc_character_bucket_end_dists[rightmost_lex_rank];
   }
-  // for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
-  // {
-  //   std::cout << *it;
-  // }
-  // std::cout << " -> (" << leftmost_lex_rank << ", " << rightmost_lex_rank << ")";
-  // std::cout << " -> (" << begin_dist << ", " << end_dist << ")\n";
   return;
 }
 
@@ -1167,10 +1316,10 @@ uint32_t count
   return count_occurences;
 }
 
-uint32_t calculate_max_sl_factor_size (char const *text_filename)
+uint32_t calculate_max_sl_factor_size (std::string const text_path)
 {
   sdsl::int_vector<8> text;
-  sdsl::load_vector_from_file(text, text_filename);
+  sdsl::load_vector_from_file(text, text_path);
   uint32_t max_size {0};
   auto rfirst {std::prev(std::end(text))};
   auto rlast {std::prev(std::end(text))};
@@ -1187,7 +1336,6 @@ uint32_t calculate_max_sl_factor_size (char const *text_filename)
   }
   return max_size;
 }
-
 }
 
 #endif
