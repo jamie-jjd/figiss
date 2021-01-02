@@ -737,7 +737,7 @@ void construct
   std::string const text_path
 )
 {
-  std::ofstream fout ("../output/construct/" + gci::util::basename(text_path) + ".json");
+  std::ofstream fout ("../output/construct/" + util::basename(text_path) + ".json");
   tdc::StatPhase phases {""};
   tdc::StatPhase::wrap
   (
