@@ -48,7 +48,7 @@ void calculate_sl_types
 )
 {
   sl_types.resize(std::size(text));
-  std::fill(std::begin(sl_types), std::end(sl_types), S);
+  sdsl::util::set_to_value(sl_types, S);
   auto text_rit {std::prev(std::end(text))};
   auto text_rlast {std::begin(text)};
   auto sl_types_rit {std::prev(std::end(sl_types))};
@@ -731,6 +731,17 @@ struct gc_index
   sdsl::wt_int<> colex_gc_bwt;
 };
 
+void print_gc_index (gc_index &index)
+{
+  std::cout << index.grammar_rule_sizes << '\n';
+  std::cout << index.grammar_rules << '\n';
+  print_trie(std::begin(index.grammar_rules), index.lex_trie_root, 1);
+  print_trie(std::begin(index.grammar_rules), index.colex_trie_root, -1);
+  std::cout << index.lex_gc_character_bucket_end_dists << '\n';
+  std::cout << index.lex_gc_bwt << '\n';
+  std::cout << index.colex_gc_bwt << '\n';
+}
+
 void construct
 (
   gc_index &index,
@@ -738,259 +749,254 @@ void construct
 )
 {
   std::ofstream fout ("../output/construct/" + util::basename(text_path) + ".json");
-  tdc::StatPhase phases {""};
-  tdc::StatPhase::wrap
-  (
-    "construct_gc_index",
-    [&] ()
-    {
-      sdsl::int_vector<8> text;
-      tdc::StatPhase::wrap
-      (
-        "load_text",
-        [&] ()
-        {
-          sdsl::load_vector_from_file(text, text_path);
-          sdsl::append_zero_symbol(text);
-        }
-      );
-      sdsl::bit_vector sl_types;
-      tdc::StatPhase::wrap
-      (
-        "calculate_sl_types",
-        [&] ()
-        {
-          calculate_sl_types(text, sl_types);
-        }
-      );
-      auto invalid_text_dist {std::size(text)};
-      auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
-      sdsl::int_vector<> text_dists;
-      tdc::StatPhase::wrap
-      (
-        "init_text_dists",
-        [&] ()
-        {
-          text_dists.width(text_size_width);
-          text_dists.resize(std::size(text));
-          sdsl::util::set_to_value(text_dists, invalid_text_dist);
-        }
-      );
-      sdsl::int_vector<> character_bucket_dists;
-      tdc::StatPhase::wrap
-      (
-        "init_character_bucket_dists",
-        [&] ()
-        {
-          character_bucket_dists.width(text_size_width);
-          character_bucket_dists.resize(256);
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "calculate_character_bucket_begin_dists",
-        [&] ()
-        {
-          calculate_character_bucket_begin_dists(text, character_bucket_dists);
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "bucket_sort_rightmost_l_type_characters",
-        [&] ()
-        {
-          bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "induce_sort_l_type_characters",
-        [&] ()
-        {
-          induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "calculate_character_bucket_end_dists",
-        [&] ()
-        {
-          calculate_character_bucket_end_dists(text, character_bucket_dists);
-        }
-      );
+  tdc::StatPhase phases {"construct_gc_index"};
+  {
+    sdsl::int_vector<8> text;
+    tdc::StatPhase::wrap
+    (
+      "load_text",
+      [&] ()
+      {
+        sdsl::load_vector_from_file(text, text_path);
+        sdsl::append_zero_symbol(text);
+      }
+    );
+    sdsl::bit_vector sl_types;
+    tdc::StatPhase::wrap
+    (
+      "calculate_sl_types",
+      [&] ()
+      {
+        calculate_sl_types(text, sl_types);
+      }
+    );
+    auto invalid_text_dist {std::size(text)};
+    auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
+    sdsl::int_vector<> text_dists;
+    tdc::StatPhase::wrap
+    (
+      "init_text_dists",
+      [&] ()
+      {
+        text_dists.width(text_size_width);
+        text_dists.resize(std::size(text));
+        sdsl::util::set_to_value(text_dists, invalid_text_dist);
+      }
+    );
+    sdsl::int_vector<> character_bucket_dists;
+    tdc::StatPhase::wrap
+    (
+      "init_character_bucket_dists",
+      [&] ()
+      {
+        character_bucket_dists.width(text_size_width);
+        character_bucket_dists.resize(256);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_character_bucket_begin_dists",
+      [&] ()
+      {
+        calculate_character_bucket_begin_dists(text, character_bucket_dists);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "bucket_sort_rightmost_l_type_characters",
+      [&] ()
+      {
+        bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "induce_sort_l_type_characters",
+      [&] ()
+      {
+        induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_character_bucket_end_dists",
+      [&] ()
+      {
+        calculate_character_bucket_end_dists(text, character_bucket_dists);
+      }
+    );
 
-      tdc::StatPhase::wrap
-      (
-        "induce_sort_s_type_characters",
-        [&] ()
-        {
-          induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
-        }
-      );
-      auto text_dists_boundary {std::begin(text_dists)};
-      tdc::StatPhase::wrap
-      (
-        "calculate_text_dists_boundary",
-        [&] ()
-        {
-          text_dists_boundary = collect_valid_entries
-          (
-            std::begin(text_dists),
-            std::end(text_dists),
-            invalid_text_dist
-          );
-        }
-      );
-      auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
-      auto grammar_rule_begin_dists_end {text_dists_boundary};
-      auto temp_gc_text_begin {text_dists_boundary};
-      auto temp_gc_text_end {std::end(text_dists)};
-      tdc::StatPhase::wrap
-      (
-        "calculate_grammar_rule_begin_dists_and_temp_gc_text",
-        [&] ()
-        {
-          calculate_grammar_rule_begin_dists_and_temp_gc_text
-          (
-            text,
-            sl_types,
-            grammar_rule_begin_dists_begin,
-            grammar_rule_begin_dists_end,
-            temp_gc_text_begin,
-            temp_gc_text_end
-          );
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "calculate_grammar_rule_sizes",
-        [&] ()
-        {
-          calculate_grammar_rule_sizes
-          (
-            index.grammar_rule_sizes,
-            sl_types,
-            grammar_rule_begin_dists_begin,
-            grammar_rule_begin_dists_end
-          );
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "calculate_grammar_rules",
-        [&] ()
-        {
-          calculate_grammar_rules
-          (
-            text,
-            index.grammar_rule_sizes,
-            index.grammar_rules,
-            grammar_rule_begin_dists_begin
-          );
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "clear_sl_types_and_text",
-        [&] ()
-        {
-          sdsl::util::clear(sl_types);
-          sdsl::util::clear(text);
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "insert_grammar_rules",
-        [&] ()
-        {
-          insert_grammar_rules
-          (
-            index.grammar_rule_sizes,
-            index.grammar_rules,
-            index.lex_trie_root,
-            index.colex_trie_root,
-            1
-          );
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "calculate_lex_trie_rank_ranges",
-        [&] ()
-        {
-          calculate_lex_trie_rank_ranges(index.lex_trie_root);
-        }
-      );
-      auto gc_text_sigma {std::size(index.grammar_rule_sizes) + 1};
-      auto gc_text_width {sdsl::bits::hi(gc_text_sigma) + 1};
-      sdsl::int_vector<> lex_colex_permutation;
-      tdc::StatPhase::wrap
-      (
-        "init_lex_colex_permutation",
-        [&] ()
-        {
-          lex_colex_permutation.width(gc_text_width);
-          lex_colex_permutation.resize(gc_text_sigma);
-          lex_colex_permutation[0] = 0;
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "calculate_colex_trie_rank_ranges_and_lex_colex_permutation",
-        [&] ()
-        {
-          uint32_t colex_rank {1};
-          calculate_colex_trie_rank_ranges_and_lex_colex_permutation
-          (
-            index.colex_trie_root,
-            lex_colex_permutation,
-            colex_rank
-          );
-        }
-      );
-      auto gc_text_size {std::distance(temp_gc_text_begin, temp_gc_text_end) + 1};
-      auto gc_text_size_width {sdsl::bits::hi(gc_text_size) + 1};
-      sdsl::int_vector<> gc_text;
-      tdc::StatPhase::wrap
-      (
-        "calculate_gc_text",
-        [&] ()
-        {
-          gc_text.width(gc_text_width);
-          gc_text.resize(gc_text_size);
-          std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
-          gc_text[std::size(gc_text) - 1] = 0;
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "calculate_lex_gc_character_bucket_end_dists",
-        [&] ()
-        {
-          index.lex_gc_character_bucket_end_dists.width(gc_text_size_width);
-          index.lex_gc_character_bucket_end_dists.resize(gc_text_sigma);
-          calculate_character_bucket_end_dists(gc_text, index.lex_gc_character_bucket_end_dists);
-        }
-      );
-      tdc::StatPhase::wrap
-      (
-        "calculate_lex_and_colex_gc_bwt",
-        [&] ()
-        {
-          text_dists.resize(std::size(gc_text));
-          auto &temp_sa_bwt {text_dists};
-          calculate_lex_and_colex_gc_bwt
-          (
-            gc_text,
-            temp_sa_bwt,
-            lex_colex_permutation,
-            index.lex_gc_bwt,
-            index.colex_gc_bwt
-          );
-        }
-      );
-    }
-  );
+    tdc::StatPhase::wrap
+    (
+      "induce_sort_s_type_characters",
+      [&] ()
+      {
+        induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
+      }
+    );
+    auto text_dists_boundary {std::begin(text_dists)};
+    tdc::StatPhase::wrap
+    (
+      "calculate_text_dists_boundary",
+      [&] ()
+      {
+        text_dists_boundary = collect_valid_entries
+        (
+          std::begin(text_dists),
+          std::end(text_dists),
+          invalid_text_dist
+        );
+      }
+    );
+    auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
+    auto grammar_rule_begin_dists_end {text_dists_boundary};
+    auto temp_gc_text_begin {text_dists_boundary};
+    auto temp_gc_text_end {std::end(text_dists)};
+    tdc::StatPhase::wrap
+    (
+      "calculate_grammar_rule_begin_dists_and_temp_gc_text",
+      [&] ()
+      {
+        calculate_grammar_rule_begin_dists_and_temp_gc_text
+        (
+          text,
+          sl_types,
+          grammar_rule_begin_dists_begin,
+          grammar_rule_begin_dists_end,
+          temp_gc_text_begin,
+          temp_gc_text_end
+        );
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_grammar_rule_sizes",
+      [&] ()
+      {
+        calculate_grammar_rule_sizes
+        (
+          index.grammar_rule_sizes,
+          sl_types,
+          grammar_rule_begin_dists_begin,
+          grammar_rule_begin_dists_end
+        );
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_grammar_rules",
+      [&] ()
+      {
+        calculate_grammar_rules
+        (
+          text,
+          index.grammar_rule_sizes,
+          index.grammar_rules,
+          grammar_rule_begin_dists_begin
+        );
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "clear_sl_types_and_text",
+      [&] ()
+      {
+        sdsl::util::clear(sl_types);
+        sdsl::util::clear(text);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "insert_grammar_rules",
+      [&] ()
+      {
+        insert_grammar_rules
+        (
+          index.grammar_rule_sizes,
+          index.grammar_rules,
+          index.lex_trie_root,
+          index.colex_trie_root,
+          1
+        );
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_lex_trie_rank_ranges",
+      [&] ()
+      {
+        calculate_lex_trie_rank_ranges(index.lex_trie_root);
+      }
+    );
+    auto gc_text_sigma {std::size(index.grammar_rule_sizes) + 1};
+    auto gc_text_width {sdsl::bits::hi(gc_text_sigma) + 1};
+    sdsl::int_vector<> lex_colex_permutation;
+    tdc::StatPhase::wrap
+    (
+      "init_lex_colex_permutation",
+      [&] ()
+      {
+        lex_colex_permutation.width(gc_text_width);
+        lex_colex_permutation.resize(gc_text_sigma);
+        lex_colex_permutation[0] = 0;
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_colex_trie_rank_ranges_and_lex_colex_permutation",
+      [&] ()
+      {
+        uint32_t colex_rank {1};
+        calculate_colex_trie_rank_ranges_and_lex_colex_permutation
+        (
+          index.colex_trie_root,
+          lex_colex_permutation,
+          colex_rank
+        );
+      }
+    );
+    auto gc_text_size {std::distance(temp_gc_text_begin, temp_gc_text_end) + 1};
+    auto gc_text_size_width {sdsl::bits::hi(gc_text_size) + 1};
+    sdsl::int_vector<> gc_text;
+    tdc::StatPhase::wrap
+    (
+      "calculate_gc_text",
+      [&] ()
+      {
+        gc_text.width(gc_text_width);
+        gc_text.resize(gc_text_size);
+        std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
+        gc_text[std::size(gc_text) - 1] = 0;
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_lex_gc_character_bucket_end_dists",
+      [&] ()
+      {
+        index.lex_gc_character_bucket_end_dists.width(gc_text_size_width);
+        index.lex_gc_character_bucket_end_dists.resize(gc_text_sigma);
+        calculate_character_bucket_end_dists(gc_text, index.lex_gc_character_bucket_end_dists);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_lex_and_colex_gc_bwt",
+      [&] ()
+      {
+        text_dists.resize(std::size(gc_text));
+        auto &temp_sa_bwt {text_dists};
+        calculate_lex_and_colex_gc_bwt
+        (
+          gc_text,
+          temp_sa_bwt,
+          lex_colex_permutation,
+          index.lex_gc_bwt,
+          index.colex_gc_bwt
+        );
+      }
+    );
+  }
   phases.to_json().str(fout);
   return;
 }
