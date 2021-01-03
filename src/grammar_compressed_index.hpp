@@ -748,7 +748,7 @@ void construct
   std::string const text_path
 )
 {
-  std::ofstream fout ("../output/construct/" + util::basename(text_path) + ".json");
+  std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".json"};
   tdc::StatPhase phases {"construct_gc_index"};
   {
     sdsl::int_vector<8> text;
@@ -825,7 +825,6 @@ void construct
         calculate_character_bucket_end_dists(text, character_bucket_dists);
       }
     );
-
     tdc::StatPhase::wrap
     (
       "induce_sort_s_type_characters",
@@ -997,7 +996,7 @@ void construct
       }
     );
   }
-  phases.to_json().str(fout);
+  phases.to_json().str(json_output);
   return;
 }
 
@@ -1007,13 +1006,22 @@ void serialize
   std::string const index_path
 )
 {
-  auto flag {std::ios_base::out | std::ios_base::binary};
-  std::fstream fout (index_path, flag);
-  index.grammar_rule_sizes.serialize(fout);
-  index.grammar_rules.serialize(fout);
-  index.lex_gc_character_bucket_end_dists.serialize(fout);
-  index.lex_gc_bwt.serialize(fout);
-  index.colex_gc_bwt.serialize(fout);
+  std::ofstream index_output {index_path};
+  std::ofstream json_output {"../output/serialize/" + util::basename(index_path) + ".json"};
+  tdc::StatPhase phases {""};
+  tdc::StatPhase::wrap
+  (
+    "gc_index serialize",
+    [&] ()
+    {
+      index.grammar_rule_sizes.serialize(index_output);
+      index.grammar_rules.serialize(index_output);
+      index.lex_gc_character_bucket_end_dists.serialize(index_output);
+      index.lex_gc_bwt.serialize(index_output);
+      index.colex_gc_bwt.serialize(index_output);
+    }
+  );
+  phases.to_json().str(json_output);
   return;
 }
 
@@ -1023,40 +1031,90 @@ void load
   std::string const index_path
 )
 {
-  auto flag {std::ios_base::in | std::ios_base::binary};
-  std::fstream fin (index_path, flag);
-  gc_index temp_index;
-
-  temp_index.grammar_rule_sizes.load(fin);
-  index.grammar_rule_sizes.swap(temp_index.grammar_rule_sizes);
-
-  temp_index.grammar_rules.load(fin);
-  index.grammar_rules.swap(temp_index.grammar_rules);
-
-  temp_index.lex_gc_character_bucket_end_dists.load(fin);
-  index.lex_gc_character_bucket_end_dists.swap(temp_index.lex_gc_character_bucket_end_dists);
-
-  temp_index.lex_gc_bwt.load(fin);
-  index.lex_gc_bwt.swap(temp_index.lex_gc_bwt);
-
-  temp_index.colex_gc_bwt.load(fin);
-  index.colex_gc_bwt.swap(temp_index.colex_gc_bwt);
-
-  insert_grammar_rules
-  (
-    index.grammar_rule_sizes,
-    index.grammar_rules,
-    index.lex_trie_root,
-    index.colex_trie_root,
-    0
-  );
-
-  uint32_t rank {1};
-  calculate_trie_rank_ranges(index.lex_trie_root, rank);
-
-  rank = 1;
-  calculate_trie_rank_ranges(index.colex_trie_root, rank);
-
+  std::ifstream index_input {index_path};
+  std::ofstream json_output {"../output/load/" + util::basename(index_path) + ".json"};
+  tdc::StatPhase phases {"load_gc_index"};
+  {
+    tdc::StatPhase::wrap
+    (
+      "load_grammar_rule_sizes",
+      [&] ()
+      {
+        sdsl::util::clear(index.grammar_rule_sizes);
+        index.grammar_rule_sizes.load(index_input);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "load_grammar_rules",
+      [&] ()
+      {
+        sdsl::util::clear(index.grammar_rules);
+        index.grammar_rules.load(index_input);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "load_lex_gc_character_bucket_end_dists",
+      [&] ()
+      {
+        sdsl::util::clear(index.lex_gc_character_bucket_end_dists);
+        index.lex_gc_character_bucket_end_dists.load(index_input);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "load_lex_gc_bwt",
+      [&] ()
+      {
+        sdsl::util::clear(index.lex_gc_bwt);
+        index.lex_gc_bwt.load(index_input);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "load_colex_gc_bwt",
+      [&] ()
+      {
+        sdsl::util::clear(index.colex_gc_bwt);
+        index.colex_gc_bwt.load(index_input);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "insert_grammar_rules",
+      [&] ()
+      {
+        insert_grammar_rules
+        (
+          index.grammar_rule_sizes,
+          index.grammar_rules,
+          index.lex_trie_root,
+          index.colex_trie_root,
+          0
+        );
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_lex_trie_rank_ranges",
+      [&] ()
+      {
+        uint32_t rank {1};
+        calculate_trie_rank_ranges(index.lex_trie_root, rank);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
+      "calculate_colex_trie_rank_ranges",
+      [&] ()
+      {
+        uint32_t rank {1};
+        calculate_trie_rank_ranges(index.colex_trie_root, rank);
+      }
+    );
+  }
+  phases.to_json().str(json_output);
   return;
 }
 
