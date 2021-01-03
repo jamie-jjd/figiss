@@ -1,7 +1,6 @@
 #ifndef BENCHMARK_HPP_
 #define BENCHMARK_HPP_
 
-#include <fstream>
 #include <tudocomp_stat/StatPhase.hpp>
 
 #include "grammar_compressed_index.hpp"
@@ -13,8 +12,69 @@ namespace gci
 void benchmark_gc_index_count
 (
   gc_index &index,
+  std::string const pattern_path
+)
+{
+  std::ifstream patterns_input {pattern_path};
+  std::ofstream json_output {"../output/count/" + util::basename(pattern_path) + "_gc_index.json"};
+  sdsl::int_vector<8> pattern;
+  uint32_t pattern_number {0};
+  patterns_input >> pattern_number;
+  tdc::StatPhase phases {"gc_index count"};
+  for (uint32_t i {0}; i != pattern_number; ++i)
+  {
+    tdc::StatPhase::pause_tracking();
+    pattern.load(patterns_input);
+    tdc::StatPhase::resume_tracking();
+    tdc::StatPhase::wrap
+    (
+      "",
+      [&] ()
+      {
+        gci::count(index, std::begin(pattern), std::end(pattern));
+      }
+    );
+  }
+  phases.to_json().str(json_output);
+  return;
+}
+
+void benchmark_fm_index_count
+(
+  sdsl::csa_wt<> &fm_index,
+  std::string const pattern_path
+)
+{
+  std::ifstream patterns_input {pattern_path};
+  std::ofstream json_output {"../output/count/" + util::basename(pattern_path) + "_fm_index.json"};
+  sdsl::int_vector<8> pattern;
+  uint32_t pattern_number {0};
+  patterns_input >> pattern_number;
+  tdc::StatPhase phases {"fm_index count"};
+  for (uint32_t i {0}; i != pattern_number; ++i)
+  {
+    tdc::StatPhase::pause_tracking();
+    pattern.load(patterns_input);
+    tdc::StatPhase::resume_tracking();
+    tdc::StatPhase::wrap
+    (
+      "",
+      [&] ()
+      {
+        sdsl::count(fm_index, std::begin(pattern), std::end(pattern));
+      }
+    );
+  }
+  phases.to_json().str(json_output);
+  return;
+}
+
+void benchmark_count
+(
+  gc_index &index,
+  sdsl::csa_wt<> &fm_index,
   std::string const text_path,
-  uint32_t const number_patterns,
+  uint32_t const pattern_number,
   uint32_t const pattern_size
 )
 {
@@ -23,44 +83,28 @@ void benchmark_gc_index_count
   {
     throw std::runtime_error
     (
-      std::string{"pattern size must be at least "}
+      std::string{"pattern size should be at least "}
       + std::to_string(min_pattern_size)
       + " (characters) for this text"
     );
   }
-  gci::generate_patterns
+  std::string pattern_path
+  {
+    "../input/pattern/"
+    + util::basename(text_path) + "_"
+    + std::to_string(pattern_number) + "_"
+    + std::to_string(pattern_size)
+  };
+  generate_patterns
   (
     text_path,
-    "../input/patterns",
-    number_patterns,
+    pattern_path,
+    pattern_number,
     pattern_size
   );
-  std::fstream fin ("../input/patterns", std::ios_base::in | std::ios_base::binary);
-  sdsl::int_vector<8> pattern;
-  std::ofstream fout (std::string{"../output/count/"} + util::basename(text_path) + ".json");
-  tdc::StatPhase phases {""};
-  tdc::StatPhase::wrap
-  (
-    "gc_index count",
-    [&] ()
-    {
-      for (uint32_t i {0}; i != number_patterns; ++i)
-      {
-        tdc::StatPhase::pause_tracking();
-        pattern.load(fin);
-        tdc::StatPhase::resume_tracking();
-        tdc::StatPhase::wrap
-        (
-          "",
-          [&] ()
-          {
-            gci::count(index, std::begin(pattern), std::end(pattern));
-          }
-        );
-      }
-    }
-  );
-  phases.to_json().str(fout);
+  benchmark_gc_index_count(index, pattern_path);
+  benchmark_fm_index_count(fm_index, pattern_path);
+  sdsl::remove(pattern_path);
   return;
 }
 
