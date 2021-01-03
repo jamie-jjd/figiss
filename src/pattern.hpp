@@ -10,8 +10,8 @@ namespace gci
 void generate_patterns
 (
   std::string const text_path,
-  std::string const patterns_path,
-  uint32_t const number_patterns,
+  std::string const pattern_path,
+  uint32_t const pattern_number,
   uint32_t const pattern_size
 )
 {
@@ -21,12 +21,13 @@ void generate_patterns
   {
     throw std::runtime_error("pattern size is larger than text size");
   }
-  std::fstream fout (patterns_path, std::ios_base::out | std::ios_base::binary);
+  std::ofstream patterns_output {pattern_path};
   std::mt19937 engine {std::random_device{}()};
   std::uniform_int_distribution<uint32_t> distribution(0, std::size(text) - pattern_size);
   auto random_begin_dist {std::bind(distribution, engine)};
   sdsl::int_vector<8> pattern(pattern_size);
-  for (uint32_t i {0}; i != number_patterns; ++i)
+  patterns_output << pattern_number;
+  for (uint32_t i {0}; i != pattern_number; ++i)
   {
     auto text_it {std::next(std::begin(text), random_begin_dist())};
     auto pattern_it {std::begin(pattern)};
@@ -37,7 +38,7 @@ void generate_patterns
       ++text_it;
       ++pattern_it;
     }
-    pattern.serialize(fout);
+    pattern.serialize(patterns_output);
   }
   return;
 }
