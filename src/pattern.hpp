@@ -26,7 +26,7 @@ void generate_patterns
   std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
   auto random_begin_dist {std::bind(distribution, engine)};
   sdsl::int_vector<8> pattern(pattern_size);
-  patterns_output << pattern_number;
+  patterns_output.write((char*)(&pattern_number), sizeof(pattern_number));
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
     auto text_it {std::next(std::begin(text), random_begin_dist())};
