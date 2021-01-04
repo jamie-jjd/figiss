@@ -1,33 +1,25 @@
-#include <fstream>
-#include <iostream>
 #include <stdexcept>
 
-#include <sdsl/suffix_trees.hpp>
-
-#include "benchmark.hpp"
 #include "grammar_compressed_index.hpp"
-#include "utility.hpp"
 
 int main (int argc, char **argv)
 {
   if (argc != 2)
   {
-    throw std::runtime_error
-    (
-      std::string("usage: ")
-      + argv[0]
-      + " [text filename]"
-    );
+    throw std::runtime_error(std::string("usage: ") + argv[0] + " [input path]");
   }
-  gci::gc_index index;
-  std::string index_path {"../input/index/gc_index_" + gci::util::basename(argv[1])};
-  gci::construct(index, argv[1]);
 
+<<<<<<< HEAD
   sdsl::csa_wt<> fm_index;
   std::ifstream fm_index_input {"../input/index/fm_index_" + gci::util::basename(argv[1])};
   sdsl::load(fm_index, fm_index_input);
+=======
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, argv[1], 1);
+  sdsl::append_zero_symbol(text);
+>>>>>>> parent of 10fb762... driver for benchmarking
 
-  gci::benchmark_count(index, fm_index, argv[1], 1000, 20000);
+  gc_index gci(text);
 
   return 0;
 }
