@@ -9,13 +9,48 @@
 
 namespace gci
 {
+void load_gc_and_fm_index
+(
+  gc_index &index,
+  sdsl::csa_wt<> &fm_index,
+  std::string const text_path
+)
+{
+  std::string gc_index_path {"../input/index/gc_index_" + util::basename(text_path)};
+  std::ifstream gc_index_input {gc_index_path};
+  if (!gc_index_input.is_open())
+  {
+    construct(index, text_path);
+    serialize(index, gc_index_path);
+  }
+  else
+  {
+    load(index, gc_index_path);
+  }
+  std::string fm_index_path {"../input/index/fm_index_" + util::basename(text_path)};
+  std::ifstream fm_index_input {fm_index_path};
+  if (!fm_index_input.is_open())
+  {
+    sdsl::int_vector<8> text;
+    sdsl::load_vector_from_file(text, text_path);
+    sdsl::construct_im(fm_index, text);
+    std::ofstream fm_index_output {fm_index_path};
+    sdsl::serialize(fm_index, fm_index_output);
+  }
+  else
+  {
+    sdsl::load(fm_index, fm_index_input);
+  }
+  return;
+}
+
 void benchmark_gc_index_count
 (
   gc_index &index,
   std::string const pattern_path
 )
 {
-  std::ifstream patterns_input {pattern_path};
+  std::ifstream pattern_input {pattern_path};
   std::ofstream json_output {"../output/count/" + util::basename(pattern_path) + "_gc_index.json"};
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
@@ -23,9 +58,9 @@ void benchmark_gc_index_count
   tdc::StatPhase phases {"gc_index count"};
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
-    // tdc::StatPhase::pause_tracking();
-    pattern.load(patterns_input);
-    // tdc::StatPhase::resume_tracking();
+    tdc::StatPhase::pause_tracking();
+    pattern.load(pattern_input);
+    tdc::StatPhase::resume_tracking();
     tdc::StatPhase::wrap
     (
       "",
@@ -45,7 +80,7 @@ void benchmark_fm_index_count
   std::string const pattern_path
 )
 {
-  std::ifstream patterns_input {pattern_path};
+  std::ifstream pattern_input {pattern_path};
   std::ofstream json_output {"../output/count/" + util::basename(pattern_path) + "_fm_index.json"};
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
@@ -53,9 +88,9 @@ void benchmark_fm_index_count
   tdc::StatPhase phases {"fm_index count"};
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
-    // tdc::StatPhase::pause_tracking();
-    pattern.load(patterns_input);
-    // tdc::StatPhase::resume_tracking();
+    tdc::StatPhase::pause_tracking();
+    pattern.load(pattern_input);
+    tdc::StatPhase::resume_tracking();
     tdc::StatPhase::wrap
     (
       "",
@@ -71,8 +106,6 @@ void benchmark_fm_index_count
 
 void benchmark_count
 (
-  gc_index &index,
-  sdsl::csa_wt<> &fm_index,
   std::string const text_path,
   uint64_t const pattern_number,
   uint64_t const pattern_size
@@ -102,19 +135,19 @@ void benchmark_count
     pattern_number,
     pattern_size
   );
+  gc_index index;
+  sdsl::csa_wt<> fm_index;
+  load_gc_and_fm_index(index, fm_index, text_path);
   benchmark_gc_index_count(index, pattern_path);
   benchmark_fm_index_count(fm_index, pattern_path);
-  sdsl::remove(pattern_path);
   return;
 }
 
-void test_count
-(
-  gc_index &index,
-  sdsl::csa_wt<> &fm_index,
-  std::string const text_path
-)
+void test_count (std::string const text_path)
 {
+  gc_index index;
+  sdsl::csa_wt<> fm_index;
+  load_gc_and_fm_index(index, fm_index, text_path);
   std::string pattern_path {"sample_pattern"};
   uint64_t pattern_number {1000};
   generate_pattern
