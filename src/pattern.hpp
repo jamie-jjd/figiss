@@ -11,8 +11,8 @@ void generate_patterns
 (
   std::string const text_path,
   std::string const pattern_path,
-  uint32_t const pattern_number,
-  uint32_t const pattern_size
+  uint64_t const pattern_number,
+  uint64_t const pattern_size
 )
 {
   sdsl::int_vector<8> text;
@@ -23,11 +23,11 @@ void generate_patterns
   }
   std::ofstream patterns_output {pattern_path};
   std::mt19937 engine {std::random_device{}()};
-  std::uniform_int_distribution<uint32_t> distribution(0, std::size(text) - pattern_size);
+  std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
   auto random_begin_dist {std::bind(distribution, engine)};
   sdsl::int_vector<8> pattern(pattern_size);
   patterns_output << pattern_number;
-  for (uint32_t i {0}; i != pattern_number; ++i)
+  for (uint64_t i {0}; i != pattern_number; ++i)
   {
     auto text_it {std::next(std::begin(text), random_begin_dist())};
     auto pattern_it {std::begin(pattern)};
