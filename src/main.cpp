@@ -1,6 +1,8 @@
+#include <fstream>
+#include <iostream>
 #include <stdexcept>
 
-#include "grammar_compressed_index.hpp"
+#include "benchmark.hpp"
 
 int main (int argc, char **argv)
 {
@@ -15,7 +17,7 @@ int main (int argc, char **argv)
   sdsl::csa_wt<> fm_index;
   std::ifstream fm_index_input {"../input/index/fm_index_" + gci::util::basename(argv[1])};
   sdsl::load(fm_index, fm_index_input);
-  
+
   // gci::benchmark_count(index, fm_index, argv[1], 1000, 20000);
 
   return 0;

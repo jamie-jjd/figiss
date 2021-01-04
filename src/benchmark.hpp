@@ -23,9 +23,9 @@ void benchmark_gc_index_count
   tdc::StatPhase phases {"gc_index count"};
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
-    tdc::StatPhase::pause_tracking();
+    // tdc::StatPhase::pause_tracking();
     pattern.load(patterns_input);
-    tdc::StatPhase::resume_tracking();
+    // tdc::StatPhase::resume_tracking();
     tdc::StatPhase::wrap
     (
       "",
@@ -53,9 +53,9 @@ void benchmark_fm_index_count
   tdc::StatPhase phases {"fm_index count"};
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
-    tdc::StatPhase::pause_tracking();
+    // tdc::StatPhase::pause_tracking();
     pattern.load(patterns_input);
-    tdc::StatPhase::resume_tracking();
+    // tdc::StatPhase::resume_tracking();
     tdc::StatPhase::wrap
     (
       "",
@@ -95,7 +95,7 @@ void benchmark_count
     + std::to_string(pattern_number) + "_"
     + std::to_string(pattern_size)
   };
-  generate_patterns
+  generate_pattern
   (
     text_path,
     pattern_path,
@@ -117,7 +117,7 @@ void test_count
 {
   std::string pattern_path {"sample_pattern"};
   uint64_t pattern_number {1000};
-  generate_patterns
+  generate_pattern
   (
     text_path,
     pattern_path,

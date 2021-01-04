@@ -7,7 +7,7 @@
 
 namespace gci
 {
-void generate_patterns
+void generate_pattern
 (
   std::string const text_path,
   std::string const pattern_path,
