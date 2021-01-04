@@ -21,12 +21,12 @@ void generate_pattern
   {
     throw std::runtime_error("pattern size is larger than text size");
   }
-  std::ofstream patterns_output {pattern_path};
+  std::ofstream pattern_output {pattern_path};
   std::mt19937 engine {std::random_device{}()};
   std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
   auto random_begin_dist {std::bind(distribution, engine)};
   sdsl::int_vector<8> pattern(pattern_size);
-  patterns_output.write((char*)(&pattern_number), sizeof(pattern_number));
+  pattern_output.write((char*)(&pattern_number), sizeof(pattern_number));
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
     auto text_it {std::next(std::begin(text), random_begin_dist())};
@@ -38,7 +38,7 @@ void generate_pattern
       ++text_it;
       ++pattern_it;
     }
-    pattern.serialize(patterns_output);
+    pattern.serialize(pattern_output);
   }
   return;
 }
