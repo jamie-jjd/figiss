@@ -355,25 +355,36 @@ void calculate_grammar_rule_sizes
 
 struct trie_node
 {
-  int32_t edge_begin_dist;
-  int32_t edge_end_dist;
-  std::map<uint8_t, std::shared_ptr<trie_node>> branches;
-  uint32_t leftmost_rank;
-  uint32_t rightmost_rank;
+  int64_t edge_begin_dist;
+  int64_t edge_end_dist;
+  std::map<uint8_t, trie_node*> branches;
+  uint64_t leftmost_rank;
+  uint64_t rightmost_rank;
 
   trie_node () = default;
 
   trie_node
   (
-    int32_t edge_begin_dist_,
-    int32_t edge_end_dist_,
-    uint32_t rank
+    int64_t edge_begin_dist_,
+    int64_t edge_end_dist_,
+    uint64_t rank
   )
   : edge_begin_dist {edge_begin_dist_},
     edge_end_dist {edge_end_dist_},
     leftmost_rank {rank},
     rightmost_rank {rank}
   {
+  }
+
+  ~trie_node ()
+  {
+    auto branches_it {std::begin(branches)};
+    auto branches_end {std::end(branches)};
+    while (branches_it != branches_end)
+    {
+      delete std::get<1>(*branches_it);
+      ++branches_it;
+    }
   }
 };
 
@@ -413,17 +424,13 @@ void calculate_grammar_rules
   return;
 }
 
-template
-<
-  typename grammar_rules_iterator_type,
-  typename trie_node_pointer_type
->
+template <typename grammar_rules_iterator_type>
 void print_trie
 (
   grammar_rules_iterator_type rules_begin,
-  trie_node_pointer_type node,
-  int32_t const dist,
-  uint32_t depth = 0
+  trie_node *node,
+  int64_t const dist,
+  uint64_t depth = 0
 )
 {
   if (node != nullptr)
@@ -440,27 +447,26 @@ void print_trie
       }
     }
     std::cout << "(" << node->leftmost_rank << ',' << node->rightmost_rank << ")\n";
-    for (auto character_child_pair : node->branches)
+    auto branches_it {std::begin(node->branches)};
+    auto branches_end {std::end(node->branches)};
+    while (branches_it != branches_end)
     {
-      print_trie(rules_begin, std::get<1>(character_child_pair), dist, depth + 1);
+      print_trie(rules_begin, std::get<1>(*branches_it), dist, depth + 1);
+      ++branches_it;
     }
   }
   return;
 }
 
-template
-<
-  typename trie_node_pointer_type,
-  typename grammar_rules_iterator_type
->
+template <typename grammar_rules_iterator_type>
 void insert_grammar_rule
 (
-  trie_node_pointer_type node,
+  trie_node *node,
   grammar_rules_iterator_type rules_begin,
   grammar_rules_iterator_type rule_it,
   grammar_rules_iterator_type rule_end,
-  int32_t const dist,
-  uint32_t const lex_rank
+  int64_t const dist,
+  uint64_t const lex_rank
 )
 {
   while (rule_it != rule_end)
@@ -468,12 +474,12 @@ void insert_grammar_rule
     auto character {*rule_it};
     if (node->branches.find(character) == std::end(node->branches))
     {
-      node->branches[character] = std::make_shared<trie_node>
-      (
+      node->branches[character] = new trie_node
+      {
         std::distance(rules_begin, rule_it),
         std::distance(rules_begin, rule_end),
         lex_rank
-      );
+      };
       return;
     }
     else
@@ -508,17 +514,17 @@ void insert_grammar_rule
       else
       {
         auto edge_it_dist {std::distance(rules_begin, edge_it)};
-        auto internal_node {std::make_shared<trie_node>(child->edge_begin_dist, edge_it_dist, 0)};
+        auto internal_node {new trie_node {child->edge_begin_dist, edge_it_dist, 0}};
         child->edge_begin_dist = edge_it_dist;
         internal_node->branches[*edge_it] = child;
         if (rule_it != rule_end)
         {
-          internal_node->branches[*rule_it] = std::make_shared<trie_node>
-          (
+          internal_node->branches[*rule_it] = new trie_node
+          {
             std::distance(rules_begin, rule_it),
             std::distance(rules_begin, rule_end),
             lex_rank
-          );
+          };
         }
         else
         {
@@ -545,12 +551,12 @@ void insert_grammar_rules
   grammar_rules_type const &grammar_rules,
   trie_node_pointer_type &lex_trie_root,
   trie_node_pointer_type &colex_trie_root,
-  uint32_t const rank_inc
+  uint64_t const rank_inc
 )
 {
-  lex_trie_root = std::make_shared<trie_node>();
-  colex_trie_root = std::make_shared<trie_node>();
-  uint32_t rank {1};
+  lex_trie_root = new trie_node {};
+  colex_trie_root = new trie_node {};
+  uint64_t rank {1};
   auto sizes_it {std::begin(grammar_rule_sizes)};
   auto rules_it {std::begin(grammar_rules)};
   while (rules_it != std::end(grammar_rules))
@@ -582,8 +588,7 @@ void insert_grammar_rules
   return;
 }
 
-template <typename trie_node_pointer_type>
-void calculate_lex_trie_rank_ranges (trie_node_pointer_type node)
+void calculate_lex_trie_rank_ranges (trie_node *node)
 {
   if (!node->branches.empty())
   {
@@ -606,16 +611,12 @@ void calculate_lex_trie_rank_ranges (trie_node_pointer_type node)
   return;
 }
 
-template
-<
-  typename trie_node_pointer_type,
-  typename lex_colex_permutation_type
->
+template <typename lex_colex_permutation_type>
 void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
 (
-  trie_node_pointer_type node,
+  trie_node *node,
   lex_colex_permutation_type &lex_colex_permutation,
-  uint32_t &colex_rank
+  uint64_t &colex_rank
 )
 {
   if (node->leftmost_rank != 0)
@@ -688,11 +689,10 @@ void calculate_lex_and_colex_gc_bwt
   return;
 }
 
-template <typename trie_node_pointer_type>
 void calculate_trie_rank_ranges
 (
-  trie_node_pointer_type node,
-  uint32_t &rank
+  trie_node *node,
+  uint64_t &rank
 )
 {
   if (node->leftmost_rank != 0)
@@ -724,11 +724,17 @@ struct gc_index
 {
   sdsl::int_vector<> grammar_rule_sizes;
   sdsl::int_vector<8> grammar_rules;
-  std::shared_ptr<trie_node> lex_trie_root;
-  std::shared_ptr<trie_node> colex_trie_root;
+  trie_node *lex_trie_root;
+  trie_node *colex_trie_root;
   sdsl::int_vector<> lex_gc_character_bucket_end_dists;
   sdsl::wt_int<> lex_gc_bwt;
   sdsl::wt_int<> colex_gc_bwt;
+
+  ~gc_index ()
+  {
+    delete lex_trie_root;
+    delete colex_trie_root;
+  }
 };
 
 void print_gc_index (gc_index &index)
@@ -748,7 +754,7 @@ void construct
   std::string const text_path
 )
 {
-  std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".json"};
+  std::ofstream json_output {"../output/construct/" + util::basename(text_path) + "_.json"};
   tdc::StatPhase phases {"construct_gc_index"};
   {
     sdsl::int_vector<8> text;
@@ -945,7 +951,7 @@ void construct
       "calculate_colex_trie_rank_ranges_and_lex_colex_permutation",
       [&] ()
       {
-        uint32_t colex_rank {1};
+        uint64_t colex_rank {1};
         calculate_colex_trie_rank_ranges_and_lex_colex_permutation
         (
           index.colex_trie_root,
@@ -1100,7 +1106,7 @@ void load
       "calculate_lex_trie_rank_ranges",
       [&] ()
       {
-        uint32_t rank {1};
+        uint64_t rank {1};
         calculate_trie_rank_ranges(index.lex_trie_root, rank);
       }
     );
@@ -1109,7 +1115,7 @@ void load
       "calculate_colex_trie_rank_ranges",
       [&] ()
       {
-        uint32_t rank {1};
+        uint64_t rank {1};
         calculate_trie_rank_ranges(index.colex_trie_root, rank);
       }
     );
@@ -1157,18 +1163,17 @@ void calculate_sl_factor
 template
 <
   typename grammar_rules_iterator_type,
-  typename trie_node_pointer_type,
   typename sl_factor_iterator_type
 >
 void lookup_grammar_rule
 (
   grammar_rules_iterator_type grammar_rules_begin,
-  trie_node_pointer_type node,
+  trie_node *node,
   sl_factor_iterator_type it,
   sl_factor_iterator_type end,
-  int32_t const dist,
-  uint32_t &leftmost_rank,
-  uint32_t &rightmost_rank
+  int64_t const dist,
+  uint64_t &leftmost_rank,
+  uint64_t &rightmost_rank
 )
 {
   while (node->branches.find(*it) != std::end(node->branches))
@@ -1206,17 +1211,17 @@ void lookup_grammar_rule
 }
 
 template <typename pattern_iterator_type>
-uint32_t backward_search_pattern_prefix
+uint64_t backward_search_pattern_prefix
 (
   gc_index const &index,
-  uint32_t const begin_dist,
-  uint32_t const end_dist,
+  uint64_t const begin_dist,
+  uint64_t const end_dist,
   pattern_iterator_type rfirst,
   pattern_iterator_type rlast
 )
 {
-  uint32_t leftmost_colex_rank {0};
-  uint32_t rightmost_colex_rank {0};
+  uint64_t leftmost_colex_rank {0};
+  uint64_t rightmost_colex_rank {0};
   lookup_grammar_rule
   (
     std::begin(index.grammar_rules),
@@ -1227,7 +1232,7 @@ uint32_t backward_search_pattern_prefix
     leftmost_colex_rank,
     rightmost_colex_rank
   );
-  uint32_t count {0};
+  uint64_t count {0};
   if (leftmost_colex_rank != 0)
   {
     count = std::get<0>
@@ -1248,13 +1253,13 @@ template <typename pattern_iterator_type>
 void backward_search_exact_sl_factor
 (
   gc_index const &index,
-  uint32_t &begin_dist,
-  uint32_t &end_dist,
+  uint64_t &begin_dist,
+  uint64_t &end_dist,
   pattern_iterator_type rfirst,
   pattern_iterator_type rlast
 )
 {
-  uint32_t lex_rank {0};
+  uint64_t lex_rank {0};
   lookup_grammar_rule
   (
     std::begin(index.grammar_rules),
@@ -1282,14 +1287,14 @@ template <typename pattern_iterator_type>
 void backward_search_pattern_suffix
 (
   gc_index const &index,
-  uint32_t &begin_dist,
-  uint32_t &end_dist,
+  uint64_t &begin_dist,
+  uint64_t &end_dist,
   pattern_iterator_type rfirst,
   pattern_iterator_type rlast
 )
 {
-  uint32_t leftmost_lex_rank {0};
-  uint32_t rightmost_lex_rank {0};
+  uint64_t leftmost_lex_rank {0};
+  uint64_t rightmost_lex_rank {0};
   lookup_grammar_rule
   (
     std::begin(index.grammar_rules),
@@ -1309,7 +1314,7 @@ void backward_search_pattern_suffix
 }
 
 template <typename pattern_iterator_type>
-uint32_t count_with_prev_sl_type
+uint64_t count_with_prev_sl_type
 (
   gc_index const &index,
   pattern_iterator_type rbegin,
@@ -1317,8 +1322,8 @@ uint32_t count_with_prev_sl_type
   uint8_t prev_sl_type
 )
 {
-  uint32_t begin_dist {0};
-  uint32_t end_dist {0};
+  uint64_t begin_dist {0};
+  uint64_t end_dist {0};
   auto rfirst {rbegin};
   auto rlast {rbegin};
   calculate_sl_factor(rfirst, rlast, rend, prev_sl_type);
@@ -1365,14 +1370,14 @@ bool exists_the_other_pattern_suffix
 }
 
 template <typename pattern_iterator_type>
-uint32_t count
+uint64_t count
 (
   gc_index const &index,
   pattern_iterator_type pattern_begin,
   pattern_iterator_type pattern_end
 )
 {
-  uint32_t count_occurences {0};
+  uint64_t count_occurences {0};
   auto pattern_rbegin {std::prev(pattern_end)};
   auto pattern_rend {std::prev(pattern_begin)};
   count_occurences = count_with_prev_sl_type(index, pattern_rbegin, pattern_rend, S);
@@ -1383,11 +1388,11 @@ uint32_t count
   return count_occurences;
 }
 
-uint32_t calculate_max_sl_factor_size (std::string const text_path)
+uint64_t calculate_max_sl_factor_size (std::string const text_path)
 {
   sdsl::int_vector<8> text;
   sdsl::load_vector_from_file(text, text_path);
-  uint32_t max_size {0};
+  uint64_t max_size {0};
   auto rfirst {std::prev(std::end(text))};
   auto rlast {std::prev(std::end(text))};
   auto rend {std::prev(std::begin(text))};
@@ -1395,7 +1400,7 @@ uint32_t calculate_max_sl_factor_size (std::string const text_path)
   while (rlast != rend)
   {
     calculate_sl_factor(rfirst, rlast, rend, prev_sl_type);
-    auto size {static_cast<uint32_t>(std::distance(rlast, rfirst))};
+    auto size {static_cast<uint64_t>(std::distance(rlast, rfirst))};
     if (max_size < size)
     {
       max_size = size;
