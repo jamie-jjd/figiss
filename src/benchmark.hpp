@@ -19,7 +19,7 @@ void benchmark_gc_index_count
   std::ofstream json_output {"../output/count/" + util::basename(pattern_path) + "_gc_index.json"};
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
-  patterns_input >> pattern_number;
+  pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
   tdc::StatPhase phases {"gc_index count"};
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
@@ -49,7 +49,7 @@ void benchmark_fm_index_count
   std::ofstream json_output {"../output/count/" + util::basename(pattern_path) + "_fm_index.json"};
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
-  patterns_input >> pattern_number;
+  pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
   tdc::StatPhase phases {"fm_index count"};
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
@@ -104,6 +104,40 @@ void benchmark_count
   );
   benchmark_gc_index_count(index, pattern_path);
   benchmark_fm_index_count(fm_index, pattern_path);
+  sdsl::remove(pattern_path);
+  return;
+}
+
+void test_count
+(
+  gc_index &index,
+  sdsl::csa_wt<> &fm_index,
+  std::string const text_path
+)
+{
+  std::string pattern_path {"sample_pattern"};
+  uint64_t pattern_number {1000};
+  generate_patterns
+  (
+    text_path,
+    pattern_path,
+    pattern_number,
+    gci::calculate_max_sl_factor_size(text_path)
+  );
+  std::ifstream pattern_input {pattern_path};
+  sdsl::int_vector<8> pattern;
+  pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
+  for (uint64_t i {0}; i != pattern_number; ++i)
+  {
+    pattern.load(pattern_input);
+    auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
+    auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
+    if (fm_count != gc_count)
+    {
+      std::cout << "FAILED\n";
+      break;
+    }
+  }
   sdsl::remove(pattern_path);
   return;
 }
