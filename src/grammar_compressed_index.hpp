@@ -754,7 +754,7 @@ void construct
   std::string const text_path
 )
 {
-  std::ofstream json_output {"../output/construct/" + util::basename(text_path) + "_.json"};
+  std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".json"};
   tdc::StatPhase phases {"construct_gc_index"};
   {
     sdsl::int_vector<8> text;
