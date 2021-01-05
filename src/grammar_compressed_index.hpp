@@ -2,7 +2,6 @@
 #define GRAMMAR_COMPRESSED_INDEX_HPP_
 
 #include <map>
-#include <memory>
 
 #include <sdsl/suffix_trees.hpp>
 #include <tudocomp_stat/StatPhase.hpp>
@@ -1408,6 +1407,35 @@ uint64_t calculate_max_sl_factor_size (std::string const text_path)
   }
   return max_size;
 }
+
+void calculate_sl_factor_size_number_pairs
+(
+  std::map<uint64_t, uint64_t> &size_number_pairs,
+  std::string const text_path
+)
+{
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, text_path);
+  auto rfirst {std::prev(std::end(text))};
+  auto rlast {std::prev(std::end(text))};
+  auto rend {std::prev(std::begin(text))};
+  uint8_t prev_sl_type {L};
+  while (rlast != rend)
+  {
+    calculate_sl_factor(rfirst, rlast, rend, prev_sl_type);
+    auto size {static_cast<uint64_t>(std::distance(rlast, rfirst))};
+    if (size_number_pairs.find(size) == std::end(size_number_pairs))
+    {
+      size_number_pairs[size] = 1;
+    }
+    else
+    {
+      ++size_number_pairs[size];
+    }
+  }
+  return;
+}
+
 }
 
 #endif
