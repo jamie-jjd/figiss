@@ -1,0 +1,19 @@
+{
+    "memFinal": 0,
+    "memOff": 0,
+    "memPeak": 6318,
+    "stats": [],
+    "sub": [{
+        "memFinal": 0,
+        "memOff": 0,
+        "memPeak": 6318,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4490863,
+        "timeStart": 4490666,
+        "title": "gc_index serialize"
+    }],
+    "timeEnd": 4490863,
+    "timeStart": 4490666,
+    "title": ""
+}

@@ -1,0 +1,82 @@
+{
+    "memFinal": 233646424,
+    "memOff": 0,
+    "memPeak": 233646424,
+    "stats": [],
+    "sub": [{
+        "memFinal": 44360,
+        "memOff": 0,
+        "memPeak": 44360,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 34005940,
+        "timeStart": 34005940,
+        "title": "load_grammar_rule_sizes"
+    },{
+        "memFinal": 45976,
+        "memOff": 44360,
+        "memPeak": 45976,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 34005940,
+        "timeStart": 34005940,
+        "title": "load_grammar_rules"
+    },{
+        "memFinal": 18024,
+        "memOff": 90336,
+        "memPeak": 18024,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 34005940,
+        "timeStart": 34005940,
+        "title": "load_lex_gc_character_bucket_end_dists"
+    },{
+        "memFinal": 116062336,
+        "memOff": 108360,
+        "memPeak": 116071944,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 34006005,
+        "timeStart": 34005940,
+        "title": "load_lex_gc_bwt"
+    },{
+        "memFinal": 115963888,
+        "memOff": 116170696,
+        "memPeak": 115974456,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 34006065,
+        "timeStart": 34006005,
+        "title": "load_colex_gc_bwt"
+    },{
+        "memFinal": 1511840,
+        "memOff": 232134584,
+        "memPeak": 1511840,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 34006069,
+        "timeStart": 34006065,
+        "title": "insert_grammar_rules"
+    },{
+        "memFinal": 0,
+        "memOff": 233646424,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 34006069,
+        "timeStart": 34006069,
+        "title": "calculate_lex_trie_rank_ranges"
+    },{
+        "memFinal": 0,
+        "memOff": 233646424,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 34006069,
+        "timeStart": 34006069,
+        "title": "calculate_colex_trie_rank_ranges"
+    }],
+    "timeEnd": 34006069,
+    "timeStart": 34005940,
+    "title": "load_gc_index"
+}

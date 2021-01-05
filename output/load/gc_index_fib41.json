@@ -1,0 +1,82 @@
+{
+    "memFinal": 82811008,
+    "memOff": 0,
+    "memPeak": 82811152,
+    "stats": [],
+    "sub": [{
+        "memFinal": 24,
+        "memOff": 0,
+        "memPeak": 24,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 26804213,
+        "timeStart": 26804213,
+        "title": "load_grammar_rule_sizes"
+    },{
+        "memFinal": 8,
+        "memOff": 24,
+        "memPeak": 8,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 26804213,
+        "timeStart": 26804213,
+        "title": "load_grammar_rules"
+    },{
+        "memFinal": 8,
+        "memOff": 32,
+        "memPeak": 8,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 26804213,
+        "timeStart": 26804213,
+        "title": "load_lex_gc_character_bucket_end_dists"
+    },{
+        "memFinal": 41404864,
+        "memOff": 40,
+        "memPeak": 41407992,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 26804226,
+        "timeStart": 26804213,
+        "title": "load_lex_gc_bwt"
+    },{
+        "memFinal": 41405048,
+        "memOff": 41404904,
+        "memPeak": 41406248,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 26804239,
+        "timeStart": 26804226,
+        "title": "load_colex_gc_bwt"
+    },{
+        "memFinal": 1056,
+        "memOff": 82809952,
+        "memPeak": 1056,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 26804239,
+        "timeStart": 26804239,
+        "title": "insert_grammar_rules"
+    },{
+        "memFinal": 0,
+        "memOff": 82811008,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 26804239,
+        "timeStart": 26804239,
+        "title": "calculate_lex_trie_rank_ranges"
+    },{
+        "memFinal": 0,
+        "memOff": 82811008,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 26804239,
+        "timeStart": 26804239,
+        "title": "calculate_colex_trie_rank_ranges"
+    }],
+    "timeEnd": 26804239,
+    "timeStart": 26804213,
+    "title": "load_gc_index"
+}

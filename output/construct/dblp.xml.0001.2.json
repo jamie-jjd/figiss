@@ -1,0 +1,199 @@
+{
+    "memFinal": 189192640,
+    "memOff": 0,
+    "memPeak": 1401928620,
+    "stats": [],
+    "sub": [{
+        "memFinal": 104858168,
+        "memOff": 8,
+        "memPeak": 104867166,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4178353,
+        "timeStart": 4176010,
+        "title": "load_text"
+    },{
+        "memFinal": 13107200,
+        "memOff": 104858184,
+        "memPeak": 13107200,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4178761,
+        "timeStart": 4178353,
+        "title": "calculate_sl_types"
+    },{
+        "memFinal": 353894400,
+        "memOff": 117965392,
+        "memPeak": 353894400,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4178874,
+        "timeStart": 4178761,
+        "title": "init_text_dists"
+    },{
+        "memFinal": 864,
+        "memOff": 471859800,
+        "memPeak": 864,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4178874,
+        "timeStart": 4178874,
+        "title": "init_character_bucket_dists"
+    },{
+        "memFinal": 0,
+        "memOff": 471860664,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4179395,
+        "timeStart": 4178874,
+        "title": "calculate_character_bucket_begin_dists"
+    },{
+        "memFinal": 0,
+        "memOff": 471860664,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4180267,
+        "timeStart": 4179395,
+        "title": "bucket_sort_rightmost_l_type_characters"
+    },{
+        "memFinal": 0,
+        "memOff": 471860664,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4181877,
+        "timeStart": 4180267,
+        "title": "induce_sort_l_type_characters"
+    },{
+        "memFinal": 0,
+        "memOff": 471860664,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4182401,
+        "timeStart": 4181877,
+        "title": "calculate_character_bucket_end_dists"
+    },{
+        "memFinal": 0,
+        "memOff": 471860664,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4187462,
+        "timeStart": 4182401,
+        "title": "induce_sort_s_type_characters"
+    },{
+        "memFinal": 0,
+        "memOff": 471860664,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4187822,
+        "timeStart": 4187462,
+        "title": "calculate_text_dists_boundary"
+    },{
+        "memFinal": 0,
+        "memOff": 471860664,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192596,
+        "timeStart": 4187822,
+        "title": "calculate_grammar_rule_begin_dists_and_temp_gc_text"
+    },{
+        "memFinal": 177960,
+        "memOff": 471860664,
+        "memPeak": 177960,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192598,
+        "timeStart": 4192596,
+        "title": "calculate_grammar_rule_sizes"
+    },{
+        "memFinal": 99256,
+        "memOff": 472038624,
+        "memPeak": 99256,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192598,
+        "timeStart": 4192598,
+        "title": "calculate_grammar_rules"
+    },{
+        "memFinal": -117964800,
+        "memOff": 472137880,
+        "memPeak": 8,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192601,
+        "timeStart": 4192598,
+        "title": "clear_sl_types_and_text"
+    },{
+        "memFinal": 6452896,
+        "memOff": 354173080,
+        "memPeak": 6452896,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192614,
+        "timeStart": 4192601,
+        "title": "insert_grammar_rules"
+    },{
+        "memFinal": 0,
+        "memOff": 360625976,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192614,
+        "timeStart": 4192614,
+        "title": "calculate_lex_trie_rank_ranges"
+    },{
+        "memFinal": 41704,
+        "memOff": 360625984,
+        "memPeak": 41704,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192614,
+        "timeStart": 4192614,
+        "title": "init_lex_colex_permutation"
+    },{
+        "memFinal": 0,
+        "memOff": 360667688,
+        "memPeak": 0,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192616,
+        "timeStart": 4192614,
+        "title": "calculate_colex_trie_rank_ranges_and_lex_colex_permutation"
+    },{
+        "memFinal": 55976232,
+        "memOff": 360667696,
+        "memPeak": 55976232,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4192763,
+        "timeStart": 4192616,
+        "title": "calculate_gc_text"
+    },{
+        "memFinal": 69512,
+        "memOff": 416643928,
+        "memPeak": 69512,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4193029,
+        "timeStart": 4192763,
+        "title": "calculate_lex_gc_character_bucket_end_dists"
+    },{
+        "memFinal": 67329976,
+        "memOff": 416713440,
+        "memPeak": 985215180,
+        "stats": [],
+        "sub": [],
+        "timeEnd": 4268733,
+        "timeStart": 4193029,
+        "title": "calculate_lex_and_colex_gc_bwt"
+    }],
+    "timeEnd": 4268739,
+    "timeStart": 4176010,
+    "title": "construct_gc_index"
+}
