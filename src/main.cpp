@@ -11,7 +11,7 @@ int main (int argc, char **argv)
     throw std::runtime_error(std::string("usage: ") + argv[0] + " [input path]");
   }
 
-  // gci::test_count(argv[1]);
-  gci::benchmark_count(argv[1], 1000, 20000);
+  gci::test_count(argv[1]);
+  gci::benchmark_count(argv[1], 1000, 5000);
   return 0;
 }
