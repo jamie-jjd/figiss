@@ -8,4 +8,4 @@ do
   ./main ${text}
 done
 
-rm -f ../input/pattern/*
+rm -f ../input/pattern/*.*
