@@ -167,7 +167,7 @@ void test_count (std::string const text_path)
     auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
     if (fm_count != gc_count)
     {
-      std::cout << "FAILED\n";
+      std::cerr << "failed at pattern " << i << '\n';
       break;
     }
   }
