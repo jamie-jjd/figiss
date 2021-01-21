@@ -753,7 +753,7 @@ void construct
   std::string const text_path
 )
 {
-  std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".json"};
+  std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".gci.json"};
   tdc::StatPhase phases {"construct_gc_index"};
   {
     sdsl::int_vector<8> text;
@@ -1435,7 +1435,6 @@ void calculate_sl_factor_size_number_pairs
   }
   return;
 }
-
 }
 
 #endif
