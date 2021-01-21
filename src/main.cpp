@@ -10,10 +10,6 @@ int main (int argc, char **argv)
   {
     throw std::runtime_error(std::string("usage: ") + argv[0] + " [input path]");
   }
-
-  // gci::test_count(argv[1]);
-  gci::benchmark_count(argv[1], 1000, 50000);
-  gci::benchmark_count(argv[1], 1000, 100000);
-  gci::benchmark_count(argv[1], 1000, 200000);
+  gci::test_count(argv[1]);
   return 0;
 }
