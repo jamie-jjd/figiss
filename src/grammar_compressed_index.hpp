@@ -652,17 +652,34 @@ void calculate_colex_trie_rank_ranges_and_lex_colex_permutation
 
 template
 <
+  typename lex_colex_permutation_type,
+  typename colex_lex_permutation_type
+>
+void calculate_colex_lex_permutation
+(
+  lex_colex_permutation_type const &lex_colex_permutation,
+  colex_lex_permutation_type &colex_lex_permutation
+)
+{
+  for (uint64_t lex_rank {0}; lex_rank != std::size(lex_colex_permutation); ++lex_rank)
+  {
+    colex_lex_permutation[lex_colex_permutation[lex_rank]] = lex_rank;
+  }
+  return;
+}
+
+template
+<
   typename gc_text_type,
   typename temp_sa_bwt_type,
   typename lex_colex_permutation_type,
   typename gc_bwt_type
 >
-void calculate_lex_and_colex_gc_bwt
+void calculate_colex_gc_bwt
 (
   gc_text_type const &gc_text,
   temp_sa_bwt_type &temp_sa_bwt,
   lex_colex_permutation_type const &lex_colex_permutation,
-  gc_bwt_type &lex_gc_bwt,
   gc_bwt_type &colex_gc_bwt
 )
 {
@@ -673,15 +690,8 @@ void calculate_lex_and_colex_gc_bwt
   {
     if (*temp_sa_bwt_it != 0)
     {
-      *temp_sa_bwt_it = gc_text[(*temp_sa_bwt_it) - 1];
+      *temp_sa_bwt_it = lex_colex_permutation[gc_text[(*temp_sa_bwt_it) - 1]];
     }
-    ++temp_sa_bwt_it;
-  }
-  sdsl::construct_im(lex_gc_bwt, temp_sa_bwt);
-  temp_sa_bwt_it = std::begin(temp_sa_bwt);
-  while (temp_sa_bwt_it != temp_sa_bwt_end)
-  {
-    *temp_sa_bwt_it = lex_colex_permutation[*temp_sa_bwt_it];
     ++temp_sa_bwt_it;
   }
   sdsl::construct_im(colex_gc_bwt, temp_sa_bwt);
@@ -725,8 +735,8 @@ struct gc_index
   sdsl::int_vector<8> grammar_rules;
   trie_node *lex_trie_root;
   trie_node *colex_trie_root;
+  sdsl::int_vector<> colex_lex_permutation;
   sdsl::int_vector<> lex_gc_character_bucket_end_dists;
-  sdsl::wt_int<> lex_gc_bwt;
   sdsl::wt_int<> colex_gc_bwt;
 
   ~gc_index ()
@@ -742,9 +752,10 @@ void print_gc_index (gc_index &index)
   std::cout << index.grammar_rules << '\n';
   print_trie(std::begin(index.grammar_rules), index.lex_trie_root, 1);
   print_trie(std::begin(index.grammar_rules), index.colex_trie_root, -1);
+  std::cout << index.colex_lex_permutation << '\n';
   std::cout << index.lex_gc_character_bucket_end_dists << '\n';
-  std::cout << index.lex_gc_bwt << '\n';
   std::cout << index.colex_gc_bwt << '\n';
+  return;
 }
 
 void construct
@@ -959,6 +970,20 @@ void construct
         );
       }
     );
+    tdc::StatPhase::wrap
+    (
+      "calculate_colex_lex_permutation",
+      [&] ()
+      {
+        index.colex_lex_permutation.width(gc_text_width);
+        index.colex_lex_permutation.resize(gc_text_sigma);
+        calculate_colex_lex_permutation
+        (
+          lex_colex_permutation,
+          index.colex_lex_permutation
+        );
+      }
+    );
     auto gc_text_size {std::distance(temp_gc_text_begin, temp_gc_text_end) + 1};
     auto gc_text_size_width {sdsl::bits::hi(gc_text_size) + 1};
     sdsl::int_vector<> gc_text;
@@ -985,17 +1010,16 @@ void construct
     );
     tdc::StatPhase::wrap
     (
-      "calculate_lex_and_colex_gc_bwt",
+      "calculate_colex_gc_bwt",
       [&] ()
       {
         text_dists.resize(std::size(gc_text));
         auto &temp_sa_bwt {text_dists};
-        calculate_lex_and_colex_gc_bwt
+        calculate_colex_gc_bwt
         (
           gc_text,
           temp_sa_bwt,
           lex_colex_permutation,
-          index.lex_gc_bwt,
           index.colex_gc_bwt
         );
       }
@@ -1013,16 +1037,44 @@ void serialize
 {
   std::ofstream index_output {index_path};
   std::ofstream json_output {"../output/serialize/" + util::basename(index_path) + ".json"};
-  tdc::StatPhase phases {""};
+  tdc::StatPhase phases {"serialize_gc_index"};
   tdc::StatPhase::wrap
   (
-    "gc_index serialize",
+    "serialize_grammar_rule_sizes",
     [&] ()
     {
       index.grammar_rule_sizes.serialize(index_output);
+    }
+  );
+  tdc::StatPhase::wrap
+  (
+    "serialize_grammar_rules",
+    [&] ()
+    {
       index.grammar_rules.serialize(index_output);
+    }
+  );
+  tdc::StatPhase::wrap
+  (
+    "serialize_colex_lex_permutation",
+    [&] ()
+    {
+      index.colex_lex_permutation.serialize(index_output);
+    }
+  );
+  tdc::StatPhase::wrap
+  (
+    "serialize_lex_gc_character_bucket_end_dists",
+    [&] ()
+    {
       index.lex_gc_character_bucket_end_dists.serialize(index_output);
-      index.lex_gc_bwt.serialize(index_output);
+    }
+  );
+  tdc::StatPhase::wrap
+  (
+    "serialize_colex_gc_bwt",
+    [&] ()
+    {
       index.colex_gc_bwt.serialize(index_output);
     }
   );
@@ -1060,20 +1112,20 @@ void load
     );
     tdc::StatPhase::wrap
     (
+      "load_colex_lex_permutation",
+      [&] ()
+      {
+        sdsl::util::clear(index.colex_lex_permutation);
+        index.colex_lex_permutation.load(index_input);
+      }
+    );
+    tdc::StatPhase::wrap
+    (
       "load_lex_gc_character_bucket_end_dists",
       [&] ()
       {
         sdsl::util::clear(index.lex_gc_character_bucket_end_dists);
         index.lex_gc_character_bucket_end_dists.load(index_input);
-      }
-    );
-    tdc::StatPhase::wrap
-    (
-      "load_lex_gc_bwt",
-      [&] ()
-      {
-        sdsl::util::clear(index.lex_gc_bwt);
-        index.lex_gc_bwt.load(index_input);
       }
     );
     tdc::StatPhase::wrap
@@ -1239,7 +1291,7 @@ uint64_t backward_search_pattern_prefix
       index.colex_gc_bwt.range_search_2d
       (
         begin_dist,
-        end_dist - 1,
+        (end_dist - 1),
         leftmost_colex_rank,
         rightmost_colex_rank
       )
@@ -1258,22 +1310,28 @@ void backward_search_exact_sl_factor
   pattern_iterator_type rlast
 )
 {
-  uint64_t lex_rank {0};
+  uint64_t colex_rank {0};
   lookup_grammar_rule
   (
     std::begin(index.grammar_rules),
-    index.lex_trie_root,
-    std::next(rlast),
-    std::next(rfirst),
-    1,
-    lex_rank,
-    lex_rank
+    index.colex_trie_root,
+    rfirst,
+    rlast,
+    -1,
+    colex_rank,
+    colex_rank
   );
-  if (lex_rank != 0)
+  if (colex_rank != 0)
   {
-    auto character_begin_dist {index.lex_gc_character_bucket_end_dists[lex_rank - 1]};
-    begin_dist = character_begin_dist + index.lex_gc_bwt.rank(begin_dist, lex_rank);
-    end_dist = character_begin_dist + index.lex_gc_bwt.rank(end_dist, lex_rank);
+    auto character_begin_dist
+    {
+      index.lex_gc_character_bucket_end_dists
+      [
+        index.colex_lex_permutation[colex_rank] - 1
+      ]
+    };
+    begin_dist = character_begin_dist + index.colex_gc_bwt.rank(begin_dist, colex_rank);
+    end_dist = character_begin_dist + index.colex_gc_bwt.rank(end_dist, colex_rank);
   }
   else
   {
