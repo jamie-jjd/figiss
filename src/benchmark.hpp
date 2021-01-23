@@ -148,29 +148,78 @@ void test_count (std::string const text_path)
   gc_index index;
   sdsl::csa_wt<> fm_index;
   load_gc_and_fm_index(index, fm_index, text_path);
-  std::string pattern_path {"pattern.sample"};
-  uint64_t pattern_number {1000};
-  generate_pattern
-  (
-    text_path,
-    pattern_path,
-    pattern_number,
-    calculate_max_sl_factor_size(text_path)
-  );
-  std::ifstream pattern_input {pattern_path};
-  sdsl::int_vector<8> pattern;
-  pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
-  for (uint64_t i {0}; i != pattern_number; ++i)
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, text_path);
+  uint64_t max_sl_factor_size {calculate_max_sl_factor_size(text)};
+  std::string const pattern_path {"pattern.sample"};
+  for (uint64_t multiple {2}; multiple != 7; ++multiple)
   {
-    pattern.load(pattern_input);
-    auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
-    auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
-    if (fm_count != gc_count)
+    uint64_t pattern_number {100};
+    generate_pattern
+    (
+      text_path,
+      pattern_path,
+      pattern_number,
+      static_cast<uint64_t>(max_sl_factor_size * multiple * 0.5)
+    );
+    std::ifstream pattern_input {pattern_path};
+    sdsl::int_vector<8> pattern;
+    pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
+    for (uint64_t pattern_id {0}; pattern_id != pattern_number; ++pattern_id)
     {
-      std::cerr << "failed at pattern " << i << '\n';
-      break;
+      pattern.load(pattern_input);
+      auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
+      auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
+      if (fm_count != gc_count)
+      {
+        throw std::runtime_error
+        (
+          "failed at pattern size: " +
+          std::to_string(static_cast<uint64_t>(max_sl_factor_size * multiple * 0.5))
+        );
+      }
+    }
+    std::cout << "pass pattern size: " << std::to_string(static_cast<uint64_t>(max_sl_factor_size * multiple * 0.5)) << '\n';
+  }
+  for (uint64_t divisor {5}; divisor != 1; --divisor)
+  {
+    if ((std::size(text) / divisor) > max_sl_factor_size)
+    {
+      uint64_t pattern_number {1};
+      generate_pattern
+      (
+        text_path,
+        pattern_path,
+        pattern_number,
+        (std::size(text) / divisor)
+      );
+      std::ifstream pattern_input {pattern_path};
+      sdsl::int_vector<8> pattern;
+      pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
+      for (uint64_t pattern_id {0}; pattern_id != pattern_number; ++pattern_id)
+      {
+        pattern.load(pattern_input);
+        auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
+        auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
+        if (fm_count != gc_count)
+        {
+          throw std::runtime_error
+          (
+            "failed at pattern size: " +
+            std::to_string(std::size(text) / divisor)
+          );
+        }
+      }
+      std::cout << "pass pattern size: " + std::to_string(std::size(text) / divisor) << '\n';
     }
   }
+  auto fm_count {sdsl::count(fm_index, std::begin(text), std::end(text))};
+  auto gc_count {gci::count(index, std::begin(text), std::end(text))};
+  if (fm_count != gc_count)
+  {
+    throw std::runtime_error("failed at full text");
+  }
+  std::cout << "pass full text\n";
   sdsl::remove(pattern_path);
   return;
 }
