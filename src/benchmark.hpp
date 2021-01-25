@@ -31,15 +31,49 @@ void load_gc_and_fm_index
   std::ifstream fm_index_input {fm_index_path};
   if (!fm_index_input.is_open())
   {
-    sdsl::int_vector<8> text;
-    sdsl::load_vector_from_file(text, text_path);
-    sdsl::construct_im(fm_index, text);
-    std::ofstream fm_index_output {fm_index_path};
-    sdsl::serialize(fm_index, fm_index_output);
+    {
+      std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".fmi.json"};
+      tdc::StatPhase phases {"construct_fm_index"};
+      sdsl::int_vector<8> text;
+      tdc::StatPhase::wrap
+      (
+        "",
+        [&] ()
+        {
+          sdsl::load_vector_from_file(text, text_path);
+          sdsl::construct_im(fm_index, text);
+        }
+      );
+      phases.to_json().str(json_output);
+    }
+    {
+      std::ofstream fm_index_output {fm_index_path};
+      std::ofstream json_output {"../output/serialize/" + util::basename(text_path) + ".fmi.json"};
+      tdc::StatPhase phases {"serialize_fm_index"};
+      tdc::StatPhase::wrap
+      (
+        "",
+        [&] ()
+        {
+          sdsl::serialize(fm_index, fm_index_output);
+        }
+      );
+      phases.to_json().str(json_output);
+    }
   }
   else
   {
-    sdsl::load(fm_index, fm_index_input);
+    std::ofstream json_output {"../output/load/" + util::basename(text_path) + ".fmi.json"};
+    tdc::StatPhase phases {"load_fm_index"};
+    tdc::StatPhase::wrap
+    (
+      "",
+      [&] ()
+      {
+        sdsl::load(fm_index, fm_index_input);
+      }
+    );
+    phases.to_json().str(json_output);
   }
   return;
 }
