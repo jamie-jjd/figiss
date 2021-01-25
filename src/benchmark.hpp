@@ -151,10 +151,10 @@ void test_count (std::string const text_path)
   sdsl::int_vector<8> text;
   sdsl::load_vector_from_file(text, text_path);
   uint64_t max_sl_factor_size {calculate_max_sl_factor_size(text)};
-  std::string const pattern_path {"pattern.sample"};
-  for (uint64_t multiple {2}; multiple != 7; ++multiple)
+  std::string const pattern_path {"../input/pattern/pattern.sample"};
+  for (uint64_t multiple {2}; multiple != 11; ++multiple)
   {
-    uint64_t pattern_number {100};
+    uint64_t pattern_number {1000 / multiple};
     generate_pattern
     (
       text_path,
@@ -179,13 +179,13 @@ void test_count (std::string const text_path)
         );
       }
     }
-    std::cout << "pass pattern size: " << std::to_string(static_cast<uint64_t>(max_sl_factor_size * multiple * 0.5)) << '\n';
+    std::cout << "succeed at pattern size: " << std::to_string(static_cast<uint64_t>(max_sl_factor_size * multiple * 0.5)) << '\n';
   }
   for (uint64_t divisor {5}; divisor != 1; --divisor)
   {
     if ((std::size(text) / divisor) > max_sl_factor_size)
     {
-      uint64_t pattern_number {1};
+      uint64_t pattern_number {10 * divisor};
       generate_pattern
       (
         text_path,
@@ -210,16 +210,16 @@ void test_count (std::string const text_path)
           );
         }
       }
-      std::cout << "pass pattern size: " + std::to_string(std::size(text) / divisor) << '\n';
+      std::cout << "succeed at pattern size: " + std::to_string(std::size(text) / divisor) << '\n';
     }
   }
   auto fm_count {sdsl::count(fm_index, std::begin(text), std::end(text))};
   auto gc_count {gci::count(index, std::begin(text), std::end(text))};
   if (fm_count != gc_count)
   {
-    throw std::runtime_error("failed at full text");
+    throw std::runtime_error("failed at text size");
   }
-  std::cout << "pass full text\n";
+  std::cout << "succeed at text size\n";
   sdsl::remove(pattern_path);
   return;
 }
