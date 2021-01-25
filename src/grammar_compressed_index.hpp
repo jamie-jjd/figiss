@@ -436,7 +436,7 @@ void print_trie
 {
   if (node != nullptr)
   {
-    std::cout << depth << ':';
+    std::cout << depth << ":";
     if (node->edge_begin_dist != node->edge_end_dist)
     {
       auto it {std::next(rules_begin, node->edge_begin_dist)};
@@ -447,7 +447,7 @@ void print_trie
         it += dist;
       }
     }
-    std::cout << "(" << node->leftmost_rank << ',' << node->rightmost_rank << ")\n";
+    std::cout << "(" << node->leftmost_rank << "," << node->rightmost_rank << ")\n";
     auto branches_it {std::begin(node->branches)};
     auto branches_end {std::end(node->branches)};
     while (branches_it != branches_end)
@@ -750,13 +750,13 @@ struct gc_index
 
 void print_gc_index (gc_index &index)
 {
-  std::cout << index.grammar_rule_sizes << '\n';
-  std::cout << index.grammar_rules << '\n';
+  std::cout << index.grammar_rule_sizes << "\n";
+  std::cout << index.grammar_rules << "\n";
   print_trie(std::begin(index.grammar_rules), index.lex_trie_root, 1);
   print_trie(std::begin(index.grammar_rules), index.colex_trie_root, -1);
-  std::cout << index.colex_lex_permutation << '\n';
-  std::cout << index.lex_gc_character_bucket_end_dists << '\n';
-  std::cout << index.colex_gc_bwt << '\n';
+  std::cout << index.colex_lex_permutation << "\n";
+  std::cout << index.lex_gc_character_bucket_end_dists << "\n";
+  std::cout << index.colex_gc_bwt << "\n";
   return;
 }
 
@@ -1264,18 +1264,17 @@ void lookup_grammar_rule
 }
 
 template <typename pattern_iterator_type>
-uint64_t backward_search_pattern_prefix
+void backward_search_pattern_prefix
 (
   gc_index const &index,
-  uint64_t const begin_dist_L,
-  uint64_t const end_dist_L,
-  uint64_t const begin_dist_S,
-  uint64_t const end_dist_S,
+  uint64_t &begin_dist_L,
+  uint64_t &end_dist_L,
+  uint64_t &begin_dist_S,
+  uint64_t &end_dist_S,
   pattern_iterator_type rfirst,
   pattern_iterator_type rlast
 )
 {
-  uint64_t count {0};
   uint64_t leftmost_colex_rank {0};
   uint64_t rightmost_colex_rank {0};
   lookup_grammar_rule
@@ -1290,60 +1289,48 @@ uint64_t backward_search_pattern_prefix
   );
   if (leftmost_colex_rank != 0)
   {
-#ifdef IS_LOGGED
-    for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
-    {
-      std::cout << *it;
-    }
-    std::cout << " -> (" << leftmost_colex_rank << ", " << rightmost_colex_rank << ")";
-#endif
     if (begin_dist_L != end_dist_L)
     {
-      uint64_t count_L
-      {
-        std::get<0>
+      end_dist_L = std::get<0>
+      (
+        index.colex_gc_bwt.range_search_2d
         (
-          index.colex_gc_bwt.range_search_2d
-          (
-            begin_dist_L,
-            (end_dist_L - 1),
-            leftmost_colex_rank,
-            rightmost_colex_rank,
-            false
-          )
+          begin_dist_L,
+          (end_dist_L - 1),
+          leftmost_colex_rank,
+          rightmost_colex_rank,
+          false
         )
-      };
-      count += count_L;
-#ifdef IS_LOGGED
-      std::cout << " -> L:(" << count_L << ")";
-#endif
+      );
+      begin_dist_L = 0;
     }
     if (begin_dist_S != end_dist_S)
     {
-      uint64_t count_S
-      {
-        std::get<0>
+      end_dist_S = std::get<0>
+      (
+        index.colex_gc_bwt.range_search_2d
         (
-          index.colex_gc_bwt.range_search_2d
-          (
-            begin_dist_S,
-            (end_dist_S - 1),
-            leftmost_colex_rank,
-            rightmost_colex_rank,
-            false
-          )
+          begin_dist_S,
+          (end_dist_S - 1),
+          leftmost_colex_rank,
+          rightmost_colex_rank,
+          false
         )
-      };
-      count += count_S;
-#ifdef IS_LOGGED
-      std::cout << " -> S:(" << count_S << ")";
-#endif
+      );
+      begin_dist_S = 0;
     }
-#ifdef IS_LOGGED
-    std::cout << '\n';
-#endif
   }
-  return count;
+#ifdef IS_LOGGED
+  for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
+  {
+    std::cout << *it;
+  }
+  std::cout
+  << "->(" << leftmost_colex_rank << "," << rightmost_colex_rank << ")"
+  << "->L:(" << begin_dist_L << "," << end_dist_L << ")"
+  << "->S:(" << begin_dist_S << "," << end_dist_S << ")\n";
+#endif
+  return;
 }
 
 template <typename pattern_iterator_type>
@@ -1378,56 +1365,60 @@ void backward_search_exact_sl_factor
         index.colex_lex_permutation[colex_rank] - 1
       ]
     };
-#ifdef IS_LOGGED
-    for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
-    {
-      std::cout << *it;
-    }
-    std::cout << " -> (" << colex_rank << ": " << index.colex_lex_permutation[colex_rank] << ")";
-#endif
     if (begin_dist_L != end_dist_L)
     {
       begin_dist_L = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_L, colex_rank);
       end_dist_L = character_begin_dist + index.colex_gc_bwt.rank(end_dist_L, colex_rank);
-#ifdef IS_LOGGED
-      std::cout << " -> L:(" << begin_dist_L << ", " << end_dist_L << ")";
-#endif
     }
     if (begin_dist_S != end_dist_S)
     {
       begin_dist_S = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_S, colex_rank);
       end_dist_S = character_begin_dist + index.colex_gc_bwt.rank(end_dist_S, colex_rank);
-#ifdef IS_LOGGED
-      std::cout << " -> S:(" << begin_dist_S << ", " << end_dist_S << ")";
-#endif
     }
-#ifdef IS_LOGGED
-    std::cout << '\n';
-#endif
   }
   else
   {
     begin_dist_L = end_dist_L;
     begin_dist_S = end_dist_S;
   }
+#ifdef IS_LOGGED
+  for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
+  {
+    std::cout << *it;
+  }
+  std::cout
+  << "->(" << colex_rank << ":" << index.colex_lex_permutation[colex_rank] << ")"
+  << "->L:(" << begin_dist_L << "," << end_dist_L << ")"
+  << "->S:(" << begin_dist_S << "," << end_dist_S << ")\n";
+#endif
   return;
 }
 
 template <typename pattern_iterator_type>
 auto calculate_pattern_suffix_S_rlast
 (
-  pattern_iterator_type rit,
+  pattern_iterator_type rbegin,
   pattern_iterator_type rend
 )
 {
+  auto rit {rbegin};
   while
   (
     (std::prev(rit) != rend)
     &&
-    (*std::prev(rit) <= *rit)
+    (*std::prev(rit) == *rit)
   )
   {
     --rit;
+  }
+  if
+  (
+    (std::prev(rit) != rend)
+    &&
+    (*std::prev(rit) < *rit)
+  )
+  {
+    return rbegin;
   }
   return std::prev(rit);
 }
@@ -1448,14 +1439,19 @@ auto backward_search_pattern_suffix
   auto rlast {calculate_pattern_suffix_S_rlast(rbegin, rend)};
   uint64_t leftmost_lex_rank {0};
   uint64_t rightmost_lex_rank {0};
-  if (rlast != rend)
+  if
+  (
+    (rlast != rbegin)
+    &&
+    (rlast != rend)
+  )
   {
     lookup_grammar_rule
     (
       std::begin(index.grammar_rules),
       index.lex_trie_root,
       std::next(rlast),
-      std::next(rfirst),
+      std::next(rbegin),
       1,
       leftmost_lex_rank,
       rightmost_lex_rank
@@ -1464,19 +1460,20 @@ auto backward_search_pattern_suffix
     {
       begin_dist_S = index.lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
       end_dist_S = index.lex_gc_character_bucket_end_dists[rightmost_lex_rank];
-#ifdef IS_LOGGED
-      for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
-      {
-        std::cout << *it;
-      }
-      std::cout << " -> (" << leftmost_lex_rank << ", " << rightmost_lex_rank << ")";
-      std::cout << " -> (" << begin_dist_S << ", " << end_dist_S << ")\n";
-#endif
     }
+#ifdef IS_LOGGED
+    for (auto it {std::next(rlast)}; it != std::next(rbegin); ++it)
+    {
+      std::cout << *it;
+    }
+    std::cout << "->(" << leftmost_lex_rank << "," << rightmost_lex_rank << ")";
+    std::cout << "->S:(" << begin_dist_S << "," << end_dist_S << ")\n";
+#endif
     calculate_sl_factor(rfirst, rlast, rend);
     if (begin_dist_S != end_dist_S)
     {
-      uint64_t colex_rank {0};
+      uint64_t leftmost_colex_rank {0};
+      uint64_t rightmost_colex_rank {0};
       lookup_grammar_rule
       (
         std::begin(index.grammar_rules),
@@ -1484,31 +1481,58 @@ auto backward_search_pattern_suffix
         rfirst,
         rlast,
         -1,
-        colex_rank,
-        colex_rank
+        leftmost_colex_rank,
+        rightmost_colex_rank
       );
-      if (colex_rank != 0)
+      if (leftmost_colex_rank != 0)
       {
-        auto character_begin_dist
+        if (rlast != rend)
         {
-          index.lex_gc_character_bucket_end_dists
-          [
-            index.colex_lex_permutation[colex_rank] - 1
-          ]
-        };
-        begin_dist_S = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_S, colex_rank);
-        end_dist_S = character_begin_dist + index.colex_gc_bwt.rank(end_dist_S, colex_rank);
-#ifdef IS_LOGGED
-        for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
-        {
-          std::cout << *it;
+          auto character_begin_dist
+          {
+            index.lex_gc_character_bucket_end_dists
+            [
+              index.colex_lex_permutation[leftmost_colex_rank] - 1
+            ]
+          };
+          begin_dist_S = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_S, leftmost_colex_rank);
+          end_dist_S = character_begin_dist + index.colex_gc_bwt.rank(end_dist_S, leftmost_colex_rank);
         }
-        std::cout
-        << " -> (" << colex_rank << ": " << index.colex_lex_permutation[colex_rank] << ")"
-        << " -> (" << begin_dist_S << ", " << end_dist_S << ")\n";
-#endif
+        else
+        {
+          end_dist_S = std::get<0>
+          (
+            index.colex_gc_bwt.range_search_2d
+            (
+              begin_dist_S,
+              (end_dist_S - 1),
+              leftmost_colex_rank,
+              rightmost_colex_rank,
+              false
+            )
+          );
+          begin_dist_S = 0;
+        }
       }
+      else
+      {
+        begin_dist_S = end_dist_S;
+      }
+#ifdef IS_LOGGED
+      for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
+      {
+        std::cout << *it;
+      }
+      std::cout
+      << "->(" << leftmost_colex_rank << ":" << index.colex_lex_permutation[leftmost_colex_rank]
+      << "," << rightmost_colex_rank << ")"
+      << "->S:(" << begin_dist_S << "," << end_dist_S << ")\n";
+#endif
     }
+  }
+  else if (rlast == rbegin)
+  {
+    calculate_sl_factor(rfirst, rlast, rend);
   }
   lookup_grammar_rule
   (
@@ -1524,15 +1548,15 @@ auto backward_search_pattern_suffix
   {
     begin_dist_L = index.lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
     end_dist_L = index.lex_gc_character_bucket_end_dists[rightmost_lex_rank];
-#ifdef IS_LOGGED
-    for (auto it {std::next(rlast)}; it != std::next(rbegin); ++it)
-    {
-      std::cout << *it;
-    }
-    std::cout << " -> (" << leftmost_lex_rank << ", " << rightmost_lex_rank << ")";
-    std::cout << " -> (" << begin_dist_L << ", " << end_dist_L << ")\n";
-#endif
   }
+#ifdef IS_LOGGED
+  for (auto it {std::next(rlast)}; it != std::next(rbegin); ++it)
+  {
+    std::cout << *it;
+  }
+  std::cout << "->(" << leftmost_lex_rank << "," << rightmost_lex_rank << ")";
+  std::cout << "->L:(" << begin_dist_L << "," << end_dist_L << ")\n";
+#endif
   return rlast;
 }
 
@@ -1557,7 +1581,7 @@ uint64_t count
   {
     std::cout << *it;
   }
-  std::cout << '\n';
+  std::cout << "\n";
 #endif
   rlast = backward_search_pattern_suffix(index, begin_dist_L, end_dist_L, begin_dist_S, end_dist_S, rbegin, rend);
   if (rlast != rend)
@@ -1576,11 +1600,17 @@ uint64_t count
       }
       else
       {
-        return backward_search_pattern_prefix(index, begin_dist_L, end_dist_L, begin_dist_S, end_dist_S, rfirst, rlast);
+        backward_search_pattern_prefix(index, begin_dist_L, end_dist_L, begin_dist_S, end_dist_S, rfirst, rlast);
+        break;
       }
     }
   }
-  return ((end_dist_L - begin_dist_L) + (end_dist_S - begin_dist_S));
+  return
+  (
+    (end_dist_L - begin_dist_L)
+    +
+    (end_dist_S - begin_dist_S)
+  );
 }
 
 template <typename text_type>
