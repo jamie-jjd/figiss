@@ -74,17 +74,25 @@ std::string basename (std::string const path)
 struct timer
 {
   using inner_clock = std::chrono::high_resolution_clock;
-  using inner_time_point = std::chrono::time_point<inner_clock>;
 
-  std::unordered_map<std::string, std::pair<std::chrono::microseconds, inner_time_point>> time_records;
+  std::unordered_map
+  <
+    std::string,
+    std::pair
+    <
+      std::chrono::microseconds,
+      inner_clock::time_point
+    >
+  >
+  time_records;
 
-  void reset_timer (std::string const category)
+  void reset (std::string const category)
   {
-    time_records[category] = {std::chrono::microseconds{}, inner_time_point{}};
+    time_records[category] = {std::chrono::microseconds::zero(), inner_clock::time_point::min()};
     return;
   }
 
-  void resume_timer (std::string const category)
+  void resume (std::string const category)
   {
     if (time_records.find(category) != time_records.end())
     {
@@ -94,13 +102,17 @@ struct timer
     return;
   }
 
-  void pause_timer (std::string const category)
+  void pause (std::string const category)
   {
     if (time_records.find(category) != time_records.end())
     {
       auto &duration {std::get<0>(time_records[category])};
       auto &begin_time {std::get<1>(time_records[category])};
-      duration = std::chrono::duration_cast<std::chrono::microseconds>(inner_clock::now() - begin_time);
+      if (begin_time != inner_clock::time_point::min())
+      {
+        duration += std::chrono::duration_cast<std::chrono::microseconds>(inner_clock::now() - begin_time);
+      }
+      begin_time = inner_clock::time_point::min();
     }
     return;
   }
@@ -108,14 +120,12 @@ struct timer
   void print (std::string const time_path)
   {
     std::ofstream time_output {time_path};
-    time_output << "category,milliseconds\n";
+    time_output << "category,microseconds\n";
     for (auto const record : time_records)
     {
       auto &category {std::get<0>(record)};
       auto &microseconds {std::get<0>(std::get<1>(record))};
-      time_output
-      << category << ","
-      << std::chrono::duration_cast<std::chrono::milliseconds>(microseconds).count() << "\n";
+      time_output << category << "," << microseconds.count() << "\n";
     }
     return;
   }
