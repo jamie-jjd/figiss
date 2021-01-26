@@ -4,7 +4,6 @@
 #include <tudocomp_stat/StatPhase.hpp>
 
 #include "grammar_compressed_index.hpp"
-#include "pattern.hpp"
 #include "utility.hpp"
 
 namespace gci
@@ -85,26 +84,22 @@ void benchmark_gc_index_count
 )
 {
   std::ifstream pattern_input {pattern_path};
-  std::ofstream json_output {"../output/count/" + util::basename(pattern_path) + ".gci.json"};
+  std::string const time_path {"../output/count/" + util::basename(pattern_path) + ".wm.sub.gci.csv"};
+  gci::util::timer timer;
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
   pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
-  tdc::StatPhase phases {"gc_index_count"};
+  timer.reset("gc_index_count");
+  timer.resume("gc_index_count");
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
-    tdc::StatPhase::pause_tracking();
+    timer.pause("gc_index_count");
     pattern.load(pattern_input);
-    tdc::StatPhase::resume_tracking();
-    tdc::StatPhase::wrap
-    (
-      "",
-      [&] ()
-      {
-        gci::count(index, std::begin(pattern), std::end(pattern));
-      }
-    );
+    timer.resume("gc_index_count");
+    gci::count(index, std::begin(pattern), std::end(pattern), timer);
   }
-  phases.to_json().str(json_output);
+  timer.pause("gc_index_count");
+  timer.print(time_path, "microseconds");
   return;
 }
 
@@ -115,26 +110,22 @@ void benchmark_fm_index_count
 )
 {
   std::ifstream pattern_input {pattern_path};
-  std::ofstream json_output {"../output/count/" + util::basename(pattern_path) + ".fmi.json"};
+  std::string const time_path {"../output/count/" + util::basename(pattern_path) + ".fmi.csv"};
+  gci::util::timer timer;
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
   pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
-  tdc::StatPhase phases {"fm_index_count"};
+  timer.reset("fm_index_count");
+  timer.resume("fm_index_count");
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
-    tdc::StatPhase::pause_tracking();
+    timer.pause("fm_index_count");
     pattern.load(pattern_input);
-    tdc::StatPhase::resume_tracking();
-    tdc::StatPhase::wrap
-    (
-      "",
-      [&] ()
-      {
-        sdsl::count(fm_index, std::begin(pattern), std::end(pattern));
-      }
-    );
+    timer.resume("fm_index_count");
+    sdsl::count(fm_index, std::begin(pattern), std::end(pattern));
   }
-  phases.to_json().str(json_output);
+  timer.pause("fm_index_count");
+  timer.print(time_path, "microseconds");
   return;
 }
 
@@ -162,7 +153,7 @@ void benchmark_count
     + std::to_string(pattern_number) + "."
     + std::to_string(pattern_size)
   };
-  generate_pattern
+  gci::util::generate_pattern
   (
     text_path,
     pattern_path,
@@ -186,10 +177,11 @@ void test_count (std::string const text_path)
   sdsl::load_vector_from_file(text, text_path);
   uint64_t max_sl_factor_size {calculate_max_sl_factor_size(text)};
   std::string const pattern_path {"../input/pattern/pattern.sample"};
+  gci::util::timer timer;
   for (uint64_t multiple {2}; multiple != 11; ++multiple)
   {
     uint64_t pattern_number {1000 / multiple};
-    generate_pattern
+    gci::util::generate_pattern
     (
       text_path,
       pattern_path,
@@ -203,7 +195,7 @@ void test_count (std::string const text_path)
     {
       pattern.load(pattern_input);
       auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
-      auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
+      auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern), timer)};
       if (fm_count != gc_count)
       {
         throw std::runtime_error
@@ -217,10 +209,10 @@ void test_count (std::string const text_path)
   }
   for (uint64_t divisor {5}; divisor != 1; --divisor)
   {
-    if ((std::size(text) / divisor) > max_sl_factor_size)
+    if ((std::size(text) / divisor) >= max_sl_factor_size)
     {
       uint64_t pattern_number {10 * divisor};
-      generate_pattern
+      gci::util::generate_pattern
       (
         text_path,
         pattern_path,
@@ -234,7 +226,7 @@ void test_count (std::string const text_path)
       {
         pattern.load(pattern_input);
         auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
-        auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
+        auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern), timer)};
         if (fm_count != gc_count)
         {
           throw std::runtime_error
@@ -248,7 +240,7 @@ void test_count (std::string const text_path)
     }
   }
   auto fm_count {sdsl::count(fm_index, std::begin(text), std::end(text))};
-  auto gc_count {gci::count(index, std::begin(text), std::end(text))};
+  auto gc_count {gci::count(index, std::begin(text), std::end(text), timer)};
   if (fm_count != gc_count)
   {
     throw std::runtime_error("failed at text size");
