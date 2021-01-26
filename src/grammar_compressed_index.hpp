@@ -4,11 +4,12 @@
 #include <map>
 
 #include <sdsl/suffix_trees.hpp>
+
+#ifdef LOG
 #include <tudocomp_stat/StatPhase.hpp>
+#endif
 
 #include "utility.hpp"
-
-// #define IS_LOGGED
 
 namespace gci
 {
@@ -739,7 +740,7 @@ struct gc_index
   trie_node *colex_trie_root;
   sdsl::int_vector<> colex_lex_permutation;
   sdsl::int_vector<> lex_gc_character_bucket_end_dists;
-  sdsl::wt_int<> colex_gc_bwt;
+  sdsl::wm_int<> colex_gc_bwt;
 
   ~gc_index ()
   {
@@ -766,96 +767,126 @@ void construct
   std::string const text_path
 )
 {
+#ifdef LOG_GCI_CONSTRUCT
   std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".gci.json"};
   tdc::StatPhase phases {"construct_gc_index"};
+#endif
   {
     sdsl::int_vector<8> text;
+#ifdef LOG_GCI_CONSTRUCT
     tdc::StatPhase::wrap
     (
       "load_text",
       [&] ()
+#endif
       {
         sdsl::load_vector_from_file(text, text_path);
         sdsl::append_zero_symbol(text);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
+#endif
     sdsl::bit_vector sl_types;
+#ifdef LOG_GCI_CONSTRUCT
     tdc::StatPhase::wrap
     (
       "calculate_sl_types",
       [&] ()
+#endif
       {
         calculate_sl_types(text, sl_types);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
+#endif
     auto invalid_text_dist {std::size(text)};
     auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
     sdsl::int_vector<> text_dists;
+#ifdef LOG_GCI_CONSTRUCT
     tdc::StatPhase::wrap
     (
       "init_text_dists",
       [&] ()
+#endif
       {
         text_dists.width(text_size_width);
         text_dists.resize(std::size(text));
         sdsl::util::set_to_value(text_dists, invalid_text_dist);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
+#endif
     sdsl::int_vector<> character_bucket_dists;
+#ifdef LOG_GCI_CONSTRUCT
     tdc::StatPhase::wrap
     (
       "init_character_bucket_dists",
       [&] ()
+#endif
       {
         character_bucket_dists.width(text_size_width);
         character_bucket_dists.resize(256);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_character_bucket_begin_dists",
       [&] ()
+#endif
       {
         calculate_character_bucket_begin_dists(text, character_bucket_dists);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "bucket_sort_rightmost_l_type_characters",
       [&] ()
+#endif
       {
         bucket_sort_rightmost_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "induce_sort_l_type_characters",
       [&] ()
+#endif
       {
         induce_sort_l_type_characters(text, sl_types, character_bucket_dists, text_dists);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_character_bucket_end_dists",
       [&] ()
+#endif
       {
         calculate_character_bucket_end_dists(text, character_bucket_dists);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "induce_sort_s_type_characters",
       [&] ()
+#endif
       {
         induce_sort_s_type_characters(text, sl_types, character_bucket_dists, text_dists);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
+#endif
     auto text_dists_boundary {std::begin(text_dists)};
+#ifdef LOG_GCI_CONSTRUCT
     tdc::StatPhase::wrap
     (
       "calculate_text_dists_boundary",
       [&] ()
+#endif
       {
         text_dists_boundary = collect_valid_entries
         (
@@ -864,15 +895,19 @@ void construct
           invalid_text_dist
         );
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
+#endif
     auto grammar_rule_begin_dists_begin {std::begin(text_dists)};
     auto grammar_rule_begin_dists_end {text_dists_boundary};
     auto temp_gc_text_begin {text_dists_boundary};
     auto temp_gc_text_end {std::end(text_dists)};
+#ifdef LOG_GCI_CONSTRUCT
     tdc::StatPhase::wrap
     (
       "calculate_grammar_rule_begin_dists_and_temp_gc_text",
       [&] ()
+#endif
       {
         calculate_grammar_rule_begin_dists_and_temp_gc_text
         (
@@ -884,11 +919,13 @@ void construct
           temp_gc_text_end
         );
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_grammar_rule_sizes",
       [&] ()
+#endif
       {
         calculate_grammar_rule_sizes
         (
@@ -898,11 +935,13 @@ void construct
           grammar_rule_begin_dists_end
         );
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_grammar_rules",
       [&] ()
+#endif
       {
         calculate_grammar_rules
         (
@@ -912,20 +951,24 @@ void construct
           grammar_rule_begin_dists_begin
         );
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "clear_sl_types_and_text",
       [&] ()
+#endif
       {
         sdsl::util::clear(sl_types);
         sdsl::util::clear(text);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "insert_grammar_rules",
       [&] ()
+#endif
       {
         insert_grammar_rules
         (
@@ -936,32 +979,40 @@ void construct
           1
         );
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_lex_trie_rank_ranges",
       [&] ()
+#endif
       {
         calculate_lex_trie_rank_ranges(index.lex_trie_root);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
+#endif
     auto gc_text_sigma {std::size(index.grammar_rule_sizes) + 1};
     auto gc_text_width {sdsl::bits::hi(gc_text_sigma) + 1};
     sdsl::int_vector<> lex_colex_permutation;
+#ifdef LOG_GCI_CONSTRUCT
     tdc::StatPhase::wrap
     (
       "init_lex_colex_permutation",
       [&] ()
+#endif
       {
         lex_colex_permutation.width(gc_text_width);
         lex_colex_permutation.resize(gc_text_sigma);
         lex_colex_permutation[0] = 0;
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_colex_trie_rank_ranges_and_lex_colex_permutation",
       [&] ()
+#endif
       {
         uint64_t colex_rank {1};
         calculate_colex_trie_rank_ranges_and_lex_colex_permutation
@@ -971,11 +1022,13 @@ void construct
           colex_rank
         );
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_colex_lex_permutation",
       [&] ()
+#endif
       {
         index.colex_lex_permutation.width(gc_text_width);
         index.colex_lex_permutation.resize(gc_text_sigma);
@@ -985,35 +1038,43 @@ void construct
           index.colex_lex_permutation
         );
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
+#endif
     auto gc_text_size {std::distance(temp_gc_text_begin, temp_gc_text_end) + 1};
     auto gc_text_size_width {sdsl::bits::hi(gc_text_size) + 1};
     sdsl::int_vector<> gc_text;
+#ifdef LOG_GCI_CONSTRUCT
     tdc::StatPhase::wrap
     (
       "calculate_gc_text",
       [&] ()
+#endif
       {
         gc_text.width(gc_text_width);
         gc_text.resize(gc_text_size);
         std::copy(temp_gc_text_begin, temp_gc_text_end, std::begin(gc_text));
         gc_text[std::size(gc_text) - 1] = 0;
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_lex_gc_character_bucket_end_dists",
       [&] ()
+#endif
       {
         index.lex_gc_character_bucket_end_dists.width(gc_text_size_width);
         index.lex_gc_character_bucket_end_dists.resize(gc_text_sigma);
         calculate_character_bucket_end_dists(gc_text, index.lex_gc_character_bucket_end_dists);
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
     tdc::StatPhase::wrap
     (
       "calculate_colex_gc_bwt",
       [&] ()
+#endif
       {
         text_dists.resize(std::size(gc_text));
         auto &temp_sa_bwt {text_dists};
@@ -1025,9 +1086,13 @@ void construct
           index.colex_gc_bwt
         );
       }
+#ifdef LOG_GCI_CONSTRUCT
     );
+#endif
   }
+#ifdef LOG_GCI_CONSTRUCT
   phases.to_json().str(json_output);
+#endif
   return;
 }
 
@@ -1038,49 +1103,67 @@ void serialize
 )
 {
   std::ofstream index_output {index_path};
+#ifdef LOG_GCI_SERIALIZE
   std::ofstream json_output {"../output/serialize/" + util::basename(index_path) + ".json"};
   tdc::StatPhase phases {"serialize_gc_index"};
-  tdc::StatPhase::wrap
-  (
-    "serialize_grammar_rule_sizes",
-    [&] ()
-    {
-      index.grammar_rule_sizes.serialize(index_output);
-    }
-  );
-  tdc::StatPhase::wrap
-  (
-    "serialize_grammar_rules",
-    [&] ()
-    {
-      index.grammar_rules.serialize(index_output);
-    }
-  );
-  tdc::StatPhase::wrap
-  (
-    "serialize_colex_lex_permutation",
-    [&] ()
-    {
-      index.colex_lex_permutation.serialize(index_output);
-    }
-  );
-  tdc::StatPhase::wrap
-  (
-    "serialize_lex_gc_character_bucket_end_dists",
-    [&] ()
-    {
-      index.lex_gc_character_bucket_end_dists.serialize(index_output);
-    }
-  );
-  tdc::StatPhase::wrap
-  (
-    "serialize_colex_gc_bwt",
-    [&] ()
-    {
-      index.colex_gc_bwt.serialize(index_output);
-    }
-  );
+#endif
+  {
+#ifdef LOG_GCI_SERIALIZE
+    tdc::StatPhase::wrap
+    (
+      "serialize_grammar_rule_sizes",
+      [&] ()
+#endif
+      {
+        index.grammar_rule_sizes.serialize(index_output);
+      }
+#ifdef LOG_GCI_SERIALIZE
+    );
+    tdc::StatPhase::wrap
+    (
+      "serialize_grammar_rules",
+      [&] ()
+#endif
+      {
+        index.grammar_rules.serialize(index_output);
+      }
+#ifdef LOG_GCI_SERIALIZE
+    );
+    tdc::StatPhase::wrap
+    (
+      "serialize_colex_lex_permutation",
+      [&] ()
+#endif
+      {
+        index.colex_lex_permutation.serialize(index_output);
+      }
+#ifdef LOG_GCI_SERIALIZE
+    );
+    tdc::StatPhase::wrap
+    (
+      "serialize_lex_gc_character_bucket_end_dists",
+      [&] ()
+#endif
+      {
+        index.lex_gc_character_bucket_end_dists.serialize(index_output);
+      }
+#ifdef LOG_GCI_SERIALIZE
+    );
+    tdc::StatPhase::wrap
+    (
+      "serialize_colex_gc_bwt",
+      [&] ()
+#endif
+      {
+        index.colex_gc_bwt.serialize(index_output);
+      }
+#ifdef LOG_GCI_SERIALIZE
+    );
+#endif
+  }
+#ifdef LOG_GCI_SERIALIZE
   phases.to_json().str(json_output);
+#endif
   return;
 }
 
@@ -1091,58 +1174,72 @@ void load
 )
 {
   std::ifstream index_input {index_path};
+#ifdef LOG_GCI_LOAD
   std::ofstream json_output {"../output/load/" + util::basename(index_path) + ".json"};
   tdc::StatPhase phases {"load_gc_index"};
+#endif
   {
+#ifdef LOG_GCI_LOAD
     tdc::StatPhase::wrap
     (
       "load_grammar_rule_sizes",
       [&] ()
+#endif
       {
         sdsl::util::clear(index.grammar_rule_sizes);
         index.grammar_rule_sizes.load(index_input);
       }
+#ifdef LOG_GCI_LOAD
     );
     tdc::StatPhase::wrap
     (
       "load_grammar_rules",
       [&] ()
+#endif
       {
         sdsl::util::clear(index.grammar_rules);
         index.grammar_rules.load(index_input);
       }
+#ifdef LOG_GCI_LOAD
     );
     tdc::StatPhase::wrap
     (
       "load_colex_lex_permutation",
       [&] ()
+#endif
       {
         sdsl::util::clear(index.colex_lex_permutation);
         index.colex_lex_permutation.load(index_input);
       }
+#ifdef LOG_GCI_LOAD
     );
     tdc::StatPhase::wrap
     (
       "load_lex_gc_character_bucket_end_dists",
       [&] ()
+#endif
       {
         sdsl::util::clear(index.lex_gc_character_bucket_end_dists);
         index.lex_gc_character_bucket_end_dists.load(index_input);
       }
+#ifdef LOG_GCI_LOAD
     );
     tdc::StatPhase::wrap
     (
       "load_colex_gc_bwt",
       [&] ()
+#endif
       {
         sdsl::util::clear(index.colex_gc_bwt);
         index.colex_gc_bwt.load(index_input);
       }
+#ifdef LOG_GCI_LOAD
     );
     tdc::StatPhase::wrap
     (
       "insert_grammar_rules",
       [&] ()
+#endif
       {
         insert_grammar_rules
         (
@@ -1153,27 +1250,35 @@ void load
           0
         );
       }
+#ifdef LOG_GCI_LOAD
     );
     tdc::StatPhase::wrap
     (
       "calculate_lex_trie_rank_ranges",
       [&] ()
+#endif
       {
         uint64_t rank {1};
         calculate_trie_rank_ranges(index.lex_trie_root, rank);
       }
+#ifdef LOG_GCI_LOAD
     );
     tdc::StatPhase::wrap
     (
       "calculate_colex_trie_rank_ranges",
       [&] ()
+#endif
       {
         uint64_t rank {1};
         calculate_trie_rank_ranges(index.colex_trie_root, rank);
       }
+#ifdef LOG_GCI_LOAD
     );
+#endif
   }
+#ifdef LOG_GCI_LOAD
   phases.to_json().str(json_output);
+#endif
   return;
 }
 
@@ -1272,11 +1377,15 @@ void backward_search_pattern_prefix
   uint64_t &begin_dist_S,
   uint64_t &end_dist_S,
   pattern_iterator_type rfirst,
-  pattern_iterator_type rlast
+  pattern_iterator_type rlast,
+  util::timer &timer
 )
 {
   uint64_t leftmost_colex_rank {0};
   uint64_t rightmost_colex_rank {0};
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.resume("lookup_grammar_rule");
+#endif
   lookup_grammar_rule
   (
     std::begin(index.grammar_rules),
@@ -1287,10 +1396,16 @@ void backward_search_pattern_prefix
     leftmost_colex_rank,
     rightmost_colex_rank
   );
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.pause("lookup_grammar_rule");
+#endif
   if (leftmost_colex_rank != 0)
   {
     if (begin_dist_L != end_dist_L)
     {
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.resume("wavelet_tree_operations_L");
+#endif
       end_dist_L = std::get<0>
       (
         index.colex_gc_bwt.range_search_2d
@@ -1302,10 +1417,16 @@ void backward_search_pattern_prefix
           false
         )
       );
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.pause("wavelet_tree_operations_L");
+#endif
       begin_dist_L = 0;
     }
     if (begin_dist_S != end_dist_S)
     {
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.resume("wavelet_tree_operations_S");
+#endif
       end_dist_S = std::get<0>
       (
         index.colex_gc_bwt.range_search_2d
@@ -1317,10 +1438,13 @@ void backward_search_pattern_prefix
           false
         )
       );
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.pause("wavelet_tree_operations_S");
+#endif
       begin_dist_S = 0;
     }
   }
-#ifdef IS_LOGGED
+#ifdef DEBUG_GCI_COUNT
   for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
   {
     std::cout << *it;
@@ -1342,10 +1466,14 @@ void backward_search_exact_sl_factor
   uint64_t &begin_dist_S,
   uint64_t &end_dist_S,
   pattern_iterator_type rfirst,
-  pattern_iterator_type rlast
+  pattern_iterator_type rlast,
+  util::timer &timer
 )
 {
   uint64_t colex_rank {0};
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.resume("lookup_grammar_rule");
+#endif
   lookup_grammar_rule
   (
     std::begin(index.grammar_rules),
@@ -1356,6 +1484,9 @@ void backward_search_exact_sl_factor
     colex_rank,
     colex_rank
   );
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.pause("lookup_grammar_rule");
+#endif
   if (colex_rank != 0)
   {
     auto character_begin_dist
@@ -1367,13 +1498,25 @@ void backward_search_exact_sl_factor
     };
     if (begin_dist_L != end_dist_L)
     {
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.resume("wavelet_tree_operations_L");
+#endif
       begin_dist_L = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_L, colex_rank);
       end_dist_L = character_begin_dist + index.colex_gc_bwt.rank(end_dist_L, colex_rank);
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.pause("wavelet_tree_operations_L");
+#endif
     }
     if (begin_dist_S != end_dist_S)
     {
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.resume("wavelet_tree_operations_S");
+#endif
       begin_dist_S = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_S, colex_rank);
       end_dist_S = character_begin_dist + index.colex_gc_bwt.rank(end_dist_S, colex_rank);
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.pause("wavelet_tree_operations_S");
+#endif
     }
   }
   else
@@ -1381,7 +1524,7 @@ void backward_search_exact_sl_factor
     begin_dist_L = end_dist_L;
     begin_dist_S = end_dist_S;
   }
-#ifdef IS_LOGGED
+#ifdef DEBUG_GCI_COUNT
   for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
   {
     std::cout << *it;
@@ -1432,11 +1575,18 @@ auto backward_search_pattern_suffix
   uint64_t &begin_dist_S,
   uint64_t &end_dist_S,
   pattern_iterator_type rbegin,
-  pattern_iterator_type rend
+  pattern_iterator_type rend,
+  util::timer &timer
 )
 {
   auto rfirst {rbegin};
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.resume("calculate_sl_factor");
+#endif
   auto rlast {calculate_pattern_suffix_S_rlast(rbegin, rend)};
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.pause("calculate_sl_factor");
+#endif
   uint64_t leftmost_lex_rank {0};
   uint64_t rightmost_lex_rank {0};
   if
@@ -1446,6 +1596,9 @@ auto backward_search_pattern_suffix
     (rlast != rend)
   )
   {
+#ifdef LOG_DETAILED_GCI_COUNT
+    timer.resume("lookup_grammar_rule");
+#endif
     lookup_grammar_rule
     (
       std::begin(index.grammar_rules),
@@ -1456,12 +1609,15 @@ auto backward_search_pattern_suffix
       leftmost_lex_rank,
       rightmost_lex_rank
     );
+#ifdef LOG_DETAILED_GCI_COUNT
+    timer.pause("lookup_grammar_rule");
+#endif
     if (leftmost_lex_rank != 0)
     {
       begin_dist_S = index.lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
       end_dist_S = index.lex_gc_character_bucket_end_dists[rightmost_lex_rank];
     }
-#ifdef IS_LOGGED
+#ifdef DEBUG_GCI_COUNT
     for (auto it {std::next(rlast)}; it != std::next(rbegin); ++it)
     {
       std::cout << *it;
@@ -1469,11 +1625,20 @@ auto backward_search_pattern_suffix
     std::cout << "->(" << leftmost_lex_rank << "," << rightmost_lex_rank << ")";
     std::cout << "->S:(" << begin_dist_S << "," << end_dist_S << ")\n";
 #endif
+#ifdef LOG_DETAILED_GCI_COUNT
+    timer.resume("calculate_sl_factor");
+#endif
     calculate_sl_factor(rfirst, rlast, rend);
+#ifdef LOG_DETAILED_GCI_COUNT
+    timer.pause("calculate_sl_factor");
+#endif
     if (begin_dist_S != end_dist_S)
     {
       uint64_t leftmost_colex_rank {0};
       uint64_t rightmost_colex_rank {0};
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.resume("lookup_grammar_rule");
+#endif
       lookup_grammar_rule
       (
         std::begin(index.grammar_rules),
@@ -1484,6 +1649,9 @@ auto backward_search_pattern_suffix
         leftmost_colex_rank,
         rightmost_colex_rank
       );
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.pause("lookup_grammar_rule");
+#endif
       if (leftmost_colex_rank != 0)
       {
         if (rlast != rend)
@@ -1495,11 +1663,20 @@ auto backward_search_pattern_suffix
               index.colex_lex_permutation[leftmost_colex_rank] - 1
             ]
           };
+#ifdef LOG_DETAILED_GCI_COUNT
+          timer.resume("wavelet_tree_operations_S");
+#endif
           begin_dist_S = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_S, leftmost_colex_rank);
           end_dist_S = character_begin_dist + index.colex_gc_bwt.rank(end_dist_S, leftmost_colex_rank);
+#ifdef LOG_DETAILED_GCI_COUNT
+          timer.pause("wavelet_tree_operations_S");
+#endif
         }
         else
         {
+#ifdef LOG_DETAILED_GCI_COUNT
+          timer.resume("wavelet_tree_operations_S");
+#endif
           end_dist_S = std::get<0>
           (
             index.colex_gc_bwt.range_search_2d
@@ -1511,6 +1688,9 @@ auto backward_search_pattern_suffix
               false
             )
           );
+#ifdef LOG_DETAILED_GCI_COUNT
+          timer.pause("wavelet_tree_operations_S");
+#endif
           begin_dist_S = 0;
         }
       }
@@ -1518,7 +1698,7 @@ auto backward_search_pattern_suffix
       {
         begin_dist_S = end_dist_S;
       }
-#ifdef IS_LOGGED
+#ifdef DEBUG_GCI_COUNT
       for (auto it {std::next(rlast)}; it != std::next(rfirst); ++it)
       {
         std::cout << *it;
@@ -1532,8 +1712,17 @@ auto backward_search_pattern_suffix
   }
   else if (rlast == rbegin)
   {
+#ifdef LOG_DETAILED_GCI_COUNT
+    timer.resume("calculate_sl_factor");
+#endif
     calculate_sl_factor(rfirst, rlast, rend);
+#ifdef LOG_DETAILED_GCI_COUNT
+    timer.pause("calculate_sl_factor");
+#endif
   }
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.resume("lookup_grammar_rule");
+#endif
   lookup_grammar_rule
   (
     std::begin(index.grammar_rules),
@@ -1544,12 +1733,15 @@ auto backward_search_pattern_suffix
     leftmost_lex_rank,
     rightmost_lex_rank
   );
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.pause("lookup_grammar_rule");
+#endif
   if (leftmost_lex_rank != 0)
   {
     begin_dist_L = index.lex_gc_character_bucket_end_dists[leftmost_lex_rank - 1];
     end_dist_L = index.lex_gc_character_bucket_end_dists[rightmost_lex_rank];
   }
-#ifdef IS_LOGGED
+#ifdef DEBUG_GCI_COUNT
   for (auto it {std::next(rlast)}; it != std::next(rbegin); ++it)
   {
     std::cout << *it;
@@ -1566,6 +1758,9 @@ uint64_t count
   gc_index const &index,
   pattern_iterator_type pattern_begin,
   pattern_iterator_type pattern_end
+#ifdef LOG_DETAILED_GCI_COUNT
+  , util::timer &timer
+#endif
 )
 {
   uint64_t begin_dist_L {0};
@@ -1576,14 +1771,26 @@ uint64_t count
   auto rend {std::prev(pattern_begin)};
   auto rfirst {rbegin};
   auto rlast {rbegin};
-#ifdef IS_LOGGED
+#ifdef DEBUG_GCI_COUNT
   for (auto it {pattern_begin}; it != pattern_end; ++it)
   {
     std::cout << *it;
   }
   std::cout << "\n";
 #endif
-  rlast = backward_search_pattern_suffix(index, begin_dist_L, end_dist_L, begin_dist_S, end_dist_S, rbegin, rend);
+  rlast = backward_search_pattern_suffix
+  (
+    index,
+    begin_dist_L,
+    end_dist_L,
+    begin_dist_S,
+    end_dist_S,
+    rbegin,
+    rend
+#ifdef LOG_DETAILED_GCI_COUNT
+    , timer
+#endif
+  );
   if (rlast != rend)
   {
     while
@@ -1593,14 +1800,44 @@ uint64_t count
       (begin_dist_S != end_dist_S)
     )
     {
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.resume("calculate_sl_factor");
+#endif
       calculate_sl_factor(rfirst, rlast, rend);
+#ifdef LOG_DETAILED_GCI_COUNT
+      timer.pause("calculate_sl_factor");
+#endif
       if (rlast != rend)
       {
-        backward_search_exact_sl_factor(index, begin_dist_L, end_dist_L, begin_dist_S, end_dist_S, rfirst, rlast);
+        backward_search_exact_sl_factor
+        (
+          index,
+          begin_dist_L,
+          end_dist_L,
+          begin_dist_S,
+          end_dist_S,
+          rfirst,
+          rlast
+#ifdef LOG_DETAILED_GCI_COUNT
+          , timer
+#endif
+        );
       }
       else
       {
-        backward_search_pattern_prefix(index, begin_dist_L, end_dist_L, begin_dist_S, end_dist_S, rfirst, rlast);
+        backward_search_pattern_prefix
+        (
+          index,
+          begin_dist_L,
+          end_dist_L,
+          begin_dist_S,
+          end_dist_S,
+          rfirst,
+          rlast
+#ifdef LOG_DETAILED_GCI_COUNT
+          , timer
+#endif
+        );
         break;
       }
     }
