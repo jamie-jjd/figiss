@@ -80,7 +80,7 @@ struct timer
     std::string,
     std::pair
     <
-      std::chrono::microseconds,
+      std::chrono::nanoseconds,
       inner_clock::time_point
     >
   >
@@ -88,49 +88,69 @@ struct timer
 
   void reset (std::string const category)
   {
-    time_records[category] = {std::chrono::microseconds::zero(), inner_clock::time_point::min()};
+    time_records[category] = {std::chrono::nanoseconds::zero(), inner_clock::time_point::min()};
     return;
   }
 
   void resume (std::string const category)
   {
-    if (time_records.find(category) != time_records.end())
-    {
-      auto &begin_time {std::get<1>(time_records[category])};
-      begin_time = inner_clock::now();
-    }
+    auto &begin_time {std::get<1>(time_records[category])};
+    begin_time = inner_clock::now();
     return;
   }
 
   void pause (std::string const category)
   {
-    if (time_records.find(category) != time_records.end())
-    {
-      auto &duration {std::get<0>(time_records[category])};
-      auto &begin_time {std::get<1>(time_records[category])};
-      if (begin_time != inner_clock::time_point::min())
-      {
-        duration += std::chrono::duration_cast<std::chrono::microseconds>(inner_clock::now() - begin_time);
-      }
-      begin_time = inner_clock::time_point::min();
-    }
+    auto &duration {std::get<0>(time_records[category])};
+    auto &begin_time {std::get<1>(time_records[category])};
+    duration += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_clock::now() - begin_time);
     return;
   }
 
-  void print (std::string const time_path)
+  void print
+  (
+    std::string const time_path,
+    std::string const time_unit = "seconds"
+  )
   {
     std::ofstream time_output {time_path};
-    time_output << "category,microseconds\n";
-    for (auto const record : time_records)
+    time_output << "category," << time_unit << "\n";
+    for (auto const time_record : time_records)
     {
-      auto &category {std::get<0>(record)};
-      auto &microseconds {std::get<0>(std::get<1>(record))};
-      time_output << category << "," << microseconds.count() << "\n";
+      auto &category {std::get<0>(time_record)};
+      auto &duration {std::get<0>(std::get<1>(time_record))};
+      time_output << category << ",";
+      if (time_unit == "minutes")
+      {
+        time_output << std::chrono::duration_cast<std::chrono::minutes>(duration).count() << "\n";
+      }
+      else if (time_unit == "seconds")
+      {
+        time_output << std::chrono::duration_cast<std::chrono::seconds>(duration).count() << "\n";
+      }
+      else if (time_unit == "milliseconds")
+      {
+        time_output << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "\n";
+      }
+      else if (time_unit == "microseconds")
+      {
+        time_output << std::chrono::duration_cast<std::chrono::microseconds>(duration).count() << "\n";
+      }
+      else
+      {
+        time_output << duration.count() << "\n";
+      }
     }
     return;
   }
 };
 }
+}
+
+template <typename T>
+void f (T)
+{
+  return;
 }
 
 #endif
