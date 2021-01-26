@@ -25,15 +25,20 @@ void generate_pattern
   if (pattern_size < std::size(text))
   {
     std::ofstream pattern_output {pattern_path};
+#ifndef LOG_DETAILED_GCI_COUNT
     std::mt19937 engine {std::random_device{}()};
     std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
     auto random_begin_dist {std::bind(distribution, engine)};
+#endif
     sdsl::int_vector<8> pattern(pattern_size);
     pattern_output.write((char*)(&pattern_number), sizeof(pattern_number));
     for (uint64_t i {0}; i != pattern_number; ++i)
     {
-      // auto text_it {std::next(std::begin(text), random_begin_dist())};
+#ifndef LOG_DETAILED_GCI_COUNT
+      auto text_it {std::next(std::begin(text), random_begin_dist())};
+#else
       auto text_it {std::next(std::begin(text), (i * pattern_size) % (std::size(text) - pattern_size))};
+#endif
       auto pattern_it {std::begin(pattern)};
       auto pattern_end {std::end(pattern)};
       while (pattern_it != pattern_end)
@@ -145,12 +150,6 @@ struct timer
   }
 };
 }
-}
-
-template <typename T>
-void f (T)
-{
-  return;
 }
 
 #endif
