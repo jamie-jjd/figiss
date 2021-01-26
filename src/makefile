@@ -6,6 +6,9 @@ LIBS 							:= -ldivsufsort -ldivsufsort64 -lsdsl -ltudocomp_stat
 all: main.cpp
 	$(CC) -DNDEBUG $(WARN_ERROR_FLAGS) $(CXX_FLAGS) $^ -o main $(LIBS)
 
+log: main.cpp
+	$(CC) -DNDEBUG -DIS_LOGGED $(WARN_ERROR_FLAGS) $(CXX_FLAGS) $^ -o main $(LIBS)
+
 clean:
 	rm -f main
 
