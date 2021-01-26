@@ -33,7 +33,7 @@ void generate_pattern
     for (uint64_t i {0}; i != pattern_number; ++i)
     {
       // auto text_it {std::next(std::begin(text), random_begin_dist())};
-      auto text_it {std::next(std::begin(text), (i * pattern_size) % std::size(text))};
+      auto text_it {std::next(std::begin(text), (i * pattern_size) % (std::size(text) - pattern_size))};
       auto pattern_it {std::begin(pattern)};
       auto pattern_end {std::end(pattern)};
       while (pattern_it != pattern_end)
