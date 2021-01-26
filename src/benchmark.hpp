@@ -1,7 +1,9 @@
 #ifndef BENCHMARK_HPP_
 #define BENCHMARK_HPP_
 
+#ifdef LOG
 #include <tudocomp_stat/StatPhase.hpp>
+#endif
 
 #include "grammar_compressed_index.hpp"
 #include "utility.hpp"
@@ -31,48 +33,62 @@ void load_gc_and_fm_index
   if (!fm_index_input.is_open())
   {
     {
+#ifdef LOG_FMI_CONSTRUCT
       std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".fmi.json"};
       tdc::StatPhase phases {"construct_fm_index"};
+#endif
       sdsl::int_vector<8> text;
+#ifdef LOG_FMI_CONSTRUCT
       tdc::StatPhase::wrap
       (
         "",
         [&] ()
+#endif
         {
           sdsl::load_vector_from_file(text, text_path);
           sdsl::construct_im(fm_index, text);
         }
+#ifdef LOG_FMI_CONSTRUCT
       );
       phases.to_json().str(json_output);
+#endif
     }
     {
       std::ofstream fm_index_output {fm_index_path};
+#ifdef LOG_FMI_SERIALIZE
       std::ofstream json_output {"../output/serialize/" + util::basename(text_path) + ".fmi.json"};
       tdc::StatPhase phases {"serialize_fm_index"};
       tdc::StatPhase::wrap
       (
         "",
         [&] ()
+#endif
         {
           sdsl::serialize(fm_index, fm_index_output);
         }
+#ifdef LOG_FMI_SERIALIZE
       );
       phases.to_json().str(json_output);
+#endif
     }
   }
   else
   {
+#ifdef LOG_FMI_LOAD
     std::ofstream json_output {"../output/load/" + util::basename(text_path) + ".fmi.json"};
     tdc::StatPhase phases {"load_fm_index"};
     tdc::StatPhase::wrap
     (
       "",
       [&] ()
+#endif
       {
         sdsl::load(fm_index, fm_index_input);
       }
+#ifdef LOG_FMI_LOAD
     );
     phases.to_json().str(json_output);
+#endif
   }
   return;
 }
@@ -84,22 +100,36 @@ void benchmark_gc_index_count
 )
 {
   std::ifstream pattern_input {pattern_path};
-  std::string const time_path {"../output/count/" + util::basename(pattern_path) + ".wm.sub.gci.csv"};
+#ifdef LOG_GCI_COUNT
+  std::string const time_path {"../output/count/" + util::basename(pattern_path) + ".gci.details.csv"};
   gci::util::timer timer;
+#endif
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
   pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
+#ifdef LOG_GCI_COUNT
   timer.reset("gc_index_count");
-  timer.resume("gc_index_count");
+#endif
+#ifdef LOG_DETAILED_GCI_COUNT
+  timer.reset("calculate_sl_factor");
+  timer.reset("lookup_grammar_rule");
+  timer.reset("wavelet_tree_operations_L");
+  timer.reset("wavelet_tree_operations_S");
+#endif
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
-    timer.pause("gc_index_count");
     pattern.load(pattern_input);
+#ifdef LOG_GCI_COUNT
     timer.resume("gc_index_count");
     gci::count(index, std::begin(pattern), std::end(pattern), timer);
+    timer.pause("gc_index_count");
+#else
+    gci::count(index, std::begin(pattern), std::end(pattern));
+#endif
   }
-  timer.pause("gc_index_count");
-  timer.print(time_path, "microseconds");
+#ifdef LOG_GCI_COUNT
+  timer.print(time_path, "milliseconds");
+#endif
   return;
 }
 
@@ -110,22 +140,30 @@ void benchmark_fm_index_count
 )
 {
   std::ifstream pattern_input {pattern_path};
+#ifdef LOG_FMI_COUNT
   std::string const time_path {"../output/count/" + util::basename(pattern_path) + ".fmi.csv"};
   gci::util::timer timer;
+#endif
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
   pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
+#ifdef LOG_FMI_COUNT
   timer.reset("fm_index_count");
-  timer.resume("fm_index_count");
+#endif
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
-    timer.pause("fm_index_count");
     pattern.load(pattern_input);
+#ifdef LOG_FMI_COUNT
     timer.resume("fm_index_count");
+#endif
     sdsl::count(fm_index, std::begin(pattern), std::end(pattern));
+#ifdef LOG_FMI_COUNT
+    timer.pause("fm_index_count");
+#endif
   }
-  timer.pause("fm_index_count");
-  timer.print(time_path, "microseconds");
+#ifdef LOG_FMI_COUNT
+  timer.print(time_path, "milliseconds");
+#endif
   return;
 }
 
@@ -177,7 +215,9 @@ void test_count (std::string const text_path)
   sdsl::load_vector_from_file(text, text_path);
   uint64_t max_sl_factor_size {calculate_max_sl_factor_size(text)};
   std::string const pattern_path {"../input/pattern/pattern.sample"};
+#ifdef LOG_DETAILED_GCI_COUNT
   gci::util::timer timer;
+#endif
   for (uint64_t multiple {2}; multiple != 11; ++multiple)
   {
     uint64_t pattern_number {1000 / multiple};
@@ -195,7 +235,18 @@ void test_count (std::string const text_path)
     {
       pattern.load(pattern_input);
       auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
-      auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern), timer)};
+      auto gc_count
+      {
+        gci::count
+        (
+          index,
+          std::begin(pattern),
+          std::end(pattern)
+#ifdef LOG_DETAILED_GCI_COUNT
+          , timer
+#endif
+        )
+      };
       if (fm_count != gc_count)
       {
         throw std::runtime_error
@@ -226,7 +277,18 @@ void test_count (std::string const text_path)
       {
         pattern.load(pattern_input);
         auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
-        auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern), timer)};
+        auto gc_count
+        {
+          gci::count
+          (
+            index,
+            std::begin(pattern),
+            std::end(pattern)
+#ifdef LOG_DETAILED_GCI_COUNT
+            , timer
+#endif
+          )
+        };
         if (fm_count != gc_count)
         {
           throw std::runtime_error
@@ -240,7 +302,18 @@ void test_count (std::string const text_path)
     }
   }
   auto fm_count {sdsl::count(fm_index, std::begin(text), std::end(text))};
-  auto gc_count {gci::count(index, std::begin(text), std::end(text), timer)};
+  auto gc_count
+  {
+    gci::count
+    (
+      index,
+      std::begin(pattern),
+      std::end(pattern)
+#ifdef LOG_DETAILED_GCI_COUNT
+      , timer
+#endif
+    )
+  };
   if (fm_count != gc_count)
   {
     throw std::runtime_error("failed at text size");
