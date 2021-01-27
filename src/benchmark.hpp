@@ -4,7 +4,6 @@
 #ifdef LOG
 #include <tudocomp_stat/StatPhase.hpp>
 #endif
-
 #include "grammar_compressed_index.hpp"
 #include "utility.hpp"
 
@@ -100,35 +99,35 @@ void benchmark_gc_index_count
 )
 {
   std::ifstream pattern_input {pattern_path};
-#ifdef LOG_GCI_COUNT
-  std::string const time_path {"../output/count/" + util::basename(pattern_path) + ".gci.details.csv"};
-  gci::util::timer timer;
-#endif
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
   pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
-#ifdef LOG_GCI_COUNT
-  timer.reset("gc_index_count");
+#if defined(LOG_GCI_COUNT) || defined(LOG_VERBOSE_GCI_COUNT)
+  gci::util::timer::register_category(gci::util::category_id::GCI_COUNT, "gc_index_count");
 #endif
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.reset("calculate_sl_factor");
-  timer.reset("lookup_grammar_rule");
-  timer.reset("wavelet_tree_operations_L");
-  timer.reset("wavelet_tree_operations_S");
+#if defined(LOG_VERBOSE_GCI_COUNT)
+  gci::util::timer::register_category(gci::util::category_id::CALCULATE_SL_FACTOR, "calculate_sl_factor");
+  gci::util::timer::register_category(gci::util::category_id::WAVELET_TREE_OPERATIONS_L, "wavelet_tree_operations_L");
+  gci::util::timer::register_category(gci::util::category_id::LOOKUP_GRAMMAR_RULE, "lookup_grammar_rule");
+  gci::util::timer::register_category(gci::util::category_id::WAVELET_TREE_OPERATIONS_S, "wavelet_tree_operations_S");
 #endif
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
     pattern.load(pattern_input);
-#ifdef LOG_GCI_COUNT
-    timer.resume("gc_index_count");
-    gci::count(index, std::begin(pattern), std::end(pattern), timer);
-    timer.pause("gc_index_count");
-#else
     gci::count(index, std::begin(pattern), std::end(pattern));
-#endif
   }
-#ifdef LOG_GCI_COUNT
-  timer.print(time_path, "milliseconds");
+#if defined(LOG_GCI_COUNT)
+  gci::util::timer::print
+  (
+    "../output/count/" + util::basename(pattern_path) + ".gci.csv",
+    "milliseconds"
+  );
+#elif defined(LOG_VERBOSE_GCI_COUNT)
+  gci::util::timer::print
+  (
+    "../output/count/" + util::basename(pattern_path) + ".gci.verbose.csv",
+    "milliseconds"
+  );
 #endif
   return;
 }
@@ -140,29 +139,29 @@ void benchmark_fm_index_count
 )
 {
   std::ifstream pattern_input {pattern_path};
-#ifdef LOG_FMI_COUNT
-  std::string const time_path {"../output/count/" + util::basename(pattern_path) + ".fmi.csv"};
-  gci::util::timer timer;
-#endif
   sdsl::int_vector<8> pattern;
   uint64_t pattern_number {0};
   pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
 #ifdef LOG_FMI_COUNT
-  timer.reset("fm_index_count");
+  gci::util::timer::register_category(gci::util::category_id::FMI_COUNT, "fm_index_count");
 #endif
   for (uint64_t i {0}; i != pattern_number; ++i)
   {
     pattern.load(pattern_input);
 #ifdef LOG_FMI_COUNT
-    timer.resume("fm_index_count");
+    gci::util::timer::resume(gci::util::category_id::FMI_COUNT);
 #endif
     sdsl::count(fm_index, std::begin(pattern), std::end(pattern));
 #ifdef LOG_FMI_COUNT
-    timer.pause("fm_index_count");
+  gci::util::timer::pause(gci::util::category_id::FMI_COUNT);
 #endif
   }
 #ifdef LOG_FMI_COUNT
-  timer.print(time_path, "milliseconds");
+  gci::util::timer::print
+  (
+    "../output/count/" + util::basename(pattern_path) + ".fmi.csv",
+    "milliseconds"
+  );
 #endif
   return;
 }
@@ -215,9 +214,6 @@ void test_count (std::string const text_path)
   sdsl::load_vector_from_file(text, text_path);
   uint64_t max_sl_factor_size {calculate_max_sl_factor_size(text)};
   std::string const pattern_path {"../input/pattern/pattern.sample"};
-#ifdef LOG_DETAILED_GCI_COUNT
-  gci::util::timer timer;
-#endif
   for (uint64_t multiple {2}; multiple != 11; ++multiple)
   {
     uint64_t pattern_number {1000 / multiple};
@@ -235,18 +231,7 @@ void test_count (std::string const text_path)
     {
       pattern.load(pattern_input);
       auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
-      auto gc_count
-      {
-        gci::count
-        (
-          index,
-          std::begin(pattern),
-          std::end(pattern)
-#ifdef LOG_DETAILED_GCI_COUNT
-          , timer
-#endif
-        )
-      };
+      auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
       if (fm_count != gc_count)
       {
         throw std::runtime_error
@@ -262,7 +247,8 @@ void test_count (std::string const text_path)
   {
     if ((std::size(text) / divisor) >= max_sl_factor_size)
     {
-      uint64_t pattern_number {10 * divisor};
+      // uint64_t pattern_number {10 * divisor};
+      uint64_t pattern_number {1};
       gci::util::generate_pattern
       (
         text_path,
@@ -277,18 +263,7 @@ void test_count (std::string const text_path)
       {
         pattern.load(pattern_input);
         auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
-        auto gc_count
-        {
-          gci::count
-          (
-            index,
-            std::begin(pattern),
-            std::end(pattern)
-#ifdef LOG_DETAILED_GCI_COUNT
-            , timer
-#endif
-          )
-        };
+        auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
         if (fm_count != gc_count)
         {
           throw std::runtime_error
@@ -302,18 +277,7 @@ void test_count (std::string const text_path)
     }
   }
   auto fm_count {sdsl::count(fm_index, std::begin(text), std::end(text))};
-  auto gc_count
-  {
-    gci::count
-    (
-      index,
-      std::begin(pattern),
-      std::end(pattern)
-#ifdef LOG_DETAILED_GCI_COUNT
-      , timer
-#endif
-    )
-  };
+  auto gc_count {gci::count(index, std::begin(text), std::end(text))};
   if (fm_count != gc_count)
   {
     throw std::runtime_error("failed at text size");
