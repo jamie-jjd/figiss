@@ -4,7 +4,6 @@
 #include <map>
 
 #include <sdsl/suffix_trees.hpp>
-
 #ifdef LOG
 #include <tudocomp_stat/StatPhase.hpp>
 #endif
@@ -1377,14 +1376,13 @@ void backward_search_pattern_prefix
   uint64_t &begin_dist_S,
   uint64_t &end_dist_S,
   pattern_iterator_type rfirst,
-  pattern_iterator_type rlast,
-  util::timer &timer
+  pattern_iterator_type rlast
 )
 {
   uint64_t leftmost_colex_rank {0};
   uint64_t rightmost_colex_rank {0};
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.resume("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+  gci::util::timer::resume(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
   lookup_grammar_rule
   (
@@ -1396,15 +1394,15 @@ void backward_search_pattern_prefix
     leftmost_colex_rank,
     rightmost_colex_rank
   );
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.pause("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+  gci::util::timer::pause(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
   if (leftmost_colex_rank != 0)
   {
     if (begin_dist_L != end_dist_L)
     {
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.resume("wavelet_tree_operations_L");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::resume(gci::util::category_id::WAVELET_TREE_OPERATIONS_L);
 #endif
       end_dist_L = std::get<0>
       (
@@ -1417,15 +1415,15 @@ void backward_search_pattern_prefix
           false
         )
       );
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.pause("wavelet_tree_operations_L");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::pause(gci::util::category_id::WAVELET_TREE_OPERATIONS_L);
 #endif
       begin_dist_L = 0;
     }
     if (begin_dist_S != end_dist_S)
     {
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.resume("wavelet_tree_operations_S");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::resume(gci::util::category_id::WAVELET_TREE_OPERATIONS_S);
 #endif
       end_dist_S = std::get<0>
       (
@@ -1438,8 +1436,8 @@ void backward_search_pattern_prefix
           false
         )
       );
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.pause("wavelet_tree_operations_S");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::pause(gci::util::category_id::WAVELET_TREE_OPERATIONS_S);
 #endif
       begin_dist_S = 0;
     }
@@ -1466,13 +1464,12 @@ void backward_search_exact_sl_factor
   uint64_t &begin_dist_S,
   uint64_t &end_dist_S,
   pattern_iterator_type rfirst,
-  pattern_iterator_type rlast,
-  util::timer &timer
+  pattern_iterator_type rlast
 )
 {
   uint64_t colex_rank {0};
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.resume("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+  gci::util::timer::resume(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
   lookup_grammar_rule
   (
@@ -1484,8 +1481,8 @@ void backward_search_exact_sl_factor
     colex_rank,
     colex_rank
   );
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.pause("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+  gci::util::timer::pause(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
   if (colex_rank != 0)
   {
@@ -1498,24 +1495,24 @@ void backward_search_exact_sl_factor
     };
     if (begin_dist_L != end_dist_L)
     {
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.resume("wavelet_tree_operations_L");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::resume(gci::util::category_id::WAVELET_TREE_OPERATIONS_L);
 #endif
       begin_dist_L = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_L, colex_rank);
       end_dist_L = character_begin_dist + index.colex_gc_bwt.rank(end_dist_L, colex_rank);
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.pause("wavelet_tree_operations_L");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::pause(gci::util::category_id::WAVELET_TREE_OPERATIONS_L);
 #endif
     }
     if (begin_dist_S != end_dist_S)
     {
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.resume("wavelet_tree_operations_S");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::resume(gci::util::category_id::WAVELET_TREE_OPERATIONS_S);
 #endif
       begin_dist_S = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_S, colex_rank);
       end_dist_S = character_begin_dist + index.colex_gc_bwt.rank(end_dist_S, colex_rank);
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.pause("wavelet_tree_operations_S");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::pause(gci::util::category_id::WAVELET_TREE_OPERATIONS_S);
 #endif
     }
   }
@@ -1575,17 +1572,16 @@ auto backward_search_pattern_suffix
   uint64_t &begin_dist_S,
   uint64_t &end_dist_S,
   pattern_iterator_type rbegin,
-  pattern_iterator_type rend,
-  util::timer &timer
+  pattern_iterator_type rend
 )
 {
   auto rfirst {rbegin};
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.resume("calculate_sl_factor");
+#ifdef LOG_VERBOSE_GCI_COUNT
+  gci::util::timer::resume(gci::util::category_id::CALCULATE_SL_FACTOR);
 #endif
   auto rlast {calculate_pattern_suffix_S_rlast(rbegin, rend)};
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.pause("calculate_sl_factor");
+#ifdef LOG_VERBOSE_GCI_COUNT
+  gci::util::timer::pause(gci::util::category_id::CALCULATE_SL_FACTOR);
 #endif
   uint64_t leftmost_lex_rank {0};
   uint64_t rightmost_lex_rank {0};
@@ -1596,8 +1592,8 @@ auto backward_search_pattern_suffix
     (rlast != rend)
   )
   {
-#ifdef LOG_DETAILED_GCI_COUNT
-    timer.resume("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+    gci::util::timer::resume(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
     lookup_grammar_rule
     (
@@ -1609,8 +1605,8 @@ auto backward_search_pattern_suffix
       leftmost_lex_rank,
       rightmost_lex_rank
     );
-#ifdef LOG_DETAILED_GCI_COUNT
-    timer.pause("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+    gci::util::timer::pause(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
     if (leftmost_lex_rank != 0)
     {
@@ -1625,19 +1621,19 @@ auto backward_search_pattern_suffix
     std::cout << "->(" << leftmost_lex_rank << "," << rightmost_lex_rank << ")";
     std::cout << "->S:(" << begin_dist_S << "," << end_dist_S << ")\n";
 #endif
-#ifdef LOG_DETAILED_GCI_COUNT
-    timer.resume("calculate_sl_factor");
+#ifdef LOG_VERBOSE_GCI_COUNT
+    gci::util::timer::resume(gci::util::category_id::CALCULATE_SL_FACTOR);
 #endif
     calculate_sl_factor(rfirst, rlast, rend);
-#ifdef LOG_DETAILED_GCI_COUNT
-    timer.pause("calculate_sl_factor");
+#ifdef LOG_VERBOSE_GCI_COUNT
+    gci::util::timer::pause(gci::util::category_id::CALCULATE_SL_FACTOR);
 #endif
     if (begin_dist_S != end_dist_S)
     {
       uint64_t leftmost_colex_rank {0};
       uint64_t rightmost_colex_rank {0};
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.resume("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::resume(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
       lookup_grammar_rule
       (
@@ -1649,8 +1645,8 @@ auto backward_search_pattern_suffix
         leftmost_colex_rank,
         rightmost_colex_rank
       );
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.pause("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::pause(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
       if (leftmost_colex_rank != 0)
       {
@@ -1663,19 +1659,19 @@ auto backward_search_pattern_suffix
               index.colex_lex_permutation[leftmost_colex_rank] - 1
             ]
           };
-#ifdef LOG_DETAILED_GCI_COUNT
-          timer.resume("wavelet_tree_operations_S");
+#ifdef LOG_VERBOSE_GCI_COUNT
+          gci::util::timer::resume(gci::util::category_id::WAVELET_TREE_OPERATIONS_S);
 #endif
           begin_dist_S = character_begin_dist + index.colex_gc_bwt.rank(begin_dist_S, leftmost_colex_rank);
           end_dist_S = character_begin_dist + index.colex_gc_bwt.rank(end_dist_S, leftmost_colex_rank);
-#ifdef LOG_DETAILED_GCI_COUNT
-          timer.pause("wavelet_tree_operations_S");
+#ifdef LOG_VERBOSE_GCI_COUNT
+          gci::util::timer::pause(gci::util::category_id::WAVELET_TREE_OPERATIONS_S);
 #endif
         }
         else
         {
-#ifdef LOG_DETAILED_GCI_COUNT
-          timer.resume("wavelet_tree_operations_S");
+#ifdef LOG_VERBOSE_GCI_COUNT
+          gci::util::timer::resume(gci::util::category_id::WAVELET_TREE_OPERATIONS_S);
 #endif
           end_dist_S = std::get<0>
           (
@@ -1688,8 +1684,8 @@ auto backward_search_pattern_suffix
               false
             )
           );
-#ifdef LOG_DETAILED_GCI_COUNT
-          timer.pause("wavelet_tree_operations_S");
+#ifdef LOG_VERBOSE_GCI_COUNT
+          gci::util::timer::pause(gci::util::category_id::WAVELET_TREE_OPERATIONS_S);
 #endif
           begin_dist_S = 0;
         }
@@ -1712,16 +1708,16 @@ auto backward_search_pattern_suffix
   }
   else if (rlast == rbegin)
   {
-#ifdef LOG_DETAILED_GCI_COUNT
-    timer.resume("calculate_sl_factor");
+#ifdef LOG_VERBOSE_GCI_COUNT
+    gci::util::timer::resume(gci::util::category_id::CALCULATE_SL_FACTOR);
 #endif
     calculate_sl_factor(rfirst, rlast, rend);
-#ifdef LOG_DETAILED_GCI_COUNT
-    timer.pause("calculate_sl_factor");
+#ifdef LOG_VERBOSE_GCI_COUNT
+    gci::util::timer::pause(gci::util::category_id::CALCULATE_SL_FACTOR);
 #endif
   }
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.resume("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+  gci::util::timer::resume(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
   lookup_grammar_rule
   (
@@ -1733,8 +1729,8 @@ auto backward_search_pattern_suffix
     leftmost_lex_rank,
     rightmost_lex_rank
   );
-#ifdef LOG_DETAILED_GCI_COUNT
-  timer.pause("lookup_grammar_rule");
+#ifdef LOG_VERBOSE_GCI_COUNT
+  gci::util::timer::pause(gci::util::category_id::LOOKUP_GRAMMAR_RULE);
 #endif
   if (leftmost_lex_rank != 0)
   {
@@ -1758,11 +1754,11 @@ uint64_t count
   gc_index const &index,
   pattern_iterator_type pattern_begin,
   pattern_iterator_type pattern_end
-#ifdef LOG_DETAILED_GCI_COUNT
-  , util::timer &timer
-#endif
 )
 {
+#if defined(LOG_GCI_COUNT) || defined(LOG_VERBOSE_GCI_COUNT)
+  gci::util::timer::resume(gci::util::category_id::GCI_COUNT);
+#endif
   uint64_t begin_dist_L {0};
   uint64_t end_dist_L {0};
   uint64_t begin_dist_S {0};
@@ -1787,9 +1783,6 @@ uint64_t count
     end_dist_S,
     rbegin,
     rend
-#ifdef LOG_DETAILED_GCI_COUNT
-    , timer
-#endif
   );
   if (rlast != rend)
   {
@@ -1800,12 +1793,12 @@ uint64_t count
       (begin_dist_S != end_dist_S)
     )
     {
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.resume("calculate_sl_factor");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::resume(gci::util::category_id::CALCULATE_SL_FACTOR);
 #endif
       calculate_sl_factor(rfirst, rlast, rend);
-#ifdef LOG_DETAILED_GCI_COUNT
-      timer.pause("calculate_sl_factor");
+#ifdef LOG_VERBOSE_GCI_COUNT
+      gci::util::timer::pause(gci::util::category_id::CALCULATE_SL_FACTOR);
 #endif
       if (rlast != rend)
       {
@@ -1818,9 +1811,6 @@ uint64_t count
           end_dist_S,
           rfirst,
           rlast
-#ifdef LOG_DETAILED_GCI_COUNT
-          , timer
-#endif
         );
       }
       else
@@ -1834,14 +1824,14 @@ uint64_t count
           end_dist_S,
           rfirst,
           rlast
-#ifdef LOG_DETAILED_GCI_COUNT
-          , timer
-#endif
         );
         break;
       }
     }
   }
+#if defined(LOG_GCI_COUNT) || defined(LOG_VERBOSE_GCI_COUNT)
+  gci::util::timer::pause(gci::util::category_id::GCI_COUNT);
+#endif
   return
   (
     (end_dist_L - begin_dist_L)
