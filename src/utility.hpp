@@ -25,7 +25,7 @@ void generate_pattern
   if (pattern_size < std::size(text))
   {
     std::ofstream pattern_output {pattern_path};
-#ifndef LOG_DETAILED_GCI_COUNT
+#ifndef LOG_VERBOSE_GCI_COUNT
     std::mt19937 engine {std::random_device{}()};
     std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
     auto random_begin_dist {std::bind(distribution, engine)};
@@ -34,7 +34,7 @@ void generate_pattern
     pattern_output.write((char*)(&pattern_number), sizeof(pattern_number));
     for (uint64_t i {0}; i != pattern_number; ++i)
     {
-#ifndef LOG_DETAILED_GCI_COUNT
+#ifndef LOG_VERBOSE_GCI_COUNT
       auto text_it {std::next(std::begin(text), random_begin_dist())};
 #else
       auto text_it {std::next(std::begin(text), (i * pattern_size) % (std::size(text) - pattern_size))};
@@ -76,79 +76,124 @@ std::string basename (std::string const path)
   return path.substr(basename_begin_dist);
 }
 
+enum class category_id
+{
+#if defined(LOG_GCI_COUNT) || defined(LOG_VERBOSE_GCI_COUNT)
+  GCI_COUNT,
+#endif
+#if defined(LOG_VERBOSE_GCI_COUNT)
+  CALCULATE_SL_FACTOR,
+  LOOKUP_GRAMMAR_RULE,
+  WAVELET_TREE_OPERATIONS_L,
+  WAVELET_TREE_OPERATIONS_S,
+#endif
+#ifdef LOG_FMI_COUNT
+  FMI_COUNT,
+#endif
+  DUMMY
+};
+
 struct timer
 {
   using inner_clock = std::chrono::high_resolution_clock;
 
-  std::unordered_map
+  static std::unordered_map
   <
-    std::string,
-    std::pair
+    category_id,
+    std::tuple
     <
+      std::string,
       std::chrono::nanoseconds,
       inner_clock::time_point
     >
   >
-  time_records;
+  records;
 
-  void reset (std::string const category)
-  {
-    time_records[category] = {std::chrono::nanoseconds::zero(), inner_clock::time_point::min()};
-    return;
-  }
-
-  void resume (std::string const category)
-  {
-    auto &begin_time {std::get<1>(time_records[category])};
-    begin_time = inner_clock::now();
-    return;
-  }
-
-  void pause (std::string const category)
-  {
-    auto &duration {std::get<0>(time_records[category])};
-    auto &begin_time {std::get<1>(time_records[category])};
-    duration += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_clock::now() - begin_time);
-    return;
-  }
-
-  void print
+  static void register_category
   (
-    std::string const time_path,
-    std::string const time_unit = "seconds"
+    category_id id,
+    std::string const category
   )
   {
-    std::ofstream time_output {time_path};
-    time_output << "category," << time_unit << "\n";
-    for (auto const time_record : time_records)
+    records[id] =
     {
-      auto &category {std::get<0>(time_record)};
-      auto &duration {std::get<0>(std::get<1>(time_record))};
-      time_output << category << ",";
-      if (time_unit == "minutes")
+      category,
+      std::chrono::nanoseconds::zero(),
+      inner_clock::time_point::min()
+    };
+    return;
+  }
+
+  static void resume (category_id id)
+  {
+    std::get<2>(records[id]) = inner_clock::now();
+    return;
+  }
+
+  static void pause (category_id id)
+  {
+    std::get<1>(records[id]) +=
+    std::chrono::duration_cast<std::chrono::nanoseconds>
+    (
+      inner_clock::now()
+      -
+      std::get<2>(records[id])
+    );
+    return;
+  }
+
+  static void print
+  (
+    std::string const path,
+    std::string const unit = "seconds"
+  )
+  {
+    std::ofstream fout {path};
+    fout << "category," << unit << "\n";
+    for (auto const &record : records)
+    {
+      auto category {std::get<0>(std::get<1>(record))};
+      auto duration {std::get<1>(std::get<1>(record))};
+      fout << category << ",";
+      if (unit == "minutes")
       {
-        time_output << std::chrono::duration_cast<std::chrono::minutes>(duration).count() << "\n";
+        fout << std::chrono::duration_cast<std::chrono::minutes>(duration).count() << "\n";
       }
-      else if (time_unit == "seconds")
+      else if (unit == "seconds")
       {
-        time_output << std::chrono::duration_cast<std::chrono::seconds>(duration).count() << "\n";
+        fout << std::chrono::duration_cast<std::chrono::seconds>(duration).count() << "\n";
       }
-      else if (time_unit == "milliseconds")
+      else if (unit == "milliseconds")
       {
-        time_output << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "\n";
+        fout << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "\n";
       }
-      else if (time_unit == "microseconds")
+      else if (unit == "microseconds")
       {
-        time_output << std::chrono::duration_cast<std::chrono::microseconds>(duration).count() << "\n";
+        fout << std::chrono::duration_cast<std::chrono::microseconds>(duration).count() << "\n";
       }
       else
       {
-        time_output << duration.count() << "\n";
+        fout << duration.count() << "\n";
       }
     }
+    records.clear();
     return;
   }
 };
+
+std::unordered_map
+<
+  category_id,
+  std::tuple
+  <
+    std::string,
+    std::chrono::nanoseconds,
+    timer::inner_clock::time_point
+  >
+>
+timer::records
+{};
+
 }
 }
 
