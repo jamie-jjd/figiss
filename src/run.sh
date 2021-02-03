@@ -2,8 +2,8 @@
 
 set -x
 
-# text_dir="/home/jamie/nthu_cs/research/projects/gci/project/input/text/pizza_chili_repetitive_corpus/1mb/*"
-text_dir="/home/jamie/nthu_cs/research/projects/gci/project/input/text/pizza_chili_repetitive_corpus/raw/*/*"
+text_dir="/home/jamie/nthu_cs/research/projects/gci/project/input/text/pizza_chili_repetitive_corpus/1mb/*"
+# text_dir="/home/jamie/nthu_cs/research/projects/gci/project/input/text/pizza_chili_repetitive_corpus/raw/*"
 for text in ${text_dir}
 do
   ./main ${text}
