@@ -202,6 +202,7 @@ void benchmark_count
   load_gc_and_fm_index(index, fm_index, text_path);
   benchmark_gc_index_count(index, pattern_path);
   benchmark_fm_index_count(fm_index, pattern_path);
+  sdsl::remove(pattern_path);
   return;
 }
 
