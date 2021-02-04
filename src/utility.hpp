@@ -6,7 +6,10 @@
 #include <functional>
 #include <random>
 #include <string>
-#include <unordered_map>
+#include <map>
+#include <set>
+
+#include <cmath>
 
 namespace gci
 {
@@ -97,7 +100,7 @@ struct timer
 {
   using inner_clock = std::chrono::high_resolution_clock;
 
-  static std::unordered_map
+  static std::map
   <
     category_id,
     std::tuple
@@ -181,7 +184,7 @@ struct timer
   }
 };
 
-std::unordered_map
+std::map
 <
   category_id,
   std::tuple
@@ -193,6 +196,188 @@ std::unordered_map
 >
 timer::records
 {};
+
+void generate_canonical_text (std::string const path)
+{
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, path);
+  sdsl::int_vector<8> codebook(256, 0);
+  for (auto const &character : text)
+  {
+    codebook[character] = 1;
+  }
+  std::partial_sum(std::begin(codebook), std::end(codebook), std::begin(codebook));
+  for (auto &character : text)
+  {
+    character = codebook[character];
+  }
+  std::ofstream output_file {"../input/text/sdsl_vector/" + basename(path) + ".sdsl"};
+  sdsl::append_zero_symbol(text);
+  sdsl::util::bit_compress(text);
+  text.serialize(output_file);
+  return;
+}
+
+template <typename text_type>
+void print_number_runs
+(
+  std::ofstream &fout,
+  text_type &text
+)
+{
+  uint64_t prev_character {0};
+  uint64_t number_runs {0};
+  for (auto const &character : text)
+  {
+    if (character != prev_character)
+    {
+      ++number_runs;
+      prev_character = character;
+    }
+  }
+  fout << "number_runs(r)," << number_runs << "\n";
+  std::cout << "number_runs(r)," << number_runs << "\n";
+  return;
+}
+
+template <typename text_type>
+void print_alphabet_size
+(
+  std::ofstream &fout,
+  text_type &text
+)
+{
+  std::set<uint64_t> alphabet;
+  for (auto const &character : text)
+  {
+    alphabet.insert(character);
+  }
+  fout << "alphabet_size(sigma)," << std::size(alphabet) << "\n";
+  std::cout << "alphabet_size(sigma)," << std::size(alphabet) << "\n";
+  return;
+}
+
+template <typename text_type>
+void print_0th_entropy
+(
+  std::ofstream &fout,
+  text_type &text
+)
+{
+  std::map<uint64_t, uint64_t> alphabet_count;
+  for (auto const &character : text)
+  {
+    if (alphabet_count.find(character) != alphabet_count.end())
+    {
+      ++alphabet_count[character];
+    }
+    else
+    {
+      alphabet_count[character] = 1;
+    }
+  }
+  double entropy {0.0};
+  auto log_text_size {std::log(std::size(text))};
+  for (auto const &character_count : alphabet_count)
+  {
+    auto count {static_cast<double>(std::get<1>(character_count))};
+    entropy += (count * (log_text_size - std::log(count)));
+  }
+  entropy /= std::size(text);
+  fout << "0th_entropy(H_0)," << entropy << "\n";
+  fout << "compression_ratio," << (entropy / std::size(alphabet_count)) << "\n";
+  std::cout << "0th_entropy(H_0)," << entropy << "\n";
+  std::cout << "compression_ratio," << (entropy / std::size(alphabet_count)) << "\n";
+  return;
+}
+
+template <typename text_type>
+void print_kth_entropy
+(
+  std::ofstream &fout,
+  text_type &text,
+  uint64_t k
+)
+{
+  std::set<uint64_t> alphabet;
+  std::map<text_type, std::map<uint64_t, uint64_t>> k_mers_alphabet_count;
+  text_type k_mer(k);
+  for (uint64_t i {0}; i != k; ++i)
+  {
+    k_mer[i] = text[i];
+    alphabet.insert(text[i]);
+  }
+  auto character {text[k]};
+  k_mers_alphabet_count[k_mer][character] = 1;
+  alphabet.insert(character);
+  for (uint64_t i {k + 1}; i != std::size(text); ++i)
+  {
+    for (uint64_t j {1}; j != k; ++j)
+    {
+      k_mer[j - 1] = k_mer[j];
+    }
+    k_mer[k - 1] = character;
+    character = text[i];
+    alphabet.insert(character);
+    if (k_mers_alphabet_count.find(k_mer) != k_mers_alphabet_count.end())
+    {
+      auto &alphabet_count {k_mers_alphabet_count[k_mer]};
+      if (alphabet_count.find(character) != alphabet_count.end())
+      {
+        ++alphabet_count[character];
+      }
+      else
+      {
+        alphabet_count[character] = 1;
+      }
+    }
+    else
+    {
+      k_mers_alphabet_count[k_mer][character] = 1;
+    }
+  }
+  double kth_entropy {0.0};
+  for (auto const &k_mer_alphabet_count : k_mers_alphabet_count)
+  {
+    auto &alphabet_count {std::get<1>(k_mer_alphabet_count)};
+    uint64_t k_mer_context_size {0};
+    for (auto const &character_count: alphabet_count)
+    {
+      k_mer_context_size += std::get<1>(character_count);
+    }
+    auto log_k_mer_context_size {std::log(static_cast<double>(k_mer_context_size))};
+    for (auto const &character_count: alphabet_count)
+    {
+      auto count {static_cast<double>(std::get<1>(character_count))};
+      kth_entropy += count * (log_k_mer_context_size - std::log(count));
+    }
+  }
+  kth_entropy /= std::size(text);
+  fout << k << "th_entropy(H_" << k << ")," << kth_entropy << "\n";
+  fout << "compression_ratio," << (kth_entropy / std::size(alphabet)) << "\n";
+  std::cout << k << "th_entropy(H_" << k << ")," << kth_entropy << "\n";
+  std::cout << "compression_ratio," << (kth_entropy / std::size(alphabet)) << "\n";
+  return;
+}
+
+void print_text_attributes (std::string const path)
+{
+  std::ifstream input_file {path};
+  std::ofstream output_file {"../output/attribute/" + basename(path) + ".csv"};
+  sdsl::int_vector<> text;
+  text.load(input_file);
+  input_file.close();
+  output_file << "text_size(n)," << std::size(text) << "\n";
+  std::cout << "text_size(n)," << std::size(text) << "\n";
+  print_number_runs(output_file, text);
+  print_alphabet_size(output_file, text);
+  print_0th_entropy(output_file, text);
+  for (uint64_t power {0}; power != 4; ++power)
+  {
+    print_kth_entropy(output_file, text, (1 << power));
+  }
+  return;
+}
 
 }
 }
