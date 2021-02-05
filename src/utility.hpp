@@ -4,16 +4,17 @@
 #include <chrono>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <random>
 #include <string>
-#include <map>
 #include <set>
+#include <unordered_map>
 
 #include <cmath>
 
+using namespace std::chrono;
+
 namespace gci
-{
-namespace util
 {
 void generate_pattern
 (
@@ -79,7 +80,7 @@ std::string basename (std::string const path)
   return path.substr(basename_begin_dist);
 }
 
-enum class category_id
+enum class record_key
 {
 #if defined(LOG_GCI_COUNT) || defined(LOG_VERBOSE_GCI_COUNT)
   GCI_COUNT,
@@ -98,104 +99,52 @@ enum class category_id
 
 struct timer
 {
-  using inner_clock = std::chrono::high_resolution_clock;
+  using clock_ = steady_clock;
+  using record_type = std::tuple<std::string, clock_::duration, clock_::time_point>;
 
-  static std::map
-  <
-    category_id,
-    std::tuple
-    <
-      std::string,
-      std::chrono::nanoseconds,
-      inner_clock::time_point
-    >
-  >
-  records;
+  static std::unordered_map<record_key, record_type> records;
 
-  static void register_category
+  static void register_record
   (
-    category_id id,
+    record_key const key,
     std::string const category
   )
   {
-    records[id] =
-    {
-      category,
-      std::chrono::nanoseconds::zero(),
-      inner_clock::time_point::min()
-    };
+    records[key] = {category, {}, {}};
     return;
   }
 
-  static void resume (category_id id)
+  static void resume (record_key const key)
   {
-    std::get<2>(records[id]) = inner_clock::now();
+    std::get<2>(records[key]) = clock_::now();
     return;
   }
 
-  static void pause (category_id id)
+  static void pause (record_key const key)
   {
-    std::get<1>(records[id]) +=
-    std::chrono::duration_cast<std::chrono::nanoseconds>
-    (
-      inner_clock::now()
-      -
-      std::get<2>(records[id])
-    );
+    auto &record {records[key]};
+    std::get<1>(record) += (clock_::now() - std::get<2>(record));
     return;
   }
 
-  static void print
-  (
-    std::string const path,
-    std::string const unit = "seconds"
-  )
+  static void print (std::string const path)
   {
     std::ofstream fout {path};
-    fout << "category," << unit << "\n";
+    fout << "category,seconds\n";
     for (auto const &record : records)
     {
-      auto category {std::get<0>(std::get<1>(record))};
-      auto duration {std::get<1>(std::get<1>(record))};
-      fout << category << ",";
-      if (unit == "minutes")
-      {
-        fout << std::chrono::duration_cast<std::chrono::minutes>(duration).count() << "\n";
-      }
-      else if (unit == "seconds")
-      {
-        fout << std::chrono::duration_cast<std::chrono::seconds>(duration).count() << "\n";
-      }
-      else if (unit == "milliseconds")
-      {
-        fout << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "\n";
-      }
-      else if (unit == "microseconds")
-      {
-        fout << std::chrono::duration_cast<std::chrono::microseconds>(duration).count() << "\n";
-      }
-      else
-      {
-        fout << duration.count() << "\n";
-      }
+      fout
+      << std::get<0>(std::get<1>(record))
+      << ","
+      << duration_cast<duration<double>>(std::get<1>(std::get<1>(record))).count()
+      << "\n";
     }
     records.clear();
     return;
   }
 };
 
-std::map
-<
-  category_id,
-  std::tuple
-  <
-    std::string,
-    std::chrono::nanoseconds,
-    timer::inner_clock::time_point
-  >
->
-timer::records
-{};
+std::unordered_map<record_key, timer::record_type> timer::records {};
 
 void generate_canonical_text (std::string const path)
 {
@@ -377,8 +326,6 @@ void print_text_attributes (std::string const path)
     print_kth_entropy(output_file, text, (1 << power));
   }
   return;
-}
-
 }
 }
 
