@@ -13,27 +13,33 @@ void load_gc_and_fm_index
 (
   gc_index &index,
   sdsl::csa_wt<> &fm_index,
-  std::string const text_path
+  fs::path text_path
 )
 {
-  std::string gc_index_path {"../input/index/" + gci::basename(text_path) + ".gci"};
-  std::ifstream gc_index_input {gc_index_path};
-  if (!gc_index_input.is_open())
+  auto index_path {fs::path{"../input/index"} / text_path.parent_path().filename()};
+  if (!fs::exists(index_path))
+  {
+    fs::create_directories(index_path);
+  }
+  index_path /= text_path.filename();
+  auto gc_index_path {index_path / (text_path.filename().string() + ".gci")};
+  if (!fs::exists(gc_index_path))
   {
     construct(index, text_path);
     serialize(index, gc_index_path);
   }
-  else
-  {
-    load(index, gc_index_path);
-  }
-  std::string fm_index_path {"../input/index/" + gci::basename(text_path) + ".fmi"};
-  std::ifstream fm_index_input {fm_index_path};
-  if (!fm_index_input.is_open())
+  load(index, gc_index_path);
+  auto fm_index_path {gc_index_path.replace_extension(".fmi")};
+  if (!fs::exists(fm_index_path))
   {
     {
 #ifdef LOG_FMI_CONSTRUCT
-      std::ofstream json_output {"../output/construct/" + gci::basename(text_path) + ".fmi.json"};
+      auto json_path {fs::path("../data/fmi/construct") / text_path.parent_path()};
+      if (!fs::exists(json_path))
+      {
+        fs::create_directories(json_path);
+      }
+      std::ofstream json_file {json_path / (text_path.filename().string() + ".json")};
       tdc::StatPhase phases {"construct_fm_index"};
 #endif
       sdsl::int_vector<8> text;
@@ -44,18 +50,23 @@ void load_gc_and_fm_index
         [&] ()
 #endif
         {
-          sdsl::load_vector_from_file(text, text_path);
+          sdsl::load_vector_from_file(text, text_path.string());
           sdsl::construct_im(fm_index, text);
         }
 #ifdef LOG_FMI_CONSTRUCT
       );
-      phases.to_json().str(json_output);
+      phases.to_json().str(json_file);
 #endif
     }
     {
-      std::ofstream fm_index_output {fm_index_path};
+      std::ofstream fm_index_file {fm_index_path};
 #ifdef LOG_FMI_SERIALIZE
-      std::ofstream json_output {"../output/serialize/" + gci::basename(text_path) + ".fmi.json"};
+      auto json_path {fs::path("../data/fmi/serialize") / text_path.parent_path()};
+      if (!fs::exists(json_path))
+      {
+        fs::create_directories(json_path);
+      }
+      std::ofstream json_file {json_path / (text_path.filename().string() + ".json")};
       tdc::StatPhase phases {"serialize_fm_index"};
       tdc::StatPhase::wrap
       (
@@ -63,18 +74,23 @@ void load_gc_and_fm_index
         [&] ()
 #endif
         {
-          sdsl::serialize(fm_index, fm_index_output);
+          sdsl::serialize(fm_index, fm_index_file);
         }
 #ifdef LOG_FMI_SERIALIZE
       );
-      phases.to_json().str(json_output);
+      phases.to_json().str(json_file);
 #endif
     }
   }
-  else
   {
+    std::ifstream fm_index_file {fm_index_path};
 #ifdef LOG_FMI_LOAD
-    std::ofstream json_output {"../output/load/" + gci::basename(text_path) + ".fmi.json"};
+    auto json_path {fs::path("../data/fmi/load") / text_path.parent_path()};
+    if (!fs::exists(json_path))
+    {
+      fs::create_directories(json_path);
+    }
+    std::ofstream json_file {json_path / (text_path.filename().string() + ".json")};
     tdc::StatPhase phases {"load_fm_index"};
     tdc::StatPhase::wrap
     (
@@ -82,11 +98,11 @@ void load_gc_and_fm_index
       [&] ()
 #endif
       {
-        sdsl::load(fm_index, fm_index_input);
+        sdsl::load(fm_index, fm_index_file);
       }
 #ifdef LOG_FMI_LOAD
     );
-    phases.to_json().str(json_output);
+    phases.to_json().str(json_file);
 #endif
   }
   return;
@@ -95,13 +111,13 @@ void load_gc_and_fm_index
 void benchmark_gc_index_count
 (
   gc_index &index,
-  std::string const pattern_path
+  fs::path pattern_path
 )
 {
-  std::ifstream pattern_input {pattern_path};
-  sdsl::int_vector<8> pattern;
-  uint64_t pattern_number {0};
-  pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
+  std::ifstream pattern_file {pattern_path};
+  sdsl::int_vector<> pattern;
+  uint64_t pattern_amount {0};
+  pattern_file >> pattern_amount;
 #if defined(LOG_GCI_COUNT) || defined(LOG_VERBOSE_GCI_COUNT)
   gci::timer::register_record(gci::record_key::GCI_COUNT, "gc_index_count");
 #endif
@@ -111,23 +127,22 @@ void benchmark_gc_index_count
   gci::timer::register_record(gci::record_key::LOOKUP_GRAMMAR_RULE, "lookup_grammar_rule");
   gci::timer::register_record(gci::record_key::WAVELET_TREE_OPERATIONS_S, "wavelet_tree_operations_S");
 #endif
-  for (uint64_t i {0}; i != pattern_number; ++i)
+  for (uint64_t i {0}; i != pattern_amount; ++i)
   {
-    pattern.load(pattern_input);
+    pattern.load(pattern_file);
     gci::count(index, std::begin(pattern), std::end(pattern));
   }
 #if defined(LOG_GCI_COUNT)
-  gci::timer::print
-  (
-    "../output/count/" + gci::basename(pattern_path) + ".gci.csv",
-    "milliseconds"
-  );
+  auto csv_path {fs::path("../data/gci/count")};
 #elif defined(LOG_VERBOSE_GCI_COUNT)
-  gci::timer::print
-  (
-    "../output/count/" + gci::basename(pattern_path) + ".gci.verbose.csv",
-    "milliseconds"
-  );
+  auto csv_path {fs::path("../data/gci/count/verbose")};
+#endif
+#if defined(LOG_GCI_COUNT) || defined(LOG_VERBOSE_GCI_COUNT)
+  if (!fs::exists(csv_path))
+  {
+    fs::create_directories(csv_path);
+  }
+  gci::timer::print(csv_path / (pattern_path.filename().string() + ".csv"));
 #endif
   return;
 }
@@ -135,19 +150,19 @@ void benchmark_gc_index_count
 void benchmark_fm_index_count
 (
   sdsl::csa_wt<> &fm_index,
-  std::string const pattern_path
+  fs::path pattern_path
 )
 {
-  std::ifstream pattern_input {pattern_path};
-  sdsl::int_vector<8> pattern;
-  uint64_t pattern_number {0};
-  pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
+  std::ifstream pattern_file {pattern_path};
+  sdsl::int_vector<> pattern;
+  uint64_t pattern_amount {0};
+  pattern_file >> pattern_amount;
 #ifdef LOG_FMI_COUNT
   gci::timer::register_record(gci::record_key::FMI_COUNT, "fm_index_count");
 #endif
-  for (uint64_t i {0}; i != pattern_number; ++i)
+  for (uint64_t i {0}; i != pattern_amount; ++i)
   {
-    pattern.load(pattern_input);
+    pattern.load(pattern_file);
 #ifdef LOG_FMI_COUNT
     gci::timer::resume(gci::record_key::FMI_COUNT);
 #endif
@@ -168,8 +183,8 @@ void benchmark_fm_index_count
 
 void benchmark_count
 (
-  std::string const text_path,
-  uint64_t const pattern_number,
+  fs::path text_path,
+  uint64_t const pattern_amount,
   uint64_t const pattern_size
 )
 {
@@ -187,14 +202,14 @@ void benchmark_count
   {
     "../input/pattern/"
     + gci::basename(text_path) + "."
-    + std::to_string(pattern_number) + "."
+    + std::to_string(pattern_amount) + "."
     + std::to_string(pattern_size)
   };
   gci::generate_pattern
   (
     text_path,
     pattern_path,
-    pattern_number,
+    pattern_amount,
     pattern_size
   );
   gc_index index;
@@ -206,31 +221,31 @@ void benchmark_count
   return;
 }
 
-void test_count (std::string const text_path)
+void test_count (fs::path text_path)
 {
   gc_index index;
   sdsl::csa_wt<> fm_index;
   load_gc_and_fm_index(index, fm_index, text_path);
-  sdsl::int_vector<8> text;
+  sdsl::int_vector<> text;
   sdsl::load_vector_from_file(text, text_path);
   uint64_t max_sl_factor_size {calculate_max_sl_factor_size(text)};
-  std::string const pattern_path {"../input/pattern/pattern.sample"};
+  fs::path pattern_path {"../input/pattern/pattern.sample"};
   for (uint64_t multiple {2}; multiple != 11; ++multiple)
   {
-    uint64_t pattern_number {1000 / multiple};
+    uint64_t pattern_amount {1000 / multiple};
     gci::generate_pattern
     (
       text_path,
       pattern_path,
-      pattern_number,
+      pattern_amount,
       static_cast<uint64_t>(max_sl_factor_size * multiple * 0.5)
     );
-    std::ifstream pattern_input {pattern_path};
+    std::ifstream pattern_file {pattern_path};
     sdsl::int_vector<8> pattern;
-    pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
-    for (uint64_t pattern_id {0}; pattern_id != pattern_number; ++pattern_id)
+    pattern_file.read((char*)(&pattern_amount), sizeof(pattern_amount));
+    for (uint64_t pattern_id {0}; pattern_id != pattern_amount; ++pattern_id)
     {
-      pattern.load(pattern_input);
+      pattern.load(pattern_file);
       auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
       auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
       if (fm_count != gc_count)
@@ -248,21 +263,21 @@ void test_count (std::string const text_path)
   {
     if ((std::size(text) / divisor) >= max_sl_factor_size)
     {
-      // uint64_t pattern_number {10 * divisor};
-      uint64_t pattern_number {1};
+      // uint64_t pattern_amount {10 * divisor};
+      uint64_t pattern_amount {1};
       gci::generate_pattern
       (
         text_path,
         pattern_path,
-        pattern_number,
+        pattern_amount,
         (std::size(text) / divisor)
       );
-      std::ifstream pattern_input {pattern_path};
+      std::ifstream pattern_file {pattern_path};
       sdsl::int_vector<8> pattern;
-      pattern_input.read((char*)(&pattern_number), sizeof(pattern_number));
-      for (uint64_t pattern_id {0}; pattern_id != pattern_number; ++pattern_id)
+      pattern_file.read((char*)(&pattern_amount), sizeof(pattern_amount));
+      for (uint64_t pattern_id {0}; pattern_id != pattern_amount; ++pattern_id)
       {
-        pattern.load(pattern_input);
+        pattern.load(pattern_file);
         auto fm_count {sdsl::count(fm_index, std::begin(pattern), std::end(pattern))};
         auto gc_count {gci::count(index, std::begin(pattern), std::end(pattern))};
         if (fm_count != gc_count)

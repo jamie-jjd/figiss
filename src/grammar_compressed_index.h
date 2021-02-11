@@ -763,11 +763,16 @@ void print_gc_index (gc_index &index)
 void construct
 (
   gc_index &index,
-  std::string const text_path
+  fs::path text_path
 )
 {
 #ifdef LOG_GCI_CONSTRUCT
-  std::ofstream json_output {"../output/construct/" + util::basename(text_path) + ".gci.json"};
+  auto json_path {fs::path("../data/gci/construct") / text_path.parent_path()};
+  if (!fs::exists(json_path))
+  {
+    fs::create_directories(json_path);
+  }
+  std::ofstream json_file {json_path / (text_path.filename().string() + ".json")};
   tdc::StatPhase phases {"construct_gc_index"};
 #endif
   {
@@ -779,7 +784,7 @@ void construct
       [&] ()
 #endif
       {
-        sdsl::load_vector_from_file(text, text_path);
+        sdsl::load_vector_from_file(text, text_path.string());
         sdsl::append_zero_symbol(text);
       }
 #ifdef LOG_GCI_CONSTRUCT
@@ -1090,7 +1095,7 @@ void construct
 #endif
   }
 #ifdef LOG_GCI_CONSTRUCT
-  phases.to_json().str(json_output);
+  phases.to_json().str(json_file);
 #endif
   return;
 }
@@ -1098,12 +1103,17 @@ void construct
 void serialize
 (
   gc_index &index,
-  std::string const index_path
+  fs::path index_path
 )
 {
-  std::ofstream index_output {index_path};
+  std::ofstream index_file {index_path};
 #ifdef LOG_GCI_SERIALIZE
-  std::ofstream json_output {"../output/serialize/" + util::basename(index_path) + ".json"};
+  auto json_path {fs::path{"../data/gci/serialize"} / index_path.parent_path()};
+  if (!fs::exists(json_path))
+  {
+    fs::create_directories(json_path);
+  }
+  std::ofstream json_file {json_path / (index_path.filename() + ".json")};
   tdc::StatPhase phases {"serialize_gc_index"};
 #endif
   {
@@ -1114,7 +1124,7 @@ void serialize
       [&] ()
 #endif
       {
-        index.grammar_rule_sizes.serialize(index_output);
+        index.grammar_rule_sizes.serialize(index_file);
       }
 #ifdef LOG_GCI_SERIALIZE
     );
@@ -1124,7 +1134,7 @@ void serialize
       [&] ()
 #endif
       {
-        index.grammar_rules.serialize(index_output);
+        index.grammar_rules.serialize(index_file);
       }
 #ifdef LOG_GCI_SERIALIZE
     );
@@ -1134,7 +1144,7 @@ void serialize
       [&] ()
 #endif
       {
-        index.colex_lex_permutation.serialize(index_output);
+        index.colex_lex_permutation.serialize(index_file);
       }
 #ifdef LOG_GCI_SERIALIZE
     );
@@ -1144,7 +1154,7 @@ void serialize
       [&] ()
 #endif
       {
-        index.lex_gc_character_bucket_end_dists.serialize(index_output);
+        index.lex_gc_character_bucket_end_dists.serialize(index_file);
       }
 #ifdef LOG_GCI_SERIALIZE
     );
@@ -1154,14 +1164,14 @@ void serialize
       [&] ()
 #endif
       {
-        index.colex_gc_bwt.serialize(index_output);
+        index.colex_gc_bwt.serialize(index_file);
       }
 #ifdef LOG_GCI_SERIALIZE
     );
 #endif
   }
 #ifdef LOG_GCI_SERIALIZE
-  phases.to_json().str(json_output);
+  phases.to_json().str(json_file);
 #endif
   return;
 }
@@ -1169,12 +1179,17 @@ void serialize
 void load
 (
   gc_index &index,
-  std::string const index_path
+  fs::path index_path
 )
 {
   std::ifstream index_input {index_path};
 #ifdef LOG_GCI_LOAD
-  std::ofstream json_output {"../output/load/" + util::basename(index_path) + ".json"};
+  auto json_path {fs::path{"../data/gci/load"} / index_path.parent_path()};
+  if (!fs::exists(json_path))
+  {
+    fs::create_directories(json_path);
+  }
+  std::ofstream json_file {json_path / (index_path.filename() + ".json")};
   tdc::StatPhase phases {"load_gc_index"};
 #endif
   {
@@ -1276,7 +1291,7 @@ void load
 #endif
   }
 #ifdef LOG_GCI_LOAD
-  phases.to_json().str(json_output);
+  phases.to_json().str(json_file);
 #endif
   return;
 }
@@ -1857,34 +1872,6 @@ uint64_t calculate_max_sl_factor_size (text_type const &text)
     }
   }
   return max_size;
-}
-
-void calculate_sl_factor_size_number_pairs
-(
-  std::map<uint64_t, uint64_t> &size_number_pairs,
-  std::string const text_path
-)
-{
-  sdsl::int_vector<8> text;
-  sdsl::load_vector_from_file(text, text_path);
-  auto rfirst {std::prev(std::end(text))};
-  auto rlast {std::prev(std::end(text))};
-  auto rend {std::prev(std::begin(text))};
-  while (rlast != rend)
-  {
-    calculate_sl_factor(rfirst, rlast, rend);
-    auto size {static_cast<uint64_t>(std::distance(rlast, rfirst))};
-    if (size_number_pairs.find(size) == std::end(size_number_pairs))
-    {
-      size_number_pairs[size] = 1;
-    }
-    else
-    {
-      ++size_number_pairs[size];
-    }
-  }
-  return;
-}
 }
 
 #endif
