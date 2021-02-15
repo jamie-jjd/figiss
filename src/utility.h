@@ -1,7 +1,7 @@
-#ifndef UTILITY_HPP_
-#define UTILITY_HPP_
+#pragma once
 
-#include <chrono>
+#include <cmath>
+
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -12,16 +12,14 @@
 #include <unordered_map>
 #include <unordered_set>
 
-// #include <cmath>
+#include <sdsl/construct.hpp>
+#include <sdsl/int_vector.hpp>
 
-namespace fs = std::filesystem;
-using namespace std::chrono;
-
-namespace grammar_compressed_index
+namespace project
 {
-inline void generate_pattern
+void GeneratePattern
 (
-  fs::path const text_path,
+  std::filesystem::path const text_path,
   uint64_t const pattern_amount,
   uint64_t const pattern_size
 )
@@ -29,20 +27,25 @@ inline void generate_pattern
   std::ifstream text_file {text_path};
   sdsl::int_vector<> text;
   text.load(text_file);
-  auto path {fs::path{"../data/pattern"} / text_path.parent_path().filename()};
-  if (!fs::exists(path))
+  auto parent_pattern_path {std::filesystem::path{"../data/pattern"} / text_path.parent_path().filename()};
+  if (!std::filesystem::exists(parent_pattern_path))
   {
-    fs::create_directories(path);
+    std::filesystem::create_directories(parent_pattern_path);
   }
   if (pattern_size < std::size(text))
   {
-    path /= fs::path
+    auto pattern_path
     {
-      text_path.filename().string()
-      + "." + std::to_string(pattern_amount)
-      + "." + std::to_string(pattern_size)
+      parent_pattern_path
+      /
+      std::filesystem::path
+      {
+        text_path.filename().string()
+        + "." + std::to_string(pattern_amount)
+        + "." + std::to_string(pattern_size)
+      }
     };
-    std::ofstream pattern_file {path};
+    std::ofstream pattern_file {pattern_path};
     std::mt19937 engine {std::random_device{}()};
     std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
     auto random_begin_offset {std::bind(distribution, engine)};
@@ -50,22 +53,30 @@ inline void generate_pattern
     pattern_file << pattern_amount << "\n";
     for (uint64_t i {0}; i != pattern_amount; ++i)
     {
-      auto text_it {std::next(std::begin(text), random_begin_offset())};
-      auto pattern_it {std::begin(pattern)};
+      auto text_iterator {std::next(std::begin(text), random_begin_offset())};
+      auto pattern_iterator {std::begin(pattern)};
       auto pattern_end {std::end(pattern)};
-      while (pattern_it != pattern_end)
+      while (pattern_iterator != pattern_end)
       {
-        *pattern_it = *text_it;
-        ++text_it;
-        ++pattern_it;
+        *pattern_iterator = *text_iterator;
+        ++text_iterator;
+        ++pattern_iterator;
       }
       pattern.serialize(pattern_file);
     }
   }
   else
   {
-    path /= fs::path{text_path.filename().string() + ".1." + std::to_string(std::size(text))};
-    std::ofstream pattern_file {path};
+    auto pattern_path
+    {
+      std::filesystem::path
+      {
+        text_path.filename().string()
+        + ".1"
+        + "." + std::to_string(std::size(text))
+      }
+    };
+    std::ofstream pattern_file {pattern_path};
     std::cout
     << "pattern size >= text size\n"
     << "generated pattern is the text\n";
@@ -75,83 +86,25 @@ inline void generate_pattern
   return;
 }
 
-enum class record_key
-{
-#if defined(LOG_GCI_COUNT) || defined(LOG_VERBOSE_GCI_COUNT)
-  GCI_COUNT,
-#endif
-#if defined(LOG_VERBOSE_GCI_COUNT)
-  CALCULATE_SL_FACTOR,
-  LOOKUP_GRAMMAR_RULE,
-  WAVELET_TREE_OPERATIONS_L,
-  WAVELET_TREE_OPERATIONS_S,
-#endif
-#ifdef LOG_FMI_COUNT
-  FMI_COUNT,
-#endif
-  DUMMY
-};
-
-struct timer
-{
-  using clock_ = steady_clock;
-  using record = std::tuple<std::string, clock_::duration, clock_::time_point>;
-
-  static std::unordered_map<record_key, record> records;
-
-  static void register_record
-  (
-    record_key const key,
-    std::string const &category
-  )
-  {
-    records[key] = {category, {}, {}};
-    return;
-  }
-
-  static void resume (record_key const key)
-  {
-    std::get<2>(records[key]) = clock_::now();
-    return;
-  }
-
-  static void pause (record_key const key)
-  {
-    auto &record {records[key]};
-    std::get<1>(record) += (clock_::now() - std::get<2>(record));
-    return;
-  }
-
-  static void print (fs::path const &records_path)
-  {
-    std::ofstream records_file {records_path};
-    fout << "category,seconds\n";
-    for (auto const &record_pair : records)
-    {
-      auto const &record {std::get<1>(record_pair)};
-      records_file
-      << std::get<0>(record)
-      << ","
-      << duration_cast<duration<double>>(std::get<1>(record)).count()
-      << "\n";
-    }
-    records.clear();
-    return;
-  }
-};
-
-std::unordered_map<record_key, timer::record> timer::records {};
-
-void generate_canonical_text (fs::path text_path)
+void ByteToCompactText (std::filesystem::path const text_path)
 {
   sdsl::int_vector<8> text;
   sdsl::load_vector_from_file(text, text_path.string());
-  fs::path path {fs::path("../input/sdsl") / text_path.parent_path().filename()};
-  if (!fs::exists(path))
+  std::filesystem::path parent_compact_text_path
   {
-    fs::create_directories(path);
+    std::filesystem::path("../data/compact")
+    / text_path.parent_path().filename()
+  };
+  if (!std::filesystem::exists(parent_compact_text_path))
+  {
+    std::filesystem::create_directories(parent_compact_text_path);
   }
-  std::ofstream fout {path / (text_path.filename().string() + ".sdsl")};
+  std::filesystem::path compact_text_path
+  {
+    parent_compact_text_path
+    / (text_path.filename().string() + ".sdsl")
+  };
+  std::ofstream compact_text_file {compact_text_path};
   sdsl::int_vector<8> codebook(256, 0);
   for (auto const &character : text)
   {
@@ -164,39 +117,39 @@ void generate_canonical_text (fs::path text_path)
   }
   sdsl::append_zero_symbol(text);
   sdsl::util::bit_compress(text);
-  text.serialize(fout);
+  text.serialize(compact_text_file);
   return;
 }
 
-template <typename text_type>
-void print_number_runs
+template <typename Text>
+void PrintRunAmount
 (
-  std::ofstream &fout,
-  text_type &text
+  std::ofstream &statistics_file,
+  Text const &text
 )
 {
-  uint64_t prev_character {0};
-  uint64_t number_runs {0};
+  uint64_t previous_character {0};
+  uint64_t run_amount {0};
   for (auto const &character : text)
   {
-    if (character != prev_character)
+    if (character != previous_character)
     {
-      ++number_runs;
-      prev_character = character;
+      ++run_amount;
+      previous_character = character;
     }
   }
-  fout << "number_runs(r)," << number_runs << "\n";
-  fout << "compression_ratio(r/n)" << (static_cast<double>(number_runs) / std::size(text));
-  std::cout << "number_runs(r)," << number_runs << "\n";
-  std::cout << "compression_ratio(r/n)" << (static_cast<double>(number_runs) / std::size(text));
+  statistics_file << "run_amount," << run_amount << "\n";
+  statistics_file
+  << "compression_ratio,"
+  << (static_cast<double>(run_amount) / std::size(text));
   return;
 }
 
-template <typename text_type>
-void print_alphabet_size
+template <typename Text>
+void PrintAlphabetSize
 (
-  std::ofstream &fout,
-  text_type &text
+  std::ofstream &statistics_file,
+  Text const &text
 )
 {
   std::unordered_set<uint64_t> alphabet;
@@ -204,62 +157,65 @@ void print_alphabet_size
   {
     alphabet.insert(character);
   }
-  fout << "alphabet_size(sigma)," << std::size(alphabet) << "\n";
-  std::cout << "alphabet_size(sigma)," << std::size(alphabet) << "\n";
+  statistics_file << "alphabet_size," << std::size(alphabet) << "\n";
+  auto log_alphabet_size {std::log(static_cast<double>(std::size(alphabet)))};
+  statistics_file
+  << "compression_ratio,"
+  << ((std::size(text) *  log_alphabet_size) / text.bit_size());
   return;
 }
 
-template <typename text_type>
-void print_0th_entropy
+template <typename Text>
+void Print0thEmpiricalEntropy
 (
-  std::ofstream &fout,
-  text_type &text
+  std::ofstream &statistics_file,
+  Text const &text
 )
 {
   std::map<uint64_t, uint64_t> alphabet_count;
   for (auto const &character : text)
   {
-    auto it {alphabet_count.find(character)};
-    if (it != alphabet_count.end())
+    auto iterator {alphabet_count.find(character)};
+    if (iterator != std::end(alphabet_count))
     {
-      ++(*it);
+      ++std::get<1>(*iterator);
     }
     else
     {
       alphabet_count[character] = 1;
     }
   }
-  double entropy {};
+  double zeroth_empirical_entropy {};
   auto log_text_size {std::log(std::size(text))};
   for (auto const &character_count : alphabet_count)
   {
     auto count {static_cast<double>(std::get<1>(character_count))};
-    entropy += (count * (log_text_size - std::log(count)));
+    zeroth_empirical_entropy += (count * (log_text_size - std::log(count)));
   }
-  entropy /= std::size(text);
-  fout << "0th_entropy(H_0)," << entropy << "\n";
-  fout << "compression_ratio(sigma/H_0)," << (entropy / std::size(alphabet_count)) << "\n";
-  std::cout << "0th_entropy(H_0)," << entropy << "\n";
-  std::cout << "compression_ratio(sigma/H_0)," << (entropy / std::size(alphabet_count)) << "\n";
+  zeroth_empirical_entropy /= std::size(text);
+  statistics_file << "0th_empirical_entropy," << zeroth_empirical_entropy << "\n";
+  statistics_file
+  << "compression_ratio,"
+  << ((std::size(text) * zeroth_empirical_entropy) / text.bit_size()) << "\n";
   return;
 }
 
-template <typename text_type>
-struct k_mer_trie
+template <typename Text>
+struct KmerTrie
 {
-  struct node
+  struct Node
   {
     uint64_t edge_begin_offset;
     uint64_t edge_end_offset;
-    std::map<uint64_t, std::shared_ptr<node>> branches;
+    std::map<uint64_t, std::shared_ptr<Node>> branches;
     uint64_t context_size;
     std::map<uint64_t, uint64_t> alphabet_count;
 
-    node () = default;
-    node
+    Node () = default;
+    Node
     (
-      uint64_t begin_offset,
-      uint64_t end_offset
+      uint64_t const begin_offset,
+      uint64_t const end_offset
     )
     : edge_begin_offset {begin_offset},
       edge_end_offset {end_offset},
@@ -270,120 +226,118 @@ struct k_mer_trie
     }
   };
 
-  std::shared_ptr<node> root;
-  std::unordered_set<uint64_t> alphabet;
-  double entropy;
+  std::shared_ptr<Node> root;
+  double kth_empirical_entropy;
 
-  k_mer_trie (text_type const &text, uint64_t k)
-  : root {std::make_shared<node>()},
-    alphabet {},
-    entropy {}
+  KmerTrie
+  (
+    Text const &text,
+    uint64_t const k
+  )
+  : root {std::make_shared<Node>()},
+    kth_empirical_entropy {}
   {
     auto text_begin {std::begin(text)};
-    auto text_first {text_begin};
-    auto text_last {std::prev(std::end(text), k)};
-    for (auto text_it {text_first}; text_it != text_last; ++text_it)
+    auto text_iterator {text_begin};
+    auto text_last_iterator {std::prev(std::end(text), k)};
+    while (text_iterator != text_last_iterator)
     {
-      auto k_mer_begin {text_it};
+      auto k_mer_begin {text_iterator};
       auto k_mer_end {std::next(k_mer_begin, k)};
-      insert(text_begin, k_mer_begin, k_mer_end);
-      alphabet.insert(*text_it);
+      Insert(text_begin, k_mer_begin, k_mer_end);
+      ++text_iterator;
     }
-    for (auto text_it {text_last}; text_it != std::end(text); ++text_it)
-    {
-      alphabet.insert(*text_it);
-    }
-    entropy = calculate_cumulative_0th_entropy(root) / std::size(text);
+    kth_empirical_entropy = CalculateCumulative0thEmpiricalEntropy(root) / std::size(text);
   }
 
-  template <typename text_iteraotr_type>
-  void insert
+  template <typename TextIterator>
+  void Insert
   (
-    text_iteraotr_type text_begin,
-    text_iteraotr_type k_mer_it,
-    text_iteraotr_type k_mer_end
+    TextIterator text_begin,
+    TextIterator k_mer_iterator,
+    TextIterator k_mer_end
   )
   {
     auto current_node {root};
-    while (k_mer_it != k_mer_end)
+    while (k_mer_iterator != k_mer_end)
     {
-      auto character {*k_mer_it};
-      auto branches_it {current_node->branches.find(character)};
-      if (branches_it == std::end(current_node->branches))
+      auto character {*k_mer_iterator};
+      auto branches_iterator {current_node->branches.find(character)};
+      if (branches_iterator == std::end(current_node->branches))
       {
-        current_node = current_node->branches[character] = std::make_shared<node>
+        current_node = current_node->branches[character] = std::make_shared<Node>
         (
-          std::distance(text_begin, k_mer_it),
+          std::distance(text_begin, k_mer_iterator),
           std::distance(text_begin, k_mer_end)
         );
-        k_mer_it = k_mer_end;
+        k_mer_iterator = k_mer_end;
       }
       else
       {
-        auto child {std::get<1>(*branches_it)};
-        auto edge_it {std::next(text_begin, child->edge_begin_offset)};
-        auto edge_end {std::next(text_begin, child->edge_end_offset)};
+        auto child_node {std::get<1>(*branches_iterator)};
+        auto edge_iterator {std::next(text_begin, child_node->edge_begin_offset)};
+        auto edge_end {std::next(text_begin, child_node->edge_end_offset)};
         while
         (
-          (edge_it != edge_end)
+          (k_mer_iterator != k_mer_end)
           &&
-          (k_mer_it != k_mer_end)
+          (edge_iterator != edge_end)
           &&
-          (*k_mer_it == *edge_it)
+          (*k_mer_iterator == *edge_iterator)
         )
         {
-          ++k_mer_it;
-          ++edge_it;
+          ++k_mer_iterator;
+          ++edge_iterator;
         }
         if
         (
-          (edge_it != edge_end)
+          (k_mer_iterator != k_mer_end)
           &&
-          (k_mer_it != k_mer_end)
+          (edge_iterator != edge_end)
         )
         {
-          auto edge_it_offset {std::distance(text_begin, edge_it)};
-          auto internal_node {std::make_shared<node>(child->edge_begin_offset, edge_it_offset)};
-          child->edge_begin_offset = edge_it_offset;
-          internal_node->branches[*edge_it] = child;
-          current_node = internal_node->branches[*k_mer_it] = std::make_shared<node>
+          auto edge_it_offset {std::distance(text_begin, edge_iterator)};
+          auto internal_node {std::make_shared<Node>(child_node->edge_begin_offset, edge_it_offset)};
+          child_node->edge_begin_offset = edge_it_offset;
+          internal_node->branches[*edge_iterator] = child_node;
+          current_node = internal_node->branches[*k_mer_iterator] = std::make_shared<Node>
           (
-            std::distance(text_begin, k_mer_it),
+            std::distance(text_begin, k_mer_iterator),
             std::distance(text_begin, k_mer_end)
           );
-          std::get<1>(*branches_it) = internal_node;
+          std::get<1>(*branches_iterator) = internal_node;
         }
         else
         {
-          current_node = child;
+          current_node = child_node;
         }
       }
     }
     ++(current_node->context_size);
     auto next_character {*k_mer_end};
-    auto alphabet_count_it {current_node->alphabet_count.find(next_character)};
-    if (alphabet_count_it == std::end(current_node->alphabet_count))
+    auto alphabet_count_iterator {current_node->alphabet_count.find(next_character)};
+    if (alphabet_count_iterator == std::end(current_node->alphabet_count))
     {
       current_node->alphabet_count[next_character] = 1;
     }
     else
     {
-      ++std::get<1>(*alphabet_count_it);
+      ++std::get<1>(*alphabet_count_iterator);
     }
     return;
   }
 
-  double calculate_cumulative_0th_entropy (std::shared_ptr<node> current_node)
+  double CalculateCumulative0thEmpiricalEntropy (std::shared_ptr<Node> current_node)
   {
-    double cumulative_0th_entropy {};
+    double cumulative_0th_empirical_entropy {};
     if (current_node->context_size == 0)
     {
-      auto branches_it {std::begin(current_node->branches)};
+      auto branches_iterator {std::begin(current_node->branches)};
       auto branches_end {std::end(current_node->branches)};
-      while (branches_it != branches_end)
+      while (branches_iterator != branches_end)
       {
-        cumulative_0th_entropy += calculate_cumulative_0th_entropy(std::get<1>(*branches_it));
-        ++branches_it;
+        cumulative_0th_empirical_entropy += CalculateCumulative0thEmpiricalEntropy(std::get<1>(*branches_iterator));
+        ++branches_iterator;
       }
     }
     else
@@ -392,79 +346,112 @@ struct k_mer_trie
       for (auto const &character_count : current_node->alphabet_count)
       {
         auto count {static_cast<double>(std::get<1>(character_count))};
-        cumulative_0th_entropy += count * (log_context_size - std::log(count));
+        cumulative_0th_empirical_entropy += count * (log_context_size - std::log(count));
       }
     }
-    return cumulative_0th_entropy;
+    return cumulative_0th_empirical_entropy;
   }
 };
 
-template <typename text_type>
-void print_kth_entropy
+template <typename Text>
+void PrintKthEmpiricalEntropy
 (
-  std::ofstream &fout,
-  text_type &text,
-  uint64_t k
+  std::ofstream &statistics_file,
+  Text const &text,
+  uint64_t const k
 )
 {
-  k_mer_trie trie(text, k);
-  fout << k << "th_entropy(H_" << k << ")," << trie.entropy << "\n";
-  fout << "compression_ratio," << (trie.entropy / std::size(trie.alphabet)) << "\n";
-  std::cout << k << "th_entropy(H_" << k << ")," << trie.entropy << "\n";
-  std::cout << "compression_ratio," << (trie.entropy / std::size(trie.alphabet)) << "\n";
+  KmerTrie k_mer_trie(text, k);
+  statistics_file << k << "th_empirical_entropy," << k_mer_trie.kth_empirical_entropy << "\n";
+  statistics_file
+  << "compression_ratio,"
+  << ((std::size(text) * k_mer_trie.kth_empirical_entropy) / text.bit_size()) << "\n";
   return;
 }
 
-template <typename text_type>
-void print_p7zip_size
+void PrintP7zipCompressedSize
 (
-  std::ofstream &fout,
-  text_type &text
+  std::filesystem::path const &text_path,
+  std::ofstream &statistics_file
 )
 {
+  auto command {std::string{"p7zip -k "} + text_path.string()};
+  if (std::system(command.c_str()) == 0)
+  {
+    auto p7zip_path {std::filesystem::path{text_path.string() + ".7z"}};
+    auto p7zip_file_size {static_cast<double>(std::filesystem::file_size(p7zip_path))};
+    auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
+    std::filesystem::remove(p7zip_path);
+    statistics_file << (p7zip_file_size / text_file_size) * 100.0 << "%\n";
+  }
   return;
 }
 
-template <typename text_type>
-void print_bzip2_size
+void PrintBzip2CompressedSize
 (
-  std::ofstream &fout,
-  text_type &text
+  std::filesystem::path const &text_path,
+  std::ofstream &statistics_file
 )
 {
+  auto command {std::string{"bzip2 -k -9 -v "} + text_path.string()};
+  if (std::system(command.c_str()) == 0)
+  {
+    auto bzip2_path {std::filesystem::path{text_path.string() + ".bz2"}};
+    auto bzip2_file_size {static_cast<double>(std::filesystem::file_size(bzip2_path))};
+    auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
+    std::filesystem::remove(bzip2_path);
+    statistics_file << (bzip2_file_size / text_file_size) * 100.0 << "%\n";
+  }
   return;
 }
 
-template <typename text_type>
-void print_repair_size
+void PrintRepairCompressedSize
 (
-  std::ofstream &fout,
-  text_type &text
+  std::filesystem::path const &text_path,
+  std::ofstream &statistics_file
 )
 {
+  auto command {std::string{"repair "} + text_path.string()};
+  if (std::system(command.c_str()) == 0)
+  {
+    auto repair_path {std::filesystem::path{text_path.string() + ".rp"}};
+    auto repair_file_size {static_cast<double>(std::filesystem::file_size(repair_path))};
+    auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
+    std::filesystem::remove(repair_path);
+    statistics_file << (repair_file_size / text_file_size) * 100.0 << "%\n";
+  }
   return;
 }
 
-void print_text_attributes (fs::path path)
+void PrintTextStatistics (std::filesystem::path const &text_path)
 {
-  std::ifstream input_file {path};
-  std::ofstream output_file {fs::path{"../output/attribute"} / (path.filename().string() + ".csv")};
+  std::ifstream text_file {text_path};
   sdsl::int_vector<> text;
-  text.load(input_file);
-  output_file << "text_size(n)," << std::size(text) << "\n";
-  std::cout << "text_size(n)," << std::size(text) << "\n";
-  print_number_runs(output_file, text);
-  print_alphabet_size(output_file, text);
-  print_0th_entropy(output_file, text);
+  text.load(text_file);
+  auto parent_statistics_path
+  {
+    std::filesystem::path{"../data/statistics"}
+    / text_path.parent_path().filename()
+  };
+  if (!std::filesystem::exists(parent_statistics_path))
+  {
+    std::filesystem::create_directories(parent_statistics_path);
+  }
+  return;
+  auto statistics_path {parent_statistics_path / (text_path.filename().string() + ".csv")};
+  std::ofstream statistics_file {statistics_path};
+  statistics_file << "text_size" << std::size(text) << "\n";
+  statistics_file << "text_bit_size" << text.bit_size() << "\n";
+  PrintRunAmount(statistics_file, text);
+  PrintAlphabetSize(statistics_file, text);
+  Print0thEmpiricalEntropy(statistics_file, text);
   for (uint64_t power {0}; power != 4; ++power)
   {
-    print_kth_entropy(output_file, text, (1 << power));
+    PrintKthEmpiricalEntropy(statistics_file, text, (1 << power));
   }
-  print_p7zip_size(output_file, text);
-  print_bzip2_size(output_file, text);
-  print_repair_size(output_file, text);
+  PrintP7zipCompressedSize(text_path, statistics_file);
+  PrintBzip2CompressedSize(text_path, statistics_file);
+  PrintRepairCompressedSize(text_path, statistics_file);
   return;
 }
 }
-
-#endif
