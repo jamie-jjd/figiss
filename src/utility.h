@@ -88,8 +88,35 @@ void GeneratePattern
 
 void ByteToCompactText (std::filesystem::path const text_path)
 {
-  sdsl::int_vector<8> text;
+  sdsl::int_vector<> text;
   sdsl::load_vector_from_file(text, text_path.string());
+  sdsl::int_vector<> codebook(256, 0);
+  {
+    auto text_iterator {std::begin(text)};
+    auto text_end {std::end(text)};
+    while (text_iterator != text_end)
+    {
+      codebook[*text_iterator] = 1;
+      ++text_iterator;
+    }
+  }
+  std::partial_sum
+  (
+    std::begin(codebook),
+    std::end(codebook),
+    std::begin(codebook)
+  );
+  {
+    auto text_iterator {std::begin(text)};
+    auto text_end {std::end(text)};
+    while (text_iterator != text_end)
+    {
+      *text_iterator = codebook[*text_iterator];
+      ++text_iterator;
+    }
+  }
+  sdsl::append_zero_symbol(text);
+  sdsl::util::bit_compress(text);
   std::filesystem::path parent_compact_text_path
   {
     std::filesystem::path("../data/compact")
@@ -105,18 +132,6 @@ void ByteToCompactText (std::filesystem::path const text_path)
     / (text_path.filename().string() + ".sdsl")
   };
   std::ofstream compact_text_file {compact_text_path};
-  sdsl::int_vector<8> codebook(256, 0);
-  for (auto const &character : text)
-  {
-    codebook[character] = 1;
-  }
-  std::partial_sum(std::begin(codebook), std::end(codebook), std::begin(codebook));
-  for (auto &character : text)
-  {
-    character = codebook[character];
-  }
-  sdsl::append_zero_symbol(text);
-  sdsl::util::bit_compress(text);
   text.serialize(compact_text_file);
   return;
 }
@@ -139,9 +154,6 @@ void PrintRunAmount
     }
   }
   statistics_file << "run_amount," << run_amount << "\n";
-  statistics_file
-  << "compression_ratio,"
-  << (static_cast<double>(run_amount) / std::size(text));
   return;
 }
 
@@ -158,10 +170,6 @@ void PrintAlphabetSize
     alphabet.insert(character);
   }
   statistics_file << "alphabet_size," << std::size(alphabet) << "\n";
-  auto log_alphabet_size {std::log(static_cast<double>(std::size(alphabet)))};
-  statistics_file
-  << "compression_ratio,"
-  << ((std::size(text) *  log_alphabet_size) / text.bit_size());
   return;
 }
 
@@ -186,17 +194,19 @@ void Print0thEmpiricalEntropy
     }
   }
   double zeroth_empirical_entropy {};
-  auto log_text_size {std::log(std::size(text))};
+  auto log_text_size {std::log2(std::size(text))};
   for (auto const &character_count : alphabet_count)
   {
     auto count {static_cast<double>(std::get<1>(character_count))};
-    zeroth_empirical_entropy += (count * (log_text_size - std::log(count)));
+    zeroth_empirical_entropy += (count * (log_text_size - std::log2(count)));
   }
   zeroth_empirical_entropy /= std::size(text);
-  statistics_file << "0th_empirical_entropy," << zeroth_empirical_entropy << "\n";
   statistics_file
-  << "compression_ratio,"
-  << ((std::size(text) * zeroth_empirical_entropy) / text.bit_size()) << "\n";
+  << "0th_empirical_entropy,"
+  << zeroth_empirical_entropy
+  << ",compression_ratio,"
+  << ((std::size(text) * zeroth_empirical_entropy) / text.bit_size()) * 100.0
+  << "%\n";
   return;
 }
 
@@ -342,11 +352,11 @@ struct KmerTrie
     }
     else
     {
-      auto log_context_size {std::log(static_cast<double>(current_node->context_size))};
+      auto log_context_size {std::log2(static_cast<double>(current_node->context_size))};
       for (auto const &character_count : current_node->alphabet_count)
       {
         auto count {static_cast<double>(std::get<1>(character_count))};
-        cumulative_0th_empirical_entropy += count * (log_context_size - std::log(count));
+        cumulative_0th_empirical_entropy += count * (log_context_size - std::log2(count));
       }
     }
     return cumulative_0th_empirical_entropy;
@@ -362,10 +372,12 @@ void PrintKthEmpiricalEntropy
 )
 {
   KmerTrie k_mer_trie(text, k);
-  statistics_file << k << "th_empirical_entropy," << k_mer_trie.kth_empirical_entropy << "\n";
   statistics_file
-  << "compression_ratio,"
-  << ((std::size(text) * k_mer_trie.kth_empirical_entropy) / text.bit_size()) << "\n";
+  << k << "th_empirical_entropy,"
+  << k_mer_trie.kth_empirical_entropy
+  << ",compression_ratio,"
+  << ((std::size(text) * k_mer_trie.kth_empirical_entropy) / text.bit_size()) * 100.0
+  << "%\n";
   return;
 }
 
@@ -382,7 +394,7 @@ void PrintP7zipCompressedSize
     auto p7zip_file_size {static_cast<double>(std::filesystem::file_size(p7zip_path))};
     auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
     std::filesystem::remove(p7zip_path);
-    statistics_file << (p7zip_file_size / text_file_size) * 100.0 << "%\n";
+    statistics_file << "p7zip," << (p7zip_file_size / text_file_size) * 100.0 << "%\n";
   }
   return;
 }
@@ -400,7 +412,7 @@ void PrintBzip2CompressedSize
     auto bzip2_file_size {static_cast<double>(std::filesystem::file_size(bzip2_path))};
     auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
     std::filesystem::remove(bzip2_path);
-    statistics_file << (bzip2_file_size / text_file_size) * 100.0 << "%\n";
+    statistics_file << "bzip2," << (bzip2_file_size / text_file_size) * 100.0 << "%\n";
   }
   return;
 }
@@ -418,7 +430,7 @@ void PrintRepairCompressedSize
     auto repair_file_size {static_cast<double>(std::filesystem::file_size(repair_path))};
     auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
     std::filesystem::remove(repair_path);
-    statistics_file << (repair_file_size / text_file_size) * 100.0 << "%\n";
+    statistics_file << "repair," << (repair_file_size / text_file_size) * 100.0 << "%\n";
   }
   return;
 }
@@ -437,17 +449,16 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
   {
     std::filesystem::create_directories(parent_statistics_path);
   }
-  return;
   auto statistics_path {parent_statistics_path / (text_path.filename().string() + ".csv")};
   std::ofstream statistics_file {statistics_path};
-  statistics_file << "text_size" << std::size(text) << "\n";
-  statistics_file << "text_bit_size" << text.bit_size() << "\n";
-  PrintRunAmount(statistics_file, text);
+  statistics_file << "text_size," << std::size(text) << "\n";
+  statistics_file << "text_bit_width," << static_cast<uint64_t>(text.width()) << "\n";
   PrintAlphabetSize(statistics_file, text);
+  PrintRunAmount(statistics_file, text);
   Print0thEmpiricalEntropy(statistics_file, text);
   for (uint64_t power {0}; power != 4; ++power)
   {
-    PrintKthEmpiricalEntropy(statistics_file, text, (1 << power));
+    PrintKthEmpiricalEntropy(statistics_file, text, (1ULL << power));
   }
   PrintP7zipCompressedSize(text_path, statistics_file);
   PrintBzip2CompressedSize(text_path, statistics_file);
