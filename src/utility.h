@@ -17,17 +17,22 @@
 
 namespace project
 {
-void GeneratePattern
+auto GeneratePattern
 (
   std::filesystem::path const text_path,
   uint64_t const pattern_amount,
   uint64_t const pattern_size
 )
+-> std::filesystem::path
 {
   std::ifstream text_file {text_path};
   sdsl::int_vector<> text;
   text.load(text_file);
-  auto parent_pattern_path {std::filesystem::path{"../data/pattern"} / text_path.parent_path().filename()};
+  auto parent_pattern_path
+  {
+    std::filesystem::path{"../data/pattern"}
+    / text_path.parent_path().filename()
+  };
   if (!std::filesystem::exists(parent_pattern_path))
   {
     std::filesystem::create_directories(parent_pattern_path);
@@ -49,21 +54,24 @@ void GeneratePattern
     std::mt19937 engine {std::random_device{}()};
     std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
     auto random_begin_offset {std::bind(distribution, engine)};
-    sdsl::int_vector<> pattern(pattern_size, 0, text.width());
-    pattern_file << pattern_amount << "\n";
+    sdsl::int_vector<> pattern_amount_size(2, 0, 64);
+    pattern_amount_size[0] = pattern_amount;
+    pattern_amount_size[1] = pattern_size;
+    pattern_amount_size.serialize(pattern_file);
+    sdsl::int_vector<> patterns(pattern_amount * pattern_size, 0, text.width());
+    auto patterns_iterator {std::begin(patterns)};
     for (uint64_t i {0}; i != pattern_amount; ++i)
     {
       auto text_iterator {std::next(std::begin(text), random_begin_offset())};
-      auto pattern_iterator {std::begin(pattern)};
-      auto pattern_end {std::end(pattern)};
-      while (pattern_iterator != pattern_end)
+      for (uint64_t j {0}; j != pattern_size; ++j)
       {
-        *pattern_iterator = *text_iterator;
+        *patterns_iterator = *text_iterator;
+        ++patterns_iterator;
         ++text_iterator;
-        ++pattern_iterator;
       }
-      pattern.serialize(pattern_file);
     }
+    patterns.serialize(pattern_file);
+    return pattern_path;
   }
   else
   {
@@ -82,14 +90,15 @@ void GeneratePattern
     << "generated pattern is the text\n";
     pattern_file << "1\n";
     text.serialize(pattern_file);
+    return pattern_path;
   }
-  return;
+  return std::filesystem::path{};
 }
 
 void ByteToCompactText (std::filesystem::path const text_path)
 {
   sdsl::int_vector<> text;
-  sdsl::load_vector_from_file(text, text_path.string());
+  sdsl::load_vector_from_file(text, text_path);
   sdsl::int_vector<> codebook(256, 0);
   {
     auto text_iterator {std::begin(text)};
@@ -115,7 +124,6 @@ void ByteToCompactText (std::filesystem::path const text_path)
       ++text_iterator;
     }
   }
-  sdsl::append_zero_symbol(text);
   sdsl::util::bit_compress(text);
   std::filesystem::path parent_compact_text_path
   {
