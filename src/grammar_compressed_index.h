@@ -228,13 +228,15 @@ auto MoveVaildEntriesToFront
 )
 -> decltype(last_iterator)
 {
-  auto iterator {first};
-  auto new_last_iterator {first};
+  auto iterator {first_iterator};
+  auto new_last_iterator {first_iterator};
   while (iterator != last_iterator)
   {
     if (*iterator != invalid_value)
     {
-      std::swap(*iterator, *new_last_iterator);
+      uint64_t temporary_value {*iterator};
+      *iterator = *new_last_iterator;
+      *new_last_iterator = temporary_value;
       ++new_last_iterator;
     }
     ++iterator;
@@ -278,26 +280,26 @@ void CalculateGrammarRuleBeginOffsetsAndTemporaryGrammarCompressedText
     {
       do
       {
-        ++previous_grammar_rule_it;
-        ++grammar_rule_it;
-        ++previous_sl_types_it;
-        ++sl_types_it;
+        ++previous_grammar_rule_iterator;
+        ++grammar_rule_iterator;
+        ++previous_sl_types_iterator;
+        ++sl_types_iterator;
       }
       while
       (
-        !IsLeftmostSType(previous_sl_types_it)
+        !IsLeftmostSType(previous_sl_types_iterator)
         &&
-        !IsLeftmostSType(sl_types_it)
+        !IsLeftmostSType(sl_types_iterator)
         &&
-        (*previous_grammar_rule_iterator == *grammar_rule_it)
+        (*previous_grammar_rule_iterator == *grammar_rule_iterator)
         &&
-        (*previous_sl_types_iterator == *sl_types_it)
+        (*previous_sl_types_iterator == *sl_types_iterator)
       );
       if
       (
-        IsLeftmostSType(previous_sl_types_it)
+        IsLeftmostSType(previous_sl_types_iterator)
         &&
-        IsLeftmostSType(sl_types_it)
+        IsLeftmostSType(sl_types_iterator)
       )
       {
         --lex_rank;
@@ -307,7 +309,7 @@ void CalculateGrammarRuleBeginOffsetsAndTemporaryGrammarCompressedText
     *std::next(temporary_grammar_compressed_text_begin, (begin_offset + 1) / 2) = ++lex_rank;
     previous_grammar_rule_iterator = std::next(std::begin(text), begin_offset);
     previous_sl_types_iterator = std::next(std::begin(sl_types), begin_offset);
-    ++begin_offsets_it;
+    ++begin_offsets_iterator;
   }
   begin_offsets_end = MoveVaildEntriesToFront
   (
@@ -332,26 +334,26 @@ template
 >
 void CalculateGrammarRuleSizes
 (
-  GrammarRuleSizes &grammar_rule_sizes,
+  GrammarRuleSizes &sizes,
   SlTypes const &sl_types,
   GrammarRuleBeginOffsetsIterator begin_offsets_begin,
   GrammarRuleBeginOffsetsIterator begin_offsets_end
 )
 {
-  grammar_rule_sizes.resize(std::distance(begin_offsets_begin, begin_offsets_end));
-  auto grammar_rule_sizes_iterator {std::begin(grammar_rule_sizes)};
+  sizes.resize(std::distance(begin_offsets_begin, begin_offsets_end));
+  auto sizes_iterator {std::begin(sizes)};
   auto begin_offsets_iterator {begin_offsets_begin};
   while (begin_offsets_iterator != begin_offsets_end)
   {
     auto sl_types_first_iterator {std::next(std::begin(sl_types), *begin_offsets_iterator)};
     auto sl_types_last_iterator {std::next(sl_types_first_iterator)};
-    while (!IsLeftmostSType(sl_types_last))
+    while (!IsLeftmostSType(sl_types_last_iterator))
     {
-      ++sl_types_last;
+      ++sl_types_last_iterator;
     }
-    *grammar_rule_sizes_iterator = std::distance(sl_types_first, sl_types_last);
-    ++grammar_rule_sizes_it;
-    ++begin_offsets_it;
+    *sizes_iterator = std::distance(sl_types_first_iterator, sl_types_last_iterator);
+    ++sizes_iterator;
+    ++begin_offsets_iterator;
   }
   return;
 }
@@ -413,16 +415,16 @@ void CalculateGrammarRules
   auto sizes_end {std::end(sizes)};
   while (sizes_iterator != sizes_end)
   {
-    auto rule_iterator {std::next(std::begin(text), *begin_offsets_it)};
-    auto rule_end {std::next(std::begin(text), *begin_offsets_iterator + *sizes_it)};
+    auto rule_iterator {std::next(std::begin(text), *begin_offsets_iterator)};
+    auto rule_end {std::next(std::begin(text), *begin_offsets_iterator + *sizes_iterator)};
     while (rule_iterator != rule_end)
     {
-      *rules_iterator = *rule_it;
-      ++rules_it;
-      ++rule_it;
+      *rules_iterator = *rule_iterator;
+      ++rules_iterator;
+      ++rule_iterator;
     }
-    ++begin_offsets_it;
-    ++sizes_it;
+    ++begin_offsets_iterator;
+    ++sizes_iterator;
   }
   return;
 }
@@ -443,7 +445,7 @@ void PrintGrammarTrie
     {
       auto edge_iterator {std::next(rules_begin, current_node->edge_begin_offset)};
       auto edge_end {std::next(rules_begin, current_node->edge_end_offset)};
-      while (iterator != end)
+      while (edge_iterator != edge_end)
       {
         std::cout << *edge_iterator;
         edge_iterator += edge_offset;
@@ -454,7 +456,7 @@ void PrintGrammarTrie
     auto branches_end {std::end(current_node->branches)};
     while (branches_iterator != branches_end)
     {
-      PrintGrammarTrie(rules_begin, std::get<1>(*branches_iterator), offset, depth + 1);
+      PrintGrammarTrie(rules_begin, std::get<1>(*branches_iterator), edge_offset, depth + 1);
       ++branches_iterator;
     }
   }
@@ -466,7 +468,7 @@ void InsertGrammarRule
 (
   TrieNode *current_node,
   GrammarRulesIterator rules_begin,
-  GrammarRulesIterator rule_it,
+  GrammarRulesIterator rule_iterator,
   GrammarRulesIterator rule_end,
   int64_t const offset,
   uint64_t const lex_rank
@@ -474,13 +476,13 @@ void InsertGrammarRule
 {
   while (rule_iterator != rule_end)
   {
-    auto character {*rule_it};
+    auto character {*rule_iterator};
     auto branches_iterator {current_node->branches.find(character)};
     if (branches_iterator == std::end(current_node->branches))
     {
       current_node->branches[character] = new TrieNode
       {
-        std::distance(rules_begin, rule_it),
+        std::distance(rules_begin, rule_iterator),
         std::distance(rules_begin, rule_end),
         lex_rank
       };
@@ -523,9 +525,9 @@ void InsertGrammarRule
         internal_node->branches[*edge_iterator] = child_node;
         if (rule_iterator != rule_end)
         {
-          internal_node->branches[*rule_it] = new TrieNode
+          internal_node->branches[*rule_iterator] = new TrieNode
           {
-            std::distance(rules_begin, rule_it),
+            std::distance(rules_begin, rule_iterator),
             std::distance(rules_begin, rule_end),
             lex_rank
           };
@@ -551,8 +553,8 @@ template
 >
 void InsertGrammarRules
 (
-  GrammarRuleSizes const &rule_sizes,
-  GrammarRules const &rules,
+  GrammarRuleSizes const &grammar_rule_sizes,
+  GrammarRules const &grammar_rules,
   TrieNodePointer &lex_grammar_trie_root,
   TrieNodePointer &colex_grammar_trie_root,
   uint64_t const rank_offset
@@ -561,18 +563,18 @@ void InsertGrammarRules
   lex_grammar_trie_root = new TrieNode {};
   colex_grammar_trie_root = new TrieNode {};
   uint64_t rank {1};
-  auto rule_sizes_iterator {std::begin(rule_sizes)};
-  auto rules_iterator {std::begin(rules)};
-  while (rules_iterator != std::end(rules))
+  auto grammar_rule_sizes_iterator {std::begin(grammar_rule_sizes)};
+  auto grammar_rules_iterator {std::begin(grammar_rules)};
+  while (grammar_rules_iterator != std::end(grammar_rules))
   {
-    auto rule_begin {rules_iterator};
-    auto rule_end {std::next(rule_begin, *rule_sizes_iterator)};
+    auto grammar_rule_begin {grammar_rules_iterator};
+    auto grammar_rule_end {std::next(grammar_rule_begin, *grammar_rule_sizes_iterator)};
     InsertGrammarRule
     (
       lex_grammar_trie_root,
       std::begin(grammar_rules),
-      rule_begin,
-      rule_end,
+      grammar_rule_begin,
+      grammar_rule_end,
       1,
       rank
     );
@@ -580,14 +582,14 @@ void InsertGrammarRules
     (
       colex_grammar_trie_root,
       std::begin(grammar_rules),
-      std::prev(rule_end),
-      std::prev(rule_begin),
+      std::prev(grammar_rule_end),
+      std::prev(grammar_rule_begin),
       -1,
       rank
     );
     rank += rank_offset;
-    ++sizes_it;
-    rules_iterator = rule_end;
+    ++grammar_rule_sizes_iterator;
+    grammar_rules_iterator = grammar_rule_end;
   }
   return;
 }
@@ -696,9 +698,13 @@ void CalculateColexGrammarCompressedBurrowWheelerTransform
   {
     if (*buffer_iterator != 0)
     {
-      *buffer_iterator = lex_to_colex_order_mapping[grammar_compressed_text[(*buffer_it - 1]];
+      *buffer_iterator =
+      lex_to_colex_order_mapping
+      [
+        grammar_compressed_text[(*buffer_iterator - 1)]
+      ];
     }
-    ++buffer_it;
+    ++buffer_iterator;
   }
   sdsl::construct_im(colex_grammar_compressed_bwt, buffer);
   return;
@@ -743,7 +749,7 @@ struct Index
   TrieNode *colex_grammar_trie_root;
   sdsl::int_vector<> colex_to_lex_order_mapping;
   sdsl::int_vector<> lex_grammar_compressed_character_bucket_end_offsets;
-  sdsl::wm_int<> colex_grmmar_compressed_bwt;
+  sdsl::wm_int<> colex_grammar_compressed_bwt;
 
   ~Index ()
   {
@@ -752,7 +758,7 @@ struct Index
   }
 };
 
-void print_Index (Index &index)
+void PrintIndex (Index &index)
 {
   std::cout << index.grammar_rule_sizes << "\n";
   std::cout << index.grammar_rules << "\n";
@@ -767,12 +773,13 @@ void print_Index (Index &index)
 void Construct
 (
   Index &index,
-  fs::path const &text_path
+  std::filesystem::path const &text_path
 )
 {
   sdsl::int_vector<> text;
   {
-    sdsl::load_vector_from_file(text, text_path.string());
+    std::ifstream text_file {text_path};
+    text.load(text_file);
     sdsl::append_zero_symbol(text);
   }
   sdsl::bit_vector sl_types;
@@ -780,9 +787,9 @@ void Construct
     CalculateSlTypes(text, sl_types);
   }
   auto invalid_text_offset {std::size(text)};
+  auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
   sdsl::int_vector<> text_offsets;
   {
-    auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
     text_offsets.width(text_size_width);
     text_offsets.resize(std::size(text));
     sdsl::util::set_to_value(text_offsets, invalid_text_offset);
@@ -883,7 +890,7 @@ void Construct
     temporary_grammar_compressed_text_end,
     std::begin(grammar_compressed_text)
   );
-  sdsl::clear(text_offsets);
+  sdsl::util::clear(text_offsets);
   grammar_compressed_text[std::size(grammar_compressed_text) - 1] = 0;
   index.lex_grammar_compressed_character_bucket_end_offsets.width(sdsl::bits::hi(grammar_compressed_text_size) + 1);
   index.lex_grammar_compressed_character_bucket_end_offsets.resize(grammar_compressed_alphabet_size);
@@ -904,7 +911,7 @@ void Construct
 void Serialize
 (
   Index &index,
-  fs::path index_path
+  std::filesystem::path index_path
 )
 {
   std::ofstream index_file {index_path};
@@ -919,7 +926,7 @@ void Serialize
 void Load
 (
   Index &index,
-  fs::path index_path
+  std::filesystem::path index_path
 )
 {
   std::ifstream index_file {index_path};
@@ -1158,8 +1165,8 @@ void BackwardSearchExactSlFactor
         (
           pattern_range_begin_offset_L,
           colex_rank
-        );
-      )
+        )
+      );
       pattern_range_end_offset_L =
       (
         character_begin_offset
@@ -1237,7 +1244,7 @@ auto CalculateReversePatternLastIteratorOfPatternSuffixS
     (*std::prev(iterator) < *iterator)
   )
   {
-    return reverse_pattern_begin;
+    return reverse_begin;
   }
   return std::prev(iterator);
 }
@@ -1364,17 +1371,17 @@ auto BackwardSearchPatternSuffix
         pattern_range_begin_offset_S = pattern_range_end_offset_S;
       }
       // {
-        // auto iterator {std::next(reverse_pattern_last_iterator)};
-        // auto end {std::next(reverse_pattern_first_iterator)};
-        // while (iterator != end)
-        // {
-        //   std::cout << *iterator;
-        //   ++iterator;
-        // }
-        // std::cout
-        // << "->(" << leftmost_colex_rank << ":" << index.colex_to_lex_order_mapping[leftmost_colex_rank]
-        // << "," << rightmost_colex_rank << ")"
-        // << "->S:(" << pattern_range_begin_offset_S << "," << pattern_range_end_offset_S << ")\n";
+      //   auto iterator {std::next(reverse_pattern_last_iterator)};
+      //   auto end {std::next(reverse_pattern_first_iterator)};
+      //   while (iterator != end)
+      //   {
+      //     std::cout << *iterator;
+      //     ++iterator;
+      //   }
+      //   std::cout
+      //   << "->(" << leftmost_colex_rank << ":" << index.colex_to_lex_order_mapping[leftmost_colex_rank]
+      //   << "," << rightmost_colex_rank << ")"
+      //   << "->S:(" << pattern_range_begin_offset_S << "," << pattern_range_end_offset_S << ")\n";
       // }
     }
   }
@@ -1404,7 +1411,7 @@ auto BackwardSearchPatternSuffix
   }
   // {
   //   auto iterator {std::next(reverse_pattern_last_iterator)};
-  //   auto end {std::next(reverse_pattern_begin)}
+  //   auto end {std::next(reverse_pattern_begin)};
   //   while (iterator != end)
   //   {
   //     std::cout << *iterator;
@@ -1432,11 +1439,13 @@ uint64_t Count
   auto reverse_pattern_end {std::prev(pattern_begin)};
   auto reverse_pattern_first_iterator {reverse_pattern_begin};
   auto reverse_pattern_last_iterator {reverse_pattern_begin};
-  // for (auto iterator {pattern_begin}; iterator != pattern_end; ++iterator)
   // {
-  //   std::cout << *iterator;
+  //   for (auto iterator {pattern_begin}; iterator != pattern_end; ++iterator)
+  //   {
+  //     std::cout << *iterator;
+  //   }
+  //   std::cout << "\n";
   // }
-  // std::cout << "\n";
   reverse_pattern_last_iterator = BackwardSearchPatternSuffix
   (
     index,
@@ -1511,4 +1520,5 @@ uint64_t CalculateMaxSlFactorSize (Text const &text)
     }
   }
   return max_size;
+}
 }
