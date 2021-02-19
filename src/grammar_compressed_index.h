@@ -2,7 +2,6 @@
 
 #include <map>
 
-#include <sdsl/suffix_trees.hpp>
 #include "utility.h"
 
 namespace project
@@ -743,7 +742,7 @@ void CalculateTrieRankRanges
 struct Index
 {
   sdsl::int_vector<> grammar_rule_sizes;
-  sdsl::int_vector<> grammar_rules;
+  sdsl::int_vector<8> grammar_rules;
   TrieNode *lex_grammar_trie_root;
   TrieNode *colex_grammar_trie_root;
   sdsl::int_vector<> colex_to_lex_order_mapping;
@@ -925,7 +924,7 @@ void Serialize
 void Load
 (
   Index &index,
-  std::filesystem::path index_path
+  std::filesystem::path const &index_path
 )
 {
   sdsl::util::clear(index.grammar_rule_sizes);
@@ -933,11 +932,12 @@ void Load
   sdsl::util::clear(index.colex_to_lex_order_mapping);
   sdsl::util::clear(index.lex_grammar_compressed_character_bucket_end_offsets);
   sdsl::util::clear(index.colex_grammar_compressed_bwt);
-  load_from_file(index.grammar_rule_sizes, index_path);
-  load_from_file(index.grammar_rules, index_path);
-  load_from_file(index.colex_to_lex_order_mapping, index_path);
-  load_from_file(index.lex_grammar_compressed_character_bucket_end_offsets, index_path);
-  load_from_file(index.colex_grammar_compressed_bwt, index_path);
+  std::ifstream index_file {index_path};
+  index.grammar_rule_sizes.load(index_file);
+  index.grammar_rules.load(index_file);
+  index.colex_to_lex_order_mapping.load(index_file);
+  index.lex_grammar_compressed_character_bucket_end_offsets.load(index_file);
+  index.colex_grammar_compressed_bwt.load(index_file);
   InsertGrammarRules
   (
     index.grammar_rule_sizes,
