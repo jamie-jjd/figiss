@@ -226,7 +226,6 @@ auto MoveVaildEntriesToFront
   RandomAccessIterator last_iterator,
   uint64_t const invalid_value
 )
--> decltype(last_iterator)
 {
   auto iterator {first_iterator};
   auto new_last_iterator {first_iterator};
@@ -776,10 +775,10 @@ void Construct
   std::filesystem::path const &text_path
 )
 {
-  sdsl::int_vector<> text;
+  sdsl::int_vector<8> text;
   {
     std::ifstream text_file {text_path};
-    text.load(text_file);
+    sdsl::load_vector_from_file(text, text_path);
     sdsl::append_zero_symbol(text);
   }
   sdsl::bit_vector sl_types;
@@ -915,11 +914,11 @@ void Serialize
 )
 {
   std::ofstream index_file {index_path};
-  index.grammar_rule_sizes.serialize(index_file);
-  index.grammar_rules.serialize(index_file);
-  index.colex_to_lex_order_mapping.serialize(index_file);
-  index.lex_grammar_compressed_character_bucket_end_offsets.serialize(index_file);
-  index.colex_grammar_compressed_bwt.serialize(index_file);
+  sdsl::serialize(index.grammar_rule_sizes, index_file);
+  sdsl::serialize(index.grammar_rules, index_file);
+  sdsl::serialize(index.colex_to_lex_order_mapping, index_file);
+  sdsl::serialize(index.lex_grammar_compressed_character_bucket_end_offsets, index_file);
+  sdsl::serialize(index.colex_grammar_compressed_bwt, index_file);
   return;
 }
 
@@ -929,17 +928,16 @@ void Load
   std::filesystem::path index_path
 )
 {
-  std::ifstream index_file {index_path};
   sdsl::util::clear(index.grammar_rule_sizes);
   sdsl::util::clear(index.grammar_rules);
   sdsl::util::clear(index.colex_to_lex_order_mapping);
   sdsl::util::clear(index.lex_grammar_compressed_character_bucket_end_offsets);
   sdsl::util::clear(index.colex_grammar_compressed_bwt);
-  index.grammar_rule_sizes.load(index_file);
-  index.grammar_rules.load(index_file);
-  index.colex_to_lex_order_mapping.load(index_file);
-  index.lex_grammar_compressed_character_bucket_end_offsets.load(index_file);
-  index.colex_grammar_compressed_bwt.load(index_file);
+  load_from_file(index.grammar_rule_sizes, index_path);
+  load_from_file(index.grammar_rules, index_path);
+  load_from_file(index.colex_to_lex_order_mapping, index_path);
+  load_from_file(index.lex_grammar_compressed_character_bucket_end_offsets, index_path);
+  load_from_file(index.colex_grammar_compressed_bwt, index_path);
   InsertGrammarRules
   (
     index.grammar_rule_sizes,
