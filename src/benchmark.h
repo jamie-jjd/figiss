@@ -5,11 +5,7 @@
 
 namespace project
 {
-template
-<
-  typename Index,
-  typename Fmindex
->
+template <typename Fmindex>
 void LoadIndexAndFmindex
 (
   Index &index,
@@ -32,17 +28,20 @@ void LoadIndexAndFmindex
     Construct(index, text_path);
     Serialize(index, index_path);
   }
-  Load(index, index_path);
+  else
+  {
+    Load(index, index_path);
+  }
   auto fm_index_path {parent_index_path / (text_path.filename().string() + ".fmindex")};
   if (!std::filesystem::exists(fm_index_path))
   {
-    sdsl::int_vector<> text;
-    std::ifstream text_file {text_path};
-    text.load(text_file);
+    sdsl::int_vector<8> text;
+    sdsl::load_vector_from_file(text, text_path);
     sdsl::construct_im(fm_index, text);
     std::ofstream fm_index_file {fm_index_path};
     sdsl::serialize(fm_index, fm_index_file);
   }
+  else
   {
     std::ifstream fm_index_file {fm_index_path};
     sdsl::load(fm_index, fm_index_file);
@@ -50,48 +49,57 @@ void LoadIndexAndFmindex
   return;
 }
 
+template
+<
+  typename PatternAmount,
+  typename PatternSize,
+  typename Patterns
+>
 void BenchmarkIndexCount
 (
-  Index &index,
-  std::filesystem::path const &pattern_path
+  Index const &index,
+  PatternAmount const pattern_amount,
+  PatternSize const pattern_size,
+  Patterns &patterns
 )
 {
-  std::ifstream pattern_file {pattern_path};
-  sdsl::int_vector<> pattern;
-  uint64_t pattern_amount {0};
-  pattern_file >> pattern_amount;
+  auto pattern_begin {std::begin(patterns)};
+  auto pattern_end {pattern_begin};
   for (uint64_t i {0}; i != pattern_amount; ++i)
   {
-    pattern.load(pattern_file);
-    Count(index, std::begin(pattern), std::end(pattern));
-  }
-  return;
-}
-
-template <typename Fmindex>
-void BenchmarkFmindexCount
-(
-  Fmindex &fm_index,
-  std::filesystem::path const &pattern_path
-)
-{
-  std::ifstream pattern_file {pattern_path};
-  sdsl::int_vector<> pattern;
-  uint64_t pattern_amount {0};
-  pattern_file >> pattern_amount;
-  for (uint64_t i {0}; i != pattern_amount; ++i)
-  {
-    pattern.load(pattern_file);
-    sdsl::count(fm_index, std::begin(pattern), std::end(pattern));
+    pattern_begin = pattern_end;
+    pattern_end = std::next(pattern_begin, pattern_size);
+    Count(index, pattern_begin, pattern_end);
   }
   return;
 }
 
 template
 <
-  typename Index,
-  typename Fmindex
+  typename Fmindex,
+  typename PatternAmount,
+  typename PatternSize,
+  typename Patterns
 >
+void BenchmarkFmindexCount
+(
+  Fmindex const &fm_index,
+  PatternAmount const pattern_amount,
+  PatternSize const pattern_size,
+  Patterns &patterns
+)
+{
+  auto pattern_begin {std::begin(patterns)};
+  auto pattern_end {pattern_begin};
+  for (uint64_t i {0}; i != pattern_amount; ++i)
+  {
+    pattern_begin = pattern_end;
+    pattern_end = std::next(pattern_begin, pattern_size);
+    sdsl::count(fm_index, pattern_begin, pattern_end);
+  }
+  return;
+}
+
 void BenchmarkCount
 (
   std::filesystem::path const &text_path,
@@ -109,42 +117,30 @@ void BenchmarkCount
       + " (characters) for this text"
     );
   }
-  auto pattern_path {GeneratePattern(pattern_path, pattern_amount, pattern_size)};
   Index index;
-  Fmindex fm_index;
+  sdsl::csa_wt<> fm_index;
   LoadIndexAndFmindex(index, fm_index, text_path);
-  BenchmarkIndexCount(index, pattern_path);
-  BenchmarkFmindexCount(fm_index, pattern_path);
-  sdsl::remove(pattern_path);
+  sdsl::int_vector<8> patterns;
+  GeneratePatterns(text_path, pattern_amount, pattern_size, patterns);
+  BenchmarkIndexCount(index, pattern_amount, pattern_size, patterns);
+  BenchmarkFmindexCount(fm_index, pattern_amount, pattern_size, patterns);
   return;
 }
 
-template
-<
-  typename Index,
-  typename Fmindex
->
 void TestCount (std::filesystem::path const &text_path)
 {
   Index index;
-  Fmindex fm_index;
+  sdsl::csa_wt<> fm_index;
   LoadIndexAndFmindex(index, fm_index, text_path);
-  sdsl::int_vector<> text;
-  std::ifstream text_file {text_path};
-  text.load(text_file);
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, text_path);
   auto max_sl_factor_size {CalculateMaxSlFactorSize(text)};
   for (uint64_t multiple {2}; multiple != 11; ++multiple)
   {
     uint64_t pattern_amount {1000 / multiple};
     auto pattern_size {static_cast<uint64_t>(max_sl_factor_size * multiple * 0.5)};
-    auto pattern_path {GeneratePattern(text_path, pattern_amount, pattern_size)};
-    std::ifstream pattern_file {pattern_path};
-    sdsl::int_vector<> pattern_amount_size;
-    pattern_amount_size.load(pattern_file);
-    pattern_amount = pattern_amount_size[0];
-    pattern_size = pattern_amount_size[1];
-    sdsl::int_vector<> patterns;
-    patterns.load(pattern_file);
+    sdsl::int_vector<8> patterns;
+    GeneratePatterns(text_path, pattern_amount, pattern_size, patterns);
     auto pattern_begin {std::begin(patterns)};
     auto pattern_end {pattern_begin};
     for (uint64_t i {0}; i != pattern_amount; ++i)
@@ -163,7 +159,6 @@ void TestCount (std::filesystem::path const &text_path)
       }
     }
     std::cout << "succeed at pattern size: " << std::to_string(pattern_size) << "\n";
-    std::filesystem::remove(pattern_path);
   }
   for (uint64_t divisor {5}; divisor != 1; --divisor)
   {
@@ -171,14 +166,8 @@ void TestCount (std::filesystem::path const &text_path)
     if (pattern_size >= max_sl_factor_size)
     {
       uint64_t pattern_amount {1};
-      auto pattern_path {GeneratePattern(text_path, pattern_amount, pattern_size)};
-      std::ifstream pattern_file {pattern_path};
-      sdsl::int_vector<> pattern_amount_size;
-      pattern_amount_size.load(pattern_file);
-      pattern_amount = pattern_amount_size[0];
-      pattern_size = pattern_amount_size[1];
-      sdsl::int_vector<> patterns;
-      patterns.load(pattern_file);
+      sdsl::int_vector<8> patterns;
+      GeneratePatterns(text_path, pattern_amount, pattern_size, patterns);
       auto pattern_begin {std::begin(patterns)};
       auto pattern_end {pattern_begin};
       for (uint64_t i {0}; i != pattern_amount; ++i)
@@ -197,7 +186,6 @@ void TestCount (std::filesystem::path const &text_path)
         }
       }
       std::cout << "succeed at pattern size: " + std::to_string(pattern_size) << "\n";
-      std::filesystem::remove(pattern_path);
     }
   }
   auto fm_index_count {sdsl::count(fm_index, std::begin(text), std::end(text))};
