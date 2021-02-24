@@ -12,53 +12,27 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <sdsl/construct.hpp>
-#include <sdsl/int_vector.hpp>
+#include <sdsl/suffix_trees.hpp>
 
 namespace project
 {
-auto GeneratePattern
+template <typename Patterns>
+void GeneratePatterns
 (
-  std::filesystem::path const text_path,
+  std::filesystem::path const &text_path,
   uint64_t const pattern_amount,
-  uint64_t const pattern_size
+  uint64_t const pattern_size,
+  Patterns &patterns
 )
--> std::filesystem::path
 {
-  std::ifstream text_file {text_path};
-  sdsl::int_vector<> text;
-  text.load(text_file);
-  auto parent_pattern_path
-  {
-    std::filesystem::path{"../data/pattern"}
-    / text_path.parent_path().filename()
-  };
-  if (!std::filesystem::exists(parent_pattern_path))
-  {
-    std::filesystem::create_directories(parent_pattern_path);
-  }
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, text_path);
   if (pattern_size < std::size(text))
   {
-    auto pattern_path
-    {
-      parent_pattern_path
-      /
-      std::filesystem::path
-      {
-        text_path.filename().string()
-        + "." + std::to_string(pattern_amount)
-        + "." + std::to_string(pattern_size)
-      }
-    };
-    std::ofstream pattern_file {pattern_path};
     std::mt19937 engine {std::random_device{}()};
     std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
     auto random_begin_offset {std::bind(distribution, engine)};
-    sdsl::int_vector<> pattern_amount_size(2, 0, 64);
-    pattern_amount_size[0] = pattern_amount;
-    pattern_amount_size[1] = pattern_size;
-    pattern_amount_size.serialize(pattern_file);
-    sdsl::int_vector<> patterns(pattern_amount * pattern_size, 0, text.width());
+    patterns.resize(pattern_amount * pattern_size);
     auto patterns_iterator {std::begin(patterns)};
     for (uint64_t i {0}; i != pattern_amount; ++i)
     {
@@ -70,36 +44,98 @@ auto GeneratePattern
         ++text_iterator;
       }
     }
-    patterns.serialize(pattern_file);
-    return pattern_path;
   }
-  else
-  {
-    auto pattern_path
-    {
-      std::filesystem::path
-      {
-        text_path.filename().string()
-        + ".1"
-        + "." + std::to_string(std::size(text))
-      }
-    };
-    std::ofstream pattern_file {pattern_path};
-    std::cout
-    << "pattern size >= text size\n"
-    << "generated pattern is the text\n";
-    pattern_file << "1\n";
-    text.serialize(pattern_file);
-    return pattern_path;
-  }
-  return std::filesystem::path{};
+  return;
 }
 
-void ByteToCompactText (std::filesystem::path const text_path)
+auto GenerateAndSerializePatterns
+(
+  std::filesystem::path const &text_path,
+  uint64_t const pattern_amount,
+  uint64_t const pattern_size
+)
+{
+  sdsl::int_vector<8> patterns;
+  GeneratePatterns(text_path, pattern_amount, pattern_size, patterns);
+  auto parent_patterns_path
+  {
+    std::filesystem::path{"../data/patterns"}
+    / text_path.parent_path().filename()
+  };
+  if (!std::filesystem::exists(parent_patterns_path))
+  {
+    std::filesystem::create_directories(parent_patterns_path);
+  }
+  auto patterns_path
+  {
+    parent_patterns_path
+    /
+    std::filesystem::path
+    {
+      text_path.filename().string()
+      + "." + std::to_string(pattern_amount)
+      + "." + std::to_string(pattern_size)
+    }
+  };
+  if (std::size(patterns) == (pattern_amount * pattern_size))
+  {
+    std::ofstream patterns_file {patterns_path};
+    sdsl::int_vector<> pattern_amount_size(2, 0, 64);
+    pattern_amount_size[0] = pattern_amount;
+    pattern_amount_size[1] = pattern_size;
+    sdsl::serialize(pattern_amount_size, patterns_file);
+    sdsl::serialize(patterns, patterns_file);
+  }
+  return patterns_path;
+}
+
+template <typename Patterns>
+void LoadPatterns
+(
+  std::filesystem::path const &patterns_path,
+  uint64_t &pattern_amount,
+  uint64_t &pattern_size,
+  Patterns &patterns
+)
+{
+  std::ifstream patterns_file {patterns_file};
+  sdsl::int_vector<> pattern_amount_size;
+  pattern_amount_size.load(patterns_file);
+  pattern_amount = pattern_amount_size[0];
+  pattern_size = pattern_amount_size[1];
+  patterns.load(patterns_file);
+  return;
+}
+
+auto SerializeByteTextAsIntVector (std::filesystem::path const &byte_text_path)
+{
+  auto parent_sdsl_path
+  {
+    std::filesystem::path("../data/sdsl")
+    / byte_text_path.parent_path().filename()
+  };
+  if (!std::filesystem::exists(parent_sdsl_path))
+  {
+    std::filesystem::create_directories(parent_sdsl_path);
+  }
+  auto sdsl_path {parent_sdsl_path / (byte_text_path.filename().string() + ".sdsl")};
+  sdsl::int_vector<8> byte_text;
+  sdsl::load_vector_from_file(byte_text, byte_text_path);
+  sdsl::int_vector<> text;
+  text.width(8);
+  text.resize(std::size(byte_text));
+  std::copy(std::begin(byte_text), std::end(byte_text), std::begin(text));
+  std::ofstream sdsl_file {sdsl_path};
+  sdsl::serialize(text, sdsl_file);
+  return sdsl_path;
+}
+
+void GenerateAndSerializeCompactText (std::filesystem::path const &text_path)
 {
   sdsl::int_vector<> text;
-  sdsl::load_vector_from_file(text, text_path);
-  sdsl::int_vector<> codebook(256, 0);
+  sdsl::load_from_file(text, text_path);
+  uint64_t codebook_size {*std::max_element(std::begin(text), std::end(text)) + 1};
+  sdsl::int_vector<> codebook(codebook_size, 0);
   {
     auto text_iterator {std::begin(text)};
     auto text_end {std::end(text)};
@@ -140,35 +176,69 @@ void ByteToCompactText (std::filesystem::path const text_path)
     / (text_path.filename().string() + ".sdsl")
   };
   std::ofstream compact_text_file {compact_text_path};
-  text.serialize(compact_text_file);
+  sdsl::serialize(text, compact_text_file);
   return;
 }
 
-template <typename Text>
-void PrintRunAmount
+template
+<
+  typename StatisticsFile,
+  typename Text
+>
+void PrintBwtRuns
 (
-  std::ofstream &statistics_file,
+  StatisticsFile &statistics_file,
   Text const &text
 )
 {
+  sdsl::int_vector<> buffer;
+  sdsl::qsufsort::construct_sa(buffer, text);
+  auto buffer_iterator {std::begin(buffer)};
+  auto buffer_end {std::end(buffer)};
+  while (buffer_iterator != buffer_end)
+  {
+    if (*buffer_iterator != 0)
+    {
+      *buffer_iterator = text[*buffer_iterator - 1];
+    }
+    ++buffer_iterator;
+  }
   uint64_t previous_character {0};
-  uint64_t run_amount {0};
-  for (auto const &character : text)
+  uint64_t bwt_runs {0};
+  uint64_t max_run_size {0};
+  uint64_t run_size {0};
+  for (auto const &character : buffer)
   {
     if (character != previous_character)
     {
-      ++run_amount;
+      ++bwt_runs;
+      if (run_size > max_run_size)
+      {
+        max_run_size = run_size;
+      }
+      run_size = 1;
       previous_character = character;
     }
+    else
+    {
+      ++run_size;
+    }
   }
-  statistics_file << "run_amount," << run_amount << "\n";
+  statistics_file
+  << "bwt_runs," << bwt_runs
+  << ",max_run_size," << max_run_size
+  << "\n";
   return;
 }
 
-template <typename Text>
+template
+<
+  typename StatisticsFile,
+  typename Text
+>
 void PrintAlphabetSize
 (
-  std::ofstream &statistics_file,
+  StatisticsFile &statistics_file,
   Text const &text
 )
 {
@@ -177,14 +247,24 @@ void PrintAlphabetSize
   {
     alphabet.insert(character);
   }
-  statistics_file << "alphabet_size," << std::size(alphabet) << "\n";
+  auto log_alphabet_size {std::log2(static_cast<double>(std::size(alphabet)))};
+  statistics_file
+  << "alphabet_size,"
+  << std::size(alphabet)
+  << ",compression_ratio,"
+  << (log_alphabet_size / text.width()) * 100.0
+  << "%\n";
   return;
 }
 
-template <typename Text>
+template
+<
+  typename StatisticsFile,
+  typename Text
+>
 void Print0thEmpiricalEntropy
 (
-  std::ofstream &statistics_file,
+  StatisticsFile &statistics_file,
   Text const &text
 )
 {
@@ -213,7 +293,7 @@ void Print0thEmpiricalEntropy
   << "0th_empirical_entropy,"
   << zeroth_empirical_entropy
   << ",compression_ratio,"
-  << ((std::size(text) * zeroth_empirical_entropy) / text.bit_size()) * 100.0
+  << (zeroth_empirical_entropy / text.width()) * 100.0
   << "%\n";
   return;
 }
@@ -371,10 +451,14 @@ struct KmerTrie
   }
 };
 
-template <typename Text>
+template
+<
+  typename StatisticsFile,
+  typename Text
+>
 void PrintKthEmpiricalEntropy
 (
-  std::ofstream &statistics_file,
+  StatisticsFile &statistics_file,
   Text const &text,
   uint64_t const k
 )
@@ -384,15 +468,16 @@ void PrintKthEmpiricalEntropy
   << k << "th_empirical_entropy,"
   << k_mer_trie.kth_empirical_entropy
   << ",compression_ratio,"
-  << ((std::size(text) * k_mer_trie.kth_empirical_entropy) / text.bit_size()) * 100.0
+  << (k_mer_trie.kth_empirical_entropy / text.width()) * 100.0
   << "%\n";
   return;
 }
 
+template <typename StatisticsFile>
 void PrintP7zipCompressedSize
 (
   std::filesystem::path const &text_path,
-  std::ofstream &statistics_file
+  StatisticsFile &statistics_file
 )
 {
   auto command {std::string{"p7zip -k "} + text_path.string()};
@@ -407,10 +492,11 @@ void PrintP7zipCompressedSize
   return;
 }
 
+template <typename StatisticsFile>
 void PrintBzip2CompressedSize
 (
   std::filesystem::path const &text_path,
-  std::ofstream &statistics_file
+  StatisticsFile &statistics_file
 )
 {
   auto command {std::string{"bzip2 -k -9 -v "} + text_path.string()};
@@ -425,10 +511,11 @@ void PrintBzip2CompressedSize
   return;
 }
 
+template <typename StatisticsFile>
 void PrintRepairCompressedSize
 (
   std::filesystem::path const &text_path,
-  std::ofstream &statistics_file
+  StatisticsFile &statistics_file
 )
 {
   auto command {std::string{"repair "} + text_path.string()};
@@ -445,9 +532,9 @@ void PrintRepairCompressedSize
 
 void PrintTextStatistics (std::filesystem::path const &text_path)
 {
-  std::ifstream text_file {text_path};
   sdsl::int_vector<> text;
-  text.load(text_file);
+  sdsl::load_from_file(text, text_path);
+  sdsl::append_zero_symbol(text);
   auto parent_statistics_path
   {
     std::filesystem::path{"../data/statistics"}
@@ -460,9 +547,9 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
   auto statistics_path {parent_statistics_path / (text_path.filename().string() + ".csv")};
   std::ofstream statistics_file {statistics_path};
   statistics_file << "text_size," << std::size(text) << "\n";
-  statistics_file << "text_bit_width," << static_cast<uint64_t>(text.width()) << "\n";
+  statistics_file << "text_width," << static_cast<uint64_t>(text.width()) << "\n";
+  PrintBwtRuns(statistics_file, text);
   PrintAlphabetSize(statistics_file, text);
-  PrintRunAmount(statistics_file, text);
   Print0thEmpiricalEntropy(statistics_file, text);
   for (uint64_t power {0}; power != 4; ++power)
   {
