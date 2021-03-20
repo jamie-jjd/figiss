@@ -170,6 +170,29 @@ template
   typename StatisticsFile,
   typename Text
 >
+void PrintTextSize
+(
+  StatisticsFile &statistics_file,
+  Text const &text
+)
+{
+  statistics_file
+  << std::fixed
+  << std::setprecision(2)
+  << "size,"
+  << std::size(text)
+  << ",bit_width,"
+  << static_cast<uint64_t>(text.width())
+  << ",bit_size,"
+  << (static_cast<uint64_t>(text.bit_size()) / (1024.0 * 1024.0 * 8.0)) << "(MB)\n";
+  return;
+}
+
+template
+<
+  typename StatisticsFile,
+  typename Text
+>
 void PrintAlphabetSize
 (
   StatisticsFile &statistics_file,
@@ -181,14 +204,14 @@ void PrintAlphabetSize
   {
     alphabet.insert(character);
   }
-  auto log_alphabet_size {std::log2(static_cast<double>(std::size(alphabet)))};
+  auto bit_width {static_cast<double>(sdsl::bits::hi(alphabet.size()) + 1)};
   statistics_file
+  << std::fixed
+  << std::setprecision(2)
   << "alphabet_size,"
   << std::size(alphabet)
   << ",compression_ratio,"
-  << std::fixed
-  << std::setprecision(2)
-  << (log_alphabet_size / text.width()) * 100.0
+  << (bit_width / text.width()) * 100.0
   << "%\n";
   return;
 }
@@ -226,11 +249,11 @@ void Print0thEmpiricalEntropy
   }
   zeroth_empirical_entropy /= std::size(text);
   statistics_file
-  << "0th_empirical_entropy,"
-  << zeroth_empirical_entropy
-  << ",compression_ratio,"
   << std::fixed
   << std::setprecision(2)
+  << "nH_0,"
+  << (zeroth_empirical_entropy * std::size(text) / (1024.0 * 1024.0)) << "(MB),"
+  << "compression_ratio,"
   << (zeroth_empirical_entropy / text.width()) * 100.0
   << "%\n";
   return;
@@ -403,11 +426,11 @@ void PrintKthEmpiricalEntropy
 {
   KmerTrie k_mer_trie(text, k);
   statistics_file
-  << k << "th_empirical_entropy,"
-  << k_mer_trie.kth_empirical_entropy
-  << ",compression_ratio,"
   << std::fixed
   << std::setprecision(2)
+  << "nH_" << k << ","
+  << (k_mer_trie.kth_empirical_entropy * std::size(text) / (1024.0 * 1024.0)) << "(MB),"
+  << "compression_ratio,"
   << (k_mer_trie.kth_empirical_entropy / text.width()) * 100.0
   << "%\n";
   return;
@@ -426,12 +449,13 @@ void PrintBzip2CompressedSize
     auto bzip2_path {std::filesystem::path{text_path.string() + ".bz2"}};
     auto bzip2_file_size {static_cast<double>(std::filesystem::file_size(bzip2_path))};
     auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
-    std::filesystem::remove(bzip2_path);
     statistics_file
-    << "bzip2,"
     << std::fixed
     << std::setprecision(2)
+    << "bzip2,"
+    << (bzip2_file_size / (1024.0 * 1024.0)) << "(MB),"
     << (bzip2_file_size / text_file_size) * 100.0 << "%\n";
+    std::filesystem::remove(bzip2_path);
   }
   return;
 }
@@ -449,12 +473,13 @@ void PrintP7zipCompressedSize
     auto p7zip_path {std::filesystem::path{text_path.string() + ".7z"}};
     auto p7zip_file_size {static_cast<double>(std::filesystem::file_size(p7zip_path))};
     auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
-    std::filesystem::remove(p7zip_path);
     statistics_file
-    << "p7zip,"
     << std::fixed
     << std::setprecision(2)
+    << "p7zip,"
+    << (p7zip_file_size / (1024.0 * 1024.0)) << "(MB),"
     << (p7zip_file_size / text_file_size) * 100.0 << "%\n";
+    std::filesystem::remove(p7zip_path);
   }
   return;
 }
@@ -472,12 +497,13 @@ void PrintRepairCompressedSize
     auto repair_path {std::filesystem::path{text_path.string() + ".rp"}};
     auto repair_file_size {static_cast<double>(std::filesystem::file_size(repair_path))};
     auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
-    std::filesystem::remove(repair_path);
     statistics_file
-    << "repair,"
     << std::fixed
     << std::setprecision(2)
+    << "repair,"
+    << (repair_file_size / (1024.0 * 1024.0)) << "(MB),"
     << (repair_file_size / text_file_size) * 100.0 << "%\n";
+    std::filesystem::remove(repair_path);
   }
   return;
 }
@@ -493,11 +519,10 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
   auto parent_statistics_path {CreateParentDirectoryByCategory("statistics", text_path)};
   auto statistics_path {CreatePath(parent_statistics_path, text_path.filename().string(), ".csv")};
   std::ofstream statistics_file {statistics_path};
-  statistics_file << "text_size," << std::size(text) << "\n";
-  statistics_file << "text_width," << static_cast<uint64_t>(text.width()) << "\n";
+  PrintTextSize(statistics_file, text);
   PrintAlphabetSize(statistics_file, text);
   Print0thEmpiricalEntropy(statistics_file, text);
-  for (uint64_t power {0}; power != 6; ++power)
+  for (uint64_t power {0}; power != 5; ++power)
   {
     PrintKthEmpiricalEntropy(statistics_file, text, (1ULL << power));
   }
