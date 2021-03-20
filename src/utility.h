@@ -17,6 +17,35 @@
 
 namespace project
 {
+std::filesystem::path CreateParentDirectoryByCategory
+(
+  std::string const &category,
+  std::filesystem::path const &path
+)
+{
+  std::filesystem::path parent_category_path
+  {
+    std::string{"../data/"}
+    + category + "/"
+    + path.parent_path().filename().string()
+  };
+  if (!std::filesystem::exists(parent_category_path))
+  {
+    std::filesystem::create_directories(parent_category_path);
+  }
+  return parent_category_path;
+}
+
+std::filesystem::path CreatePath
+(
+  std::filesystem::path const &parent_path,
+  std::string const &filename,
+  std::string const &extensions = ""
+)
+{
+  return (parent_path / (filename + extensions));
+}
+
 template <typename Patterns>
 void GeneratePatterns
 (
@@ -483,28 +512,21 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
   {
     sdsl::append_zero_symbol(text);
   }
-  auto parent_statistics_path
-  {
-    std::filesystem::path{"../data/statistics"}
-    / text_path.parent_path().filename()
-  };
-  if (!std::filesystem::exists(parent_statistics_path))
-  {
-    std::filesystem::create_directories(parent_statistics_path);
-  }
-  auto statistics_path {parent_statistics_path / (text_path.filename().string() + ".csv")};
+  std::cout << text << "\n";
+  auto parent_statistics_path {CreateParentDirectoryByCategory("statistics", text_path)};
+  auto statistics_path {CreatePath(parent_statistics_path, text_path.filename().string(), ".csv")};
   std::ofstream statistics_file {statistics_path};
   statistics_file << "text_size," << std::size(text) << "\n";
   statistics_file << "text_width," << static_cast<uint64_t>(text.width()) << "\n";
   PrintAlphabetSize(statistics_file, text);
-  Print0thEmpiricalEntropy(statistics_file, text);
-  for (uint64_t power {0}; power != 6; ++power)
-  {
-    PrintKthEmpiricalEntropy(statistics_file, text, (1ULL << power));
-  }
-  PrintBzip2CompressedSize(text_path, statistics_file);
-  PrintP7zipCompressedSize(text_path, statistics_file);
-  PrintRepairCompressedSize(text_path, statistics_file);
+  // Print0thEmpiricalEntropy(statistics_file, text);
+  // for (uint64_t power {0}; power != 6; ++power)
+  // {
+  //   PrintKthEmpiricalEntropy(statistics_file, text, (1ULL << power));
+  // }
+  // PrintBzip2CompressedSize(text_path, statistics_file);
+  // PrintP7zipCompressedSize(text_path, statistics_file);
+  // PrintRepairCompressedSize(text_path, statistics_file);
   return;
 }
 }
