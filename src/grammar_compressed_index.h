@@ -678,17 +678,17 @@ template
   typename GrammarCompressedText,
   typename LexToColexOrderMapping,
   typename ColexGrammarCompressedBwt
+  // , typename Path
 >
-void CalculateColexGrammarCompressedBurrowWheelerTransform
+void CalculateColexGrammarCompressedBwt
 (
   GrammarCompressedText const &grammar_compressed_text,
   LexToColexOrderMapping const &lex_to_colex_order_mapping,
   ColexGrammarCompressedBwt &colex_grammar_compressed_bwt
+  // , Path const &bwt_path
 )
 {
   sdsl::int_vector<> buffer;
-  buffer.width(sdsl::bits::hi(std::size(grammar_compressed_text)) + 1);
-  buffer.resize(std::size(grammar_compressed_text));
   sdsl::qsufsort::construct_sa(buffer, grammar_compressed_text);
   auto buffer_iterator {std::begin(buffer)};
   auto buffer_end {std::end(buffer)};
@@ -705,6 +705,14 @@ void CalculateColexGrammarCompressedBurrowWheelerTransform
     ++buffer_iterator;
   }
   sdsl::construct_im(colex_grammar_compressed_bwt, buffer);
+  // sdsl::util::bit_compress(buffer);
+  // {
+  //   std::ofstream bwt_file {bwt_path};
+  //   buffer.serialize(bwt_file);
+  // }
+  // {
+  //   PrintTextStatistics(bwt_path);
+  // }
   return;
 }
 
@@ -873,11 +881,11 @@ void Construct
   );
   auto grammar_compressed_text_size
   {
-    1 + std::distance
+    std::distance
     (
       temporary_grammar_compressed_text_begin,
       temporary_grammar_compressed_text_end
-    )
+    ) + 1
   };
   sdsl::int_vector<> grammar_compressed_text;
   grammar_compressed_text.width(grammar_compressed_character_width);
@@ -888,8 +896,8 @@ void Construct
     temporary_grammar_compressed_text_end,
     std::begin(grammar_compressed_text)
   );
-  sdsl::util::clear(text_offsets);
   grammar_compressed_text[std::size(grammar_compressed_text) - 1] = 0;
+  sdsl::util::clear(text_offsets);
   index.lex_grammar_compressed_character_bucket_end_offsets.width(sdsl::bits::hi(grammar_compressed_text_size) + 1);
   index.lex_grammar_compressed_character_bucket_end_offsets.resize(grammar_compressed_alphabet_size);
   CalculateCharacterBucketEndOffsets
@@ -897,11 +905,14 @@ void Construct
     grammar_compressed_text,
     index.lex_grammar_compressed_character_bucket_end_offsets
   );
-  CalculateColexGrammarCompressedBurrowWheelerTransform
+  // auto parent_bwt_path {CreateParentDirectoryByCategory("bwt", text_path)};
+  // auto bwt_path {CreatePath(parent_bwt_path, text_path.filename(), ".sdsl")};
+  CalculateColexGrammarCompressedBwt
   (
     grammar_compressed_text,
     lex_to_colex_order_mapping,
     index.colex_grammar_compressed_bwt
+    // , bwt_path
   );
   return;
 }
