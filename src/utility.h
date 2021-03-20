@@ -159,7 +159,11 @@ void GenerateAndSerializeCompactText (std::filesystem::path const &text_path)
   }
   sdsl::util::bit_compress(text);
   auto parent_compact_text_path {CreateParentDirectoryByCategory("compact_text", text_path)};
+<<<<<<< HEAD
   auto compact_text_path {CreatePath(parent_compact_text_path, text_path.filename().string(), ".sdsl")};
+=======
+  auto compact_text_path {CreatePath(parent_compact_text_path, text_path.filename().string(), ".sdsl");
+>>>>>>> 157c5a9e5fa0f8a74fd7e073303448ca8afbeec1
   std::ofstream compact_text_file {compact_text_path};
   sdsl::serialize(text, compact_text_file);
   return;
