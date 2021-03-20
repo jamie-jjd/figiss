@@ -87,25 +87,15 @@ auto GenerateAndSerializePatterns
 {
   sdsl::int_vector<8> patterns;
   GeneratePatterns(text_path, pattern_amount, pattern_size, patterns);
-  auto parent_patterns_path
-  {
-    std::filesystem::path{"../data/patterns"}
-    / text_path.parent_path().filename()
-  };
-  if (!std::filesystem::exists(parent_patterns_path))
-  {
-    std::filesystem::create_directories(parent_patterns_path);
-  }
+  auto parent_patterns_path {CreateParentDirectoryByCategory("patterns", text_path)};
   auto patterns_path
   {
-    parent_patterns_path
-    /
-    std::filesystem::path
-    {
-      text_path.filename().string()
-      + "." + std::to_string(pattern_amount)
-      + "." + std::to_string(pattern_size)
-    }
+    CreatePath
+    (
+      parent_patterns_path,
+      text_path.filename().string(),
+      std::string{"."} + std::to_string(pattern_amount) + "." + std::to_string(pattern_size)
+    )
   };
   if (std::size(patterns) == (pattern_amount * pattern_size))
   {
@@ -168,20 +158,8 @@ void GenerateAndSerializeCompactText (std::filesystem::path const &text_path)
     }
   }
   sdsl::util::bit_compress(text);
-  std::filesystem::path parent_compact_text_path
-  {
-    std::filesystem::path("../data/compact_text")
-    / text_path.parent_path().filename()
-  };
-  if (!std::filesystem::exists(parent_compact_text_path))
-  {
-    std::filesystem::create_directories(parent_compact_text_path);
-  }
-  std::filesystem::path compact_text_path
-  {
-    parent_compact_text_path
-    / (text_path.filename().string() + ".sdsl")
-  };
+  auto parent_compact_text_path {CreateParentDirectoryByCategory("compact_text", text_path)};
+  auto compact_text_path {CreatePath(parent_compact_text_path, text_path.filename().string(), ".sdsl");
   std::ofstream compact_text_file {compact_text_path};
   sdsl::serialize(text, compact_text_file);
   return;
