@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <map>
 #include <memory>
 #include <random>
@@ -107,29 +108,6 @@ void LoadPatterns
   return;
 }
 
-auto SerializeByteTextAsIntVector (std::filesystem::path const &byte_text_path)
-{
-  auto parent_sdsl_path
-  {
-    std::filesystem::path("../data/sdsl")
-    / byte_text_path.parent_path().filename()
-  };
-  if (!std::filesystem::exists(parent_sdsl_path))
-  {
-    std::filesystem::create_directories(parent_sdsl_path);
-  }
-  auto sdsl_path {parent_sdsl_path / (byte_text_path.filename().string() + ".sdsl")};
-  sdsl::int_vector<8> byte_text;
-  sdsl::load_vector_from_file(byte_text, byte_text_path);
-  sdsl::int_vector<> text;
-  text.width(8);
-  text.resize(std::size(byte_text));
-  std::copy(std::begin(byte_text), std::end(byte_text), std::begin(text));
-  std::ofstream sdsl_file {sdsl_path};
-  sdsl::serialize(text, sdsl_file);
-  return sdsl_path;
-}
-
 void GenerateAndSerializeCompactText (std::filesystem::path const &text_path)
 {
   sdsl::int_vector<> text;
@@ -163,7 +141,7 @@ void GenerateAndSerializeCompactText (std::filesystem::path const &text_path)
   sdsl::util::bit_compress(text);
   std::filesystem::path parent_compact_text_path
   {
-    std::filesystem::path("../data/compact")
+    std::filesystem::path("../data/compact_text")
     / text_path.parent_path().filename()
   };
   if (!std::filesystem::exists(parent_compact_text_path))
@@ -177,57 +155,6 @@ void GenerateAndSerializeCompactText (std::filesystem::path const &text_path)
   };
   std::ofstream compact_text_file {compact_text_path};
   sdsl::serialize(text, compact_text_file);
-  return;
-}
-
-template
-<
-  typename StatisticsFile,
-  typename Text
->
-void PrintBwtRuns
-(
-  StatisticsFile &statistics_file,
-  Text const &text
-)
-{
-  sdsl::int_vector<> buffer;
-  sdsl::qsufsort::construct_sa(buffer, text);
-  auto buffer_iterator {std::begin(buffer)};
-  auto buffer_end {std::end(buffer)};
-  while (buffer_iterator != buffer_end)
-  {
-    if (*buffer_iterator != 0)
-    {
-      *buffer_iterator = text[*buffer_iterator - 1];
-    }
-    ++buffer_iterator;
-  }
-  uint64_t previous_character {0};
-  uint64_t bwt_runs {0};
-  uint64_t max_run_size {0};
-  uint64_t run_size {0};
-  for (auto const &character : buffer)
-  {
-    if (character != previous_character)
-    {
-      ++bwt_runs;
-      if (run_size > max_run_size)
-      {
-        max_run_size = run_size;
-      }
-      run_size = 1;
-      previous_character = character;
-    }
-    else
-    {
-      ++run_size;
-    }
-  }
-  statistics_file
-  << "bwt_runs," << bwt_runs
-  << ",max_run_size," << max_run_size
-  << "\n";
   return;
 }
 
@@ -252,6 +179,8 @@ void PrintAlphabetSize
   << "alphabet_size,"
   << std::size(alphabet)
   << ",compression_ratio,"
+  << std::fixed
+  << std::setprecision(2)
   << (log_alphabet_size / text.width()) * 100.0
   << "%\n";
   return;
@@ -293,6 +222,8 @@ void Print0thEmpiricalEntropy
   << "0th_empirical_entropy,"
   << zeroth_empirical_entropy
   << ",compression_ratio,"
+  << std::fixed
+  << std::setprecision(2)
   << (zeroth_empirical_entropy / text.width()) * 100.0
   << "%\n";
   return;
@@ -468,27 +399,10 @@ void PrintKthEmpiricalEntropy
   << k << "th_empirical_entropy,"
   << k_mer_trie.kth_empirical_entropy
   << ",compression_ratio,"
+  << std::fixed
+  << std::setprecision(2)
   << (k_mer_trie.kth_empirical_entropy / text.width()) * 100.0
   << "%\n";
-  return;
-}
-
-template <typename StatisticsFile>
-void PrintP7zipCompressedSize
-(
-  std::filesystem::path const &text_path,
-  StatisticsFile &statistics_file
-)
-{
-  auto command {std::string{"p7zip -k "} + text_path.string()};
-  if (std::system(command.c_str()) == 0)
-  {
-    auto p7zip_path {std::filesystem::path{text_path.string() + ".7z"}};
-    auto p7zip_file_size {static_cast<double>(std::filesystem::file_size(p7zip_path))};
-    auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
-    std::filesystem::remove(p7zip_path);
-    statistics_file << "p7zip," << (p7zip_file_size / text_file_size) * 100.0 << "%\n";
-  }
   return;
 }
 
@@ -506,7 +420,34 @@ void PrintBzip2CompressedSize
     auto bzip2_file_size {static_cast<double>(std::filesystem::file_size(bzip2_path))};
     auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
     std::filesystem::remove(bzip2_path);
-    statistics_file << "bzip2," << (bzip2_file_size / text_file_size) * 100.0 << "%\n";
+    statistics_file
+    << "bzip2,"
+    << std::fixed
+    << std::setprecision(2)
+    << (bzip2_file_size / text_file_size) * 100.0 << "%\n";
+  }
+  return;
+}
+
+template <typename StatisticsFile>
+void PrintP7zipCompressedSize
+(
+  std::filesystem::path const &text_path,
+  StatisticsFile &statistics_file
+)
+{
+  auto command {std::string{"p7zip -k "} + text_path.string()};
+  if (std::system(command.c_str()) == 0)
+  {
+    auto p7zip_path {std::filesystem::path{text_path.string() + ".7z"}};
+    auto p7zip_file_size {static_cast<double>(std::filesystem::file_size(p7zip_path))};
+    auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
+    std::filesystem::remove(p7zip_path);
+    statistics_file
+    << "p7zip,"
+    << std::fixed
+    << std::setprecision(2)
+    << (p7zip_file_size / text_file_size) * 100.0 << "%\n";
   }
   return;
 }
@@ -525,7 +466,11 @@ void PrintRepairCompressedSize
     auto repair_file_size {static_cast<double>(std::filesystem::file_size(repair_path))};
     auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
     std::filesystem::remove(repair_path);
-    statistics_file << "repair," << (repair_file_size / text_file_size) * 100.0 << "%\n";
+    statistics_file
+    << "repair,"
+    << std::fixed
+    << std::setprecision(2)
+    << (repair_file_size / text_file_size) * 100.0 << "%\n";
   }
   return;
 }
@@ -534,7 +479,10 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
 {
   sdsl::int_vector<> text;
   sdsl::load_from_file(text, text_path);
-  sdsl::append_zero_symbol(text);
+  if (*std::prev(std::end(text)) != 0)
+  {
+    sdsl::append_zero_symbol(text);
+  }
   auto parent_statistics_path
   {
     std::filesystem::path{"../data/statistics"}
@@ -548,15 +496,14 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
   std::ofstream statistics_file {statistics_path};
   statistics_file << "text_size," << std::size(text) << "\n";
   statistics_file << "text_width," << static_cast<uint64_t>(text.width()) << "\n";
-  PrintBwtRuns(statistics_file, text);
   PrintAlphabetSize(statistics_file, text);
   Print0thEmpiricalEntropy(statistics_file, text);
-  for (uint64_t power {0}; power != 4; ++power)
+  for (uint64_t power {0}; power != 6; ++power)
   {
     PrintKthEmpiricalEntropy(statistics_file, text, (1ULL << power));
   }
-  PrintP7zipCompressedSize(text_path, statistics_file);
   PrintBzip2CompressedSize(text_path, statistics_file);
+  PrintP7zipCompressedSize(text_path, statistics_file);
   PrintRepairCompressedSize(text_path, statistics_file);
   return;
 }
