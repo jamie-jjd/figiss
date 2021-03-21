@@ -252,7 +252,7 @@ void Print0thEmpiricalEntropy
   << std::fixed
   << std::setprecision(2)
   << "nH_0,"
-  << (zeroth_empirical_entropy * std::size(text) / (1024.0 * 1024.0)) << "(MB),"
+  << (zeroth_empirical_entropy * std::size(text) / (1024.0 * 1024.0 * 8.0)) << "(MB),"
   << "compression_ratio,"
   << (zeroth_empirical_entropy / text.width()) * 100.0
   << "%\n";
@@ -429,7 +429,7 @@ void PrintKthEmpiricalEntropy
   << std::fixed
   << std::setprecision(2)
   << "nH_" << k << ","
-  << (k_mer_trie.kth_empirical_entropy * std::size(text) / (1024.0 * 1024.0)) << "(MB),"
+  << (k_mer_trie.kth_empirical_entropy * std::size(text) / (1024.0 * 1024.0 * 8.0)) << "(MB),"
   << "compression_ratio,"
   << (k_mer_trie.kth_empirical_entropy / text.width()) * 100.0
   << "%\n";
