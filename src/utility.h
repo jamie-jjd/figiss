@@ -46,6 +46,40 @@ std::filesystem::path CreatePath
   return (parent_path / (filename + extensions));
 }
 
+void GeneratePrefix
+(
+  std::filesystem::path const &text_path,
+  uint64_t const size_in_megabytes
+)
+{
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, text_path);
+  auto parent_prefix_path
+  {
+    std::string{"../data/corpus/"}
+    + std::to_string(size_in_megabytes) + "mb"
+  };
+  if (!std::filesystem::exists(parent_prefix_path))
+  {
+    std::filesystem::create_directories(parent_prefix_path);
+  }
+  auto prefix_path
+  {
+    CreatePath
+    (
+      parent_prefix_path,
+      text_path.filename().string(),
+      std::string{"."} + std::to_string(size_in_megabytes) + "mb"
+    )
+  };
+  std::ofstream prefix_file {prefix_path};
+  for (uint64_t i {}; i != (size_in_megabytes * 1024 * 1024); ++i)
+  {
+    prefix_file << text[i];
+  }
+  return;
+}
+
 template <typename Patterns>
 void GeneratePatterns
 (
@@ -522,7 +556,7 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
   PrintTextSize(statistics_file, text);
   PrintAlphabetSize(statistics_file, text);
   Print0thEmpiricalEntropy(statistics_file, text);
-  for (uint64_t power {0}; power != 5; ++power)
+  for (uint64_t power {0}; power != 4; ++power)
   {
     PrintKthEmpiricalEntropy(statistics_file, text, (1ULL << power));
   }
