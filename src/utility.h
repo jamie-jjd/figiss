@@ -46,7 +46,7 @@ std::filesystem::path CreatePath
   return (parent_path / (filename + extensions));
 }
 
-void GeneratePrefix
+void CalculatePrefix
 (
   std::filesystem::path const &text_path,
   uint64_t const size_in_megabytes
@@ -163,13 +163,18 @@ void LoadPatterns
 
 void ConvertByteToIntText
 (
-  std::filesystem::path const &byte_text_path,
-  std::string const &category
+  std::string const &category,
+  std::filesystem::path const &byte_text_path
 )
 {
   sdsl::int_vector<8> byte_text;
   sdsl::load_vector_from_file(byte_text, byte_text_path);
-  sdsl::int_vector<> int_text(std::size(byte_text), 0, 8);
+  auto int_text_size {std::size(byte_text)};
+  if (*std::prev(std::end(byte_text)) != 0)
+  {
+    ++int_text_size;
+  }
+  sdsl::int_vector<> int_text(int_text_size, 0, 8);
   std::copy(std::begin(byte_text), std::end(byte_text), std::begin(int_text));
   auto parent_int_text_path {CreateParentDirectoryByCategory(category, byte_text_path)};
   auto int_text_path {CreatePath(parent_int_text_path, byte_text_path.filename().string())};
@@ -178,10 +183,10 @@ void ConvertByteToIntText
   return;
 }
 
-void GenerateAndSerializeCompactText
+void CalculateAndSerializeCompactText
 (
-  std::filesystem::path const &text_path,
-  std::string const &category
+  std::string const &category,
+  std::filesystem::path const &text_path
 )
 {
   sdsl::int_vector<> text;
@@ -193,7 +198,10 @@ void GenerateAndSerializeCompactText
     auto text_end {std::end(text)};
     while (text_iterator != text_end)
     {
-      codebook[*text_iterator] = 1;
+      if (*text_iterator != 0)
+      {
+        codebook[*text_iterator] = 1;
+      }
       ++text_iterator;
     }
   }
@@ -212,6 +220,34 @@ void GenerateAndSerializeCompactText
   auto compact_text_path {CreatePath(parent_compact_text_path, text_path.filename().string())};
   std::ofstream compact_text_file {compact_text_path};
   sdsl::serialize(text, compact_text_file);
+  return;
+}
+
+void CalculateAndSerializeBwt
+(
+  std::string const &category,
+  std::filesystem::path const &text_path
+)
+{
+  sdsl::int_vector<> text;
+  sdsl::load_from_file(text, text_path);
+  sdsl::int_vector<> buffer;
+  sdsl::qsufsort::construct_sa(buffer, text);
+  auto buffer_iterator {std::begin(buffer)};
+  auto buffer_end {std::end(buffer)};
+  while (buffer_iterator != buffer_end)
+  {
+    if (*buffer_iterator != 0)
+    {
+      *buffer_iterator = text[(*buffer_iterator - 1)];
+    }
+    ++buffer_iterator;
+  }
+  sdsl::util::bit_compress(buffer);
+  auto parent_bwt_path {CreateParentDirectoryByCategory(category, text_path)};
+  auto bwt_path {CreatePath(parent_bwt_path, text_path.filename().string())};
+  std::ofstream bwt_file {bwt_path};
+  sdsl::serialize(buffer, bwt_file);
   return;
 }
 
@@ -587,7 +623,6 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
   {
     PrintKthEmpiricalEntropy(statistics_file, text, (1ULL << power));
   }
-  PrintRunLengthCompressedSize(statistics_file, text);
   PrintBzip2CompressedSize(text_path, statistics_file);
   PrintP7zipCompressedSize(text_path, statistics_file);
   PrintRepairCompressedSize(text_path, statistics_file);
