@@ -678,14 +678,12 @@ template
   typename GrammarCompressedText,
   typename LexToColexOrderMapping,
   typename ColexGrammarCompressedBwt
-  // , typename Path
 >
 void CalculateColexGrammarCompressedBwt
 (
   GrammarCompressedText const &grammar_compressed_text,
   LexToColexOrderMapping const &lex_to_colex_order_mapping,
   ColexGrammarCompressedBwt &colex_grammar_compressed_bwt
-  // , Path const &bwt_path
 )
 {
   sdsl::int_vector<> buffer;
@@ -696,23 +694,11 @@ void CalculateColexGrammarCompressedBwt
   {
     if (*buffer_iterator != 0)
     {
-      *buffer_iterator =
-      lex_to_colex_order_mapping
-      [
-        grammar_compressed_text[(*buffer_iterator - 1)]
-      ];
+      *buffer_iterator = lex_to_colex_order_mapping[grammar_compressed_text[(*buffer_iterator - 1)]];
     }
     ++buffer_iterator;
   }
   sdsl::construct_im(colex_grammar_compressed_bwt, buffer);
-  // sdsl::util::bit_compress(buffer);
-  // {
-  //   std::ofstream bwt_file {bwt_path};
-  //   buffer.serialize(bwt_file);
-  // }
-  // {
-  //   PrintTextStatistics(bwt_path);
-  // }
   return;
 }
 
@@ -905,14 +891,11 @@ void Construct
     grammar_compressed_text,
     index.lex_grammar_compressed_character_bucket_end_offsets
   );
-  // auto parent_bwt_path {CreateParentDirectoryByCategory("bwt", text_path)};
-  // auto bwt_path {CreatePath(parent_bwt_path, text_path.filename(), ".sdsl")};
   CalculateColexGrammarCompressedBwt
   (
     grammar_compressed_text,
     lex_to_colex_order_mapping,
     index.colex_grammar_compressed_bwt
-    // , bwt_path
   );
   return;
 }
