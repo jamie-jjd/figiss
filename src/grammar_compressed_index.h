@@ -772,7 +772,10 @@ void Construct
   {
     std::ifstream text_file {text_path};
     sdsl::load_vector_from_file(text, text_path);
-    sdsl::append_zero_symbol(text);
+    if (*std::prev(std::end(text)) != 0)
+    {
+      sdsl::append_zero_symbol(text);
+    }
   }
   sdsl::bit_vector sl_types;
   {
@@ -844,7 +847,7 @@ void Construct
   );
   CalculateLexicographicTrieRankRanges(index.lex_grammar_trie_root);
   auto grammar_compressed_alphabet_size {std::size(index.grammar_rule_sizes) + 1};
-  auto grammar_compressed_character_width {sdsl::bits::hi(grammar_compressed_alphabet_size) + 1};
+  auto grammar_compressed_character_width {sdsl::bits::hi(std::size(index.grammar_rule_sizes)) + 1};
   sdsl::int_vector<> lex_to_colex_order_mapping;
   lex_to_colex_order_mapping.width(grammar_compressed_character_width);
   lex_to_colex_order_mapping.resize(grammar_compressed_alphabet_size);
@@ -882,7 +885,18 @@ void Construct
     temporary_grammar_compressed_text_end,
     std::begin(grammar_compressed_text)
   );
-  grammar_compressed_text[std::size(grammar_compressed_text) - 1] = 0;
+  *std::prev(std::end(grammar_compressed_text)) = 0;
+  // auto parent_compressed_text_path {CreateParentDirectoryByCategory("compressed_text", text_path)};
+  // auto compressed_text_path
+  // {
+  //   CreatePath
+  //   (
+  //     parent_compressed_text_path,
+  //     text_path.filename().string()
+  //   )
+  // };
+  // std::ofstream compressed_text_file {compressed_text_path};
+  // sdsl::serialize(grammar_compressed_text, compressed_text_file);
   sdsl::util::clear(text_offsets);
   index.lex_grammar_compressed_character_bucket_end_offsets.width(sdsl::bits::hi(grammar_compressed_text_size) + 1);
   index.lex_grammar_compressed_character_bucket_end_offsets.resize(grammar_compressed_alphabet_size);
