@@ -255,108 +255,50 @@ void CalculateAndSerializeBwt
   return;
 }
 
-template <typename CategoriesCountMap>
-double CalculateZerothEmpiricalEntropy
-(
-  CategoriesCountMap const &categories_count,
-  uint64_t size
-)
+template <typename Text>
+uint64_t CalculateRuns (Text const &text)
 {
-  double zeroth_empirical_entropy {};
-  auto log_size {std::log2(size)};
-  for (auto const &category_count : categories_count)
+  uint64_t runs {};
+  uint64_t previous_character {};
+  auto iterator {std::begin(text)};
+  while (iterator != std::end(text))
   {
-    auto count {static_cast<double>(std::get<1>(category_count))};
-    zeroth_empirical_entropy += (count * (log_size - std::log2(count)));
+    if (previous_character != *iterator)
+    {
+      ++runs;
+      previous_character = *iterator;
+    }
+    ++iterator;
   }
-  return (zeroth_empirical_entropy / size);
+  return runs;
 }
 
-template
-<
-  typename File,
-  typename Text
->
-void PrintTextSize
-(
-  File &file,
-  Text const &text
-)
-{
-  file
-  << std::fixed
-  << std::setprecision(2)
-  << "size,"
-  << std::size(text)
-  << ",bit_width,"
-  << static_cast<uint64_t>(text.width())
-  << ",bit_size,"
-  << (static_cast<uint64_t>(text.bit_size()) / (1024.0 * 1024.0 * 8.0)) << "(MB)\n";
-  return;
-}
-
-template
-<
-  typename File,
-  typename Text
->
-void PrintAlphabetSize
-(
-  File &file,
-  Text const &text
-)
-{
-  std::unordered_set<uint64_t> alphabet;
-  for (auto const &character : text)
-  {
-    alphabet.insert(character);
-  }
-  auto bit_width {static_cast<double>(sdsl::bits::hi(alphabet.size()) + 1)};
-  file
-  << std::fixed
-  << std::setprecision(2)
-  << "alphabet_size,"
-  << std::size(alphabet)
-  << ",compression_ratio,"
-  << (bit_width / text.width()) * 100.0
-  << "%\n";
-  return;
-}
-
-template
-<
-  typename File,
-  typename Text
->
-void Print0thEmpiricalEntropy
-(
-  File &file,
-  Text const &text
-)
+template <typename Text>
+double CalculateZerothEmpiricalEntropy (Text const &text)
 {
   std::map<uint64_t, uint64_t> alphabet_count;
-  for (auto const &character : text)
+  auto text_iterator {std::begin(text)};
+  while (text_iterator != std::end(text))
   {
-    auto iterator {alphabet_count.find(character)};
-    if (iterator != std::end(alphabet_count))
+    auto alphabet_count_iterator {alphabet_count.find(*text_iterator)};
+    if (alphabet_count_iterator != std::end(alphabet_count))
     {
-      ++std::get<1>(*iterator);
+      ++std::get<1>(*alphabet_count_iterator);
     }
     else
     {
-      alphabet_count[character] = 1;
+      alphabet_count[*text_iterator] = 1;
     }
+    ++text_iterator;
   }
-  auto zeroth_empirical_entropy {CalculateZerothEmpiricalEntropy(alphabet_count, std::size(text))};
-  file
-  << std::fixed
-  << std::setprecision(2)
-  << "nH_0,"
-  << (zeroth_empirical_entropy * std::size(text) / (1024.0 * 1024.0 * 8.0)) << "(MB),"
-  << "compression_ratio,"
-  << (zeroth_empirical_entropy / text.width()) * 100.0
-  << "%\n";
-  return;
+  double zeroth_empirical_entropy {};
+  auto lg_size {std::log2(std::size(text))};
+  for (auto const &character_count : alphabet_count)
+  {
+    auto count {static_cast<double>(std::get<1>(character_count))};
+    zeroth_empirical_entropy += (count * (lg_size - std::log2(count)));
+  }
+  return (zeroth_empirical_entropy / std::size(text));
 }
 
 template <typename Text>
@@ -367,8 +309,7 @@ struct KmerTrie
     uint64_t edge_begin_offset;
     uint64_t edge_end_offset;
     std::map<uint64_t, std::shared_ptr<Node>> branches;
-    uint64_t context_size;
-    std::map<uint64_t, uint64_t> alphabet_count;
+    std::vector<uint64_t> context;
 
     Node () = default;
     Node
@@ -379,8 +320,7 @@ struct KmerTrie
     : edge_begin_offset {begin_offset},
       edge_end_offset {end_offset},
       branches {},
-      context_size {},
-      alphabet_count {}
+      context {}
     {
     }
   };
@@ -472,24 +412,14 @@ struct KmerTrie
         }
       }
     }
-    ++(current_node->context_size);
-    auto next_character {*k_mer_end};
-    auto alphabet_count_iterator {current_node->alphabet_count.find(next_character)};
-    if (alphabet_count_iterator == std::end(current_node->alphabet_count))
-    {
-      current_node->alphabet_count[next_character] = 1;
-    }
-    else
-    {
-      ++std::get<1>(*alphabet_count_iterator);
-    }
+    current_node->context.push_back(*k_mer_end);
     return;
   }
 
   double CalculateCumulative0thEmpiricalEntropy (std::shared_ptr<Node> current_node)
   {
     double cumulative_0th_empirical_entropy {};
-    if (current_node->context_size == 0)
+    if (std::size(current_node->context) == 0)
     {
       auto branches_iterator {std::begin(current_node->branches)};
       auto branches_end {std::end(current_node->branches)};
@@ -502,130 +432,78 @@ struct KmerTrie
     else
     {
       cumulative_0th_empirical_entropy +=
-      current_node->context_size *
-      CalculateZerothEmpiricalEntropy
-      (
-        current_node->alphabet_count,
-        current_node->context_size
-      );
+      (CalculateZerothEmpiricalEntropy(current_node->context) * std::size(current_node->context));
     }
     return cumulative_0th_empirical_entropy;
   }
 };
 
-template
-<
-  typename File,
-  typename Text
->
-void PrintKthEmpiricalEntropy
+uint64_t CalculateCompressedBitSize
 (
-  File &file,
-  Text const &text,
-  uint64_t const k
-)
-{
-  KmerTrie k_mer_trie(text, k);
-  file
-  << std::fixed
-  << std::setprecision(2)
-  << "nH_" << k << ","
-  << (k_mer_trie.kth_empirical_entropy * std::size(text) / (1024.0 * 1024.0 * 8.0)) << "(MB),"
-  << "compression_ratio,"
-  << (k_mer_trie.kth_empirical_entropy / text.width()) * 100.0
-  << "%\n";
-  return;
-}
-
-template <typename File>
-void PrintBzip2CompressedSize
-(
+  std::string const &command_prefix,
   std::filesystem::path const &text_path,
-  File &file
+  std::string const &extension
 )
 {
-  auto command {std::string{"bzip2 -k -9 -v "} + text_path.string()};
+  auto command {command_prefix + text_path.string()};
+  uint64_t bit_size {};
   if (std::system(command.c_str()) == 0)
   {
-    auto bzip2_path {std::filesystem::path{text_path.string() + ".bz2"}};
-    auto bzip2_file_size {static_cast<double>(std::filesystem::file_size(bzip2_path))};
-    auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
-    file
-    << std::fixed
-    << std::setprecision(2)
-    << "bzip2,"
-    << (bzip2_file_size / (1024.0 * 1024.0)) << "(MB),"
-    << (bzip2_file_size / text_file_size) * 100.0 << "%\n";
-    std::filesystem::remove(bzip2_path);
+    auto compressed_text_path {std::filesystem::path{text_path.string() + "." + extension}};
+    bit_size = (std::filesystem::file_size(compressed_text_path) * 8);
+    std::filesystem::remove(compressed_text_path);
   }
-  return;
+  return bit_size;
 }
 
-template <typename File>
-void PrintP7zipCompressedSize
+void PrintTextStatistics
 (
-  std::filesystem::path const &text_path,
-  File &file
+  std::string const &category,
+  std::filesystem::path const &text_path
 )
-{
-  auto command {std::string{"p7zip -k "} + text_path.string()};
-  if (std::system(command.c_str()) == 0)
-  {
-    auto p7zip_path {std::filesystem::path{text_path.string() + ".7z"}};
-    auto p7zip_file_size {static_cast<double>(std::filesystem::file_size(p7zip_path))};
-    auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
-    file
-    << std::fixed
-    << std::setprecision(2)
-    << "p7zip,"
-    << (p7zip_file_size / (1024.0 * 1024.0)) << "(MB),"
-    << (p7zip_file_size / text_file_size) * 100.0 << "%\n";
-    std::filesystem::remove(p7zip_path);
-  }
-  return;
-}
-
-template <typename File>
-void PrintRepairCompressedSize
-(
-  std::filesystem::path const &text_path,
-  File &file
-)
-{
-  auto command {std::string{"repair "} + text_path.string()};
-  if (std::system(command.c_str()) == 0)
-  {
-    auto repair_path {std::filesystem::path{text_path.string() + ".rp"}};
-    auto repair_file_size {static_cast<double>(std::filesystem::file_size(repair_path))};
-    auto text_file_size {static_cast<double>(std::filesystem::file_size(text_path))};
-    file
-    << std::fixed
-    << std::setprecision(2)
-    << "repair,"
-    << (repair_file_size / (1024.0 * 1024.0)) << "(MB),"
-    << (repair_file_size / text_file_size) * 100.0 << "%\n";
-    std::filesystem::remove(repair_path);
-  }
-  return;
-}
-
-void PrintTextStatistics (std::filesystem::path const &text_path)
 {
   sdsl::int_vector<> text;
   sdsl::load_from_file(text, text_path);
-  auto parent_statistics_path {CreateParentDirectoryByCategory("statistics", text_path)};
+  auto parent_statistics_path {CreateParentDirectoryByCategory(category, text_path)};
   auto statistics_path {CreatePath(parent_statistics_path, text_path.filename().string())};
   std::ofstream statistics_file {statistics_path};
-  PrintTextSize(statistics_file, text);
-  PrintAlphabetSize(statistics_file, text);
-  Print0thEmpiricalEntropy(statistics_file, text);
+  auto n {std::size(text)};
+  auto r {CalculateRuns(text)};
+  auto lg_sigma {static_cast<uint64_t>(text.width())};
+  auto H_0 {CalculateZerothEmpiricalEntropy(text)};
+  std::vector<double> H_ks;
   for (uint64_t power {0}; power != 4; ++power)
   {
-    PrintKthEmpiricalEntropy(statistics_file, text, (1ULL << power));
+    KmerTrie k_mer_trie(text, (1ULL << power));
+    H_ks.push_back(k_mer_trie.kth_empirical_entropy);
   }
-  PrintBzip2CompressedSize(text_path, statistics_file);
-  PrintP7zipCompressedSize(text_path, statistics_file);
-  PrintRepairCompressedSize(text_path, statistics_file);
+  auto bzip2_bit_size {CalculateCompressedBitSize("bzip2 -k -9 -v ", text_path, "bz2")};
+  auto p7zip_bit_size {CalculateCompressedBitSize("p7zip -k ", text_path, "7z")};
+  auto repair_bit_size {CalculateCompressedBitSize("repair ", text_path, "rp")};
+  statistics_file << std::fixed << std::setprecision(2);
+  statistics_file << text_path.filename().string() << "\n";
+  statistics_file << n << " & ";
+  statistics_file << r << " & ";
+  statistics_file << lg_sigma << " & ";
+  statistics_file << H_0 << " & ";
+  for (auto const &H_k : H_ks)
+  {
+    statistics_file << H_k << " & ";
+  }
+  statistics_file << bzip2_bit_size << " & ";
+  statistics_file << p7zip_bit_size << " & ";
+  statistics_file << repair_bit_size << "\n";
+  statistics_file << " & ";
+  statistics_file << "(" << (static_cast<double>(r) / n) * 100.0 << "\\%) & ";
+  statistics_file << " & ";
+  statistics_file << "(" << (H_0 / lg_sigma) * 100.0 << "\\%) & ";
+  for (auto const &H_k : H_ks)
+  {
+    statistics_file << "(" << (H_k / lg_sigma) * 100.0 << "\\%) & ";
+  }
+  statistics_file << "(" << (static_cast<double>(bzip2_bit_size) / text.bit_size()) * 100.0 << "\\%) & ";
+  statistics_file << "(" << (static_cast<double>(p7zip_bit_size) / text.bit_size()) * 100.0 << "\\%) & ";
+  statistics_file << "(" << (static_cast<double>(repair_bit_size) / text.bit_size()) * 100.0 << "\\%)\n";
   return;
 }
 }
