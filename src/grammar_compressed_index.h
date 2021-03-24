@@ -886,17 +886,6 @@ void Construct
     std::begin(grammar_compressed_text)
   );
   *std::prev(std::end(grammar_compressed_text)) = 0;
-  // auto parent_compressed_text_path {CreateParentDirectoryByCategory("compressed_text", text_path)};
-  // auto compressed_text_path
-  // {
-  //   CreatePath
-  //   (
-  //     parent_compressed_text_path,
-  //     text_path.filename().string()
-  //   )
-  // };
-  // std::ofstream compressed_text_file {compressed_text_path};
-  // sdsl::serialize(grammar_compressed_text, compressed_text_file);
   sdsl::util::clear(text_offsets);
   index.lex_grammar_compressed_character_bucket_end_offsets.width(sdsl::bits::hi(grammar_compressed_text_size) + 1);
   index.lex_grammar_compressed_character_bucket_end_offsets.resize(grammar_compressed_alphabet_size);
