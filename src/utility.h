@@ -191,6 +191,10 @@ void CalculateAndSerializeCompactText
 {
   sdsl::int_vector<> text;
   sdsl::load_from_file(text, text_path);
+  if (*std::prev(std::end(text)) != 0)
+  {
+    sdsl::append_zero_symbol(text);
+  }
   uint64_t codebook_size {*std::max_element(std::begin(text), std::end(text)) + 1};
   sdsl::int_vector<> codebook(codebook_size, 0);
   {
@@ -239,7 +243,7 @@ void CalculateAndSerializeBwt
   {
     if (*buffer_iterator != 0)
     {
-      *buffer_iterator = text[(*buffer_iterator - 1)];
+      *buffer_iterator = text[*buffer_iterator - 1];
     }
     ++buffer_iterator;
   }
@@ -609,12 +613,8 @@ void PrintTextStatistics (std::filesystem::path const &text_path)
 {
   sdsl::int_vector<> text;
   sdsl::load_from_file(text, text_path);
-  if (*std::prev(std::end(text)) != 0)
-  {
-    sdsl::append_zero_symbol(text);
-  }
   auto parent_statistics_path {CreateParentDirectoryByCategory("statistics", text_path)};
-  auto statistics_path {CreatePath(parent_statistics_path, text_path.filename().string(), ".csv")};
+  auto statistics_path {CreatePath(parent_statistics_path, text_path.filename().string())};
   std::ofstream statistics_file {statistics_path};
   PrintTextSize(statistics_file, text);
   PrintAlphabetSize(statistics_file, text);
