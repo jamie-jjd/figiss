@@ -482,17 +482,17 @@ void PrintTextStatistics
   auto repair_bit_size {CalculateCompressedBitSize("repair ", text_path, "rp")};
   statistics_file << std::fixed << std::setprecision(2);
   statistics_file << text_path.filename().string() << "\n";
-  statistics_file << n << " & ";
-  statistics_file << r << " & ";
+  statistics_file << (n / (1024.0 * 1024.0)) << "M & ";
+  statistics_file << (r / (1024.0 * 1024.0)) << "M & ";
   statistics_file << lg_sigma << " & ";
   statistics_file << H_0 << " & ";
   for (auto const &H_k : H_ks)
   {
     statistics_file << H_k << " & ";
   }
-  statistics_file << bzip2_bit_size << " & ";
-  statistics_file << p7zip_bit_size << " & ";
-  statistics_file << repair_bit_size << "\n";
+  statistics_file << (bzip2_bit_size / (1024.0 * 1024.0 * 8.0)) << "MB & ";
+  statistics_file << (p7zip_bit_size / (1024.0 * 1024.0 * 8.0)) << "MB & ";
+  statistics_file << (repair_bit_size / (1024.0 * 1024.0 * 8.0)) << "MB\n";
   statistics_file << " & ";
   statistics_file << "(" << (static_cast<double>(r) / n) * 100.0 << "\\%) & ";
   statistics_file << " & ";
