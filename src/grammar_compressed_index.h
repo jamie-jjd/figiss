@@ -427,9 +427,14 @@ void CalculateGrammarRules
   return;
 }
 
-template <typename GrammarRulesIterator>
+template
+<
+  typename File,
+  typename GrammarRulesIterator
+>
 void PrintGrammarTrie
 (
+  File &file,
   GrammarRulesIterator rules_begin,
   TrieNode *current_node,
   int64_t const edge_offset,
@@ -438,23 +443,23 @@ void PrintGrammarTrie
 {
   if (current_node != nullptr)
   {
-    std::cout << depth << ":";
+    file << depth << ":";
     if (current_node->edge_begin_offset != current_node->edge_end_offset)
     {
       auto edge_iterator {std::next(rules_begin, current_node->edge_begin_offset)};
       auto edge_end {std::next(rules_begin, current_node->edge_end_offset)};
       while (edge_iterator != edge_end)
       {
-        std::cout << *edge_iterator;
+        file << *edge_iterator;
         edge_iterator += edge_offset;
       }
     }
-    std::cout << "(" << current_node->leftmost_rank << "," << current_node->rightmost_rank << ")\n";
+    file << "(" << current_node->leftmost_rank << "," << current_node->rightmost_rank << ")\n";
     auto branches_iterator {std::begin(current_node->branches)};
     auto branches_end {std::end(current_node->branches)};
     while (branches_iterator != branches_end)
     {
-      PrintGrammarTrie(rules_begin, std::get<1>(*branches_iterator), edge_offset, depth + 1);
+      PrintGrammarTrie(file, rules_begin, std::get<1>(*branches_iterator), edge_offset, depth + 1);
       ++branches_iterator;
     }
   }
@@ -750,15 +755,20 @@ struct Index
   }
 };
 
-void PrintIndex (Index &index)
+template <typename File>
+void PrintIndex
+(
+  File &file,
+  Index &index
+)
 {
-  std::cout << index.grammar_rule_sizes << "\n";
-  std::cout << index.grammar_rules << "\n";
-  PrintGrammarTrie(std::begin(index.grammar_rules), index.lex_grammar_trie_root, 1);
-  PrintGrammarTrie(std::begin(index.grammar_rules), index.colex_grammar_trie_root, -1);
-  std::cout << index.colex_to_lex_order_mapping << "\n";
-  std::cout << index.lex_grammar_compressed_character_bucket_end_offsets << "\n";
-  std::cout << index.colex_grammar_compressed_bwt << "\n";
+  file << index.grammar_rule_sizes << "\n";
+  file << index.grammar_rules << "\n";
+  PrintGrammarTrie(file, std::begin(index.grammar_rules), index.lex_grammar_trie_root, 1);
+  PrintGrammarTrie(file, std::begin(index.grammar_rules), index.colex_grammar_trie_root, -1);
+  file << index.colex_to_lex_order_mapping << "\n";
+  file << index.lex_grammar_compressed_character_bucket_end_offsets << "\n";
+  file << index.colex_grammar_compressed_bwt << "\n";
   return;
 }
 
