@@ -21,18 +21,19 @@ namespace project
 template
 <
   typename File,
-  typename Container
+  typename Iterator
 >
 void Print
 (
   File &file,
-  Container const &container,
+  Iterator begin,
+  Iterator end,
   std::string const &delimiter = " ",
   std::string const &endmarker = "\n"
 )
 {
-  auto iterator {std::begin(container)};
-  auto last_iterator {std::prev(std::end(container))};
+  auto iterator {begin};
+  auto last_iterator {std::prev(end)};
   while (iterator != last_iterator)
   {
     file << *iterator++ << delimiter;
