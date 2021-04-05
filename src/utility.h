@@ -14,6 +14,7 @@
 #include <unordered_set>
 
 #include <sdsl/suffix_trees.hpp>
+#include <sdsl/wavelet_trees.hpp>
 
 namespace project
 {
@@ -504,6 +505,50 @@ void PrintTextStatistics
   statistics_file << "(" << (static_cast<double>(bzip2_bit_size) / text.bit_size()) * 100.0 << "\\%) & ";
   statistics_file << "(" << (static_cast<double>(p7zip_bit_size) / text.bit_size()) * 100.0 << "\\%) & ";
   statistics_file << "(" << (static_cast<double>(repair_bit_size) / text.bit_size()) * 100.0 << "\\%)\n";
+  return;
+}
+
+template
+<
+  typename WaveletTree,
+  typename Text
+>
+auto CalculateRunLengthWaveletTreeSizeInMegaBytes (Text const &text)
+{
+  sdsl::wt_rlmn
+  <
+    sdsl::sd_vector<>,
+    typename sdsl::sd_vector<>::rank_1_type,
+    typename sdsl::sd_vector<>::select_1_type,
+    WaveletTree
+  >
+  run_length_wavelet_tree;
+  sdsl::construct_im(run_length_wavelet_tree, text);
+  return sdsl::size_in_mega_bytes(run_length_wavelet_tree);
+}
+
+void PrintRunLengthWaveletTreeStatistics
+(
+  std::string const &category,
+  std::filesystem::path const &bwt_path
+)
+{
+  sdsl::int_vector<> bwt;
+  sdsl::load_from_file(bwt, bwt_path);
+  auto bwt_size_in_mega_bytes {std::filesystem::file_size(bwt_path) / (1024.0 * 1024.0)};
+  auto rlwm_size_in_mega_bytes {CalculateRunLengthWaveletTreeSizeInMegaBytes<sdsl::wm_int<>>(bwt)};
+  auto rlwt_hutu_size_in_mega_bytes {CalculateRunLengthWaveletTreeSizeInMegaBytes<sdsl::wt_hutu_int<>>(bwt)};
+  auto parent_path {CreateParentDirectoryByCategory(category, bwt_path)};
+  auto path {CreatePath(parent_path, bwt_path.filename().string())};
+  std::ofstream file {path};
+  file
+  << std::fixed << std::setprecision(2)
+  << bwt_path.filename().string() << "\n"
+  << "\\multirow{2}{*}{" << bwt_size_in_mega_bytes << "} & "
+  << rlwm_size_in_mega_bytes << " & "
+  << rlwt_hutu_size_in_mega_bytes << " \\\\\n"
+  << "(" << (rlwm_size_in_mega_bytes / bwt_size_in_mega_bytes) * 100.0 << "\\%) & "
+  << "(" << (rlwt_hutu_size_in_mega_bytes / bwt_size_in_mega_bytes) * 100.0 << "\\%) \\\\\n";
   return;
 }
 }
