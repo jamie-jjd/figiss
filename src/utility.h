@@ -26,14 +26,18 @@ template
 void Print
 (
   File &file,
-  Container const &container
+  Container const &container,
+  std::string const &delimiter = " ",
+  std::string const &endmarker = "\n"
 )
 {
-  for (auto const &entry : container)
+  auto iterator {std::begin(container)};
+  auto last_iterator {std::prev(std::end(container))};
+  while (iterator != last_iterator)
   {
-    file << entry << " ";
+    file << *iterator++ << delimiter;
   }
-  file << "\n";
+  file << *last_iterator << endmarker;
   return;
 }
 
