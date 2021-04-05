@@ -18,6 +18,25 @@
 
 namespace project
 {
+template
+<
+  typename File,
+  typename Container
+>
+void Print
+(
+  File &file,
+  Container const &container
+)
+{
+  for (auto const &entry : container)
+  {
+    file << entry << " ";
+  }
+  file << "\n";
+  return;
+}
+
 std::filesystem::path CreateParentDirectoryByCategory
 (
   std::string const &category,
