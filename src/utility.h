@@ -28,15 +28,21 @@ void Print
   File &file,
   Iterator begin,
   Iterator end,
+  int64_t const offset = 1,
   std::string const &delimiter = " ",
   std::string const &endmarker = "\n"
 )
 {
   auto iterator {begin};
   auto last_iterator {std::prev(end)};
+  if (offset < 0)
+  {
+    last_iterator = std::next(end);
+  }
   while (iterator != last_iterator)
   {
-    file << *iterator++ << delimiter;
+    file << *iterator << delimiter;
+    std::advance(iterator, offset);
   }
   file << *last_iterator << endmarker;
   return;
