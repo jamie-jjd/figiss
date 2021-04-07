@@ -668,12 +668,12 @@ template
 void CalculateColexToLexOrderMapping
 (
   LexToColexOrderMapping const &lex_to_colex_order_mapping,
-  ColexToLexOrderMapping &colex_to_lex_order_mapping
+  ColexToLexOrderMapping &colex_to_lex_alphabet
 )
 {
   for (uint64_t lex_rank {0}; lex_rank != std::size(lex_to_colex_order_mapping); ++lex_rank)
   {
-    colex_to_lex_order_mapping[lex_to_colex_order_mapping[lex_rank]] = lex_rank;
+    colex_to_lex_alphabet[lex_to_colex_order_mapping[lex_rank]] = lex_rank;
   }
   return;
 }
@@ -744,7 +744,7 @@ struct Index
   sdsl::int_vector<8> grammar_rules;
   TrieNode *lex_grammar_trie_root;
   TrieNode *colex_grammar_trie_root;
-  sdsl::int_vector<> colex_to_lex_order_mapping;
+  sdsl::int_vector<> colex_to_lex_alphabet;
   sdsl::int_vector<> lex_grammar_compressed_character_bucket_end_offsets;
   sdsl::wm_int<> colex_grammar_compressed_bwt;
 
@@ -766,7 +766,7 @@ void PrintIndex
   file << index.grammar_rules << "\n";
   PrintGrammarTrie(file, std::begin(index.grammar_rules), index.lex_grammar_trie_root, 1);
   PrintGrammarTrie(file, std::begin(index.grammar_rules), index.colex_grammar_trie_root, -1);
-  file << index.colex_to_lex_order_mapping << "\n";
+  file << index.colex_to_lex_alphabet << "\n";
   file << index.lex_grammar_compressed_character_bucket_end_offsets << "\n";
   file << index.colex_grammar_compressed_bwt << "\n";
   return;
@@ -871,12 +871,12 @@ void Construct
       colex_rank
     );
   }
-  index.colex_to_lex_order_mapping.width(grammar_compressed_character_width);
-  index.colex_to_lex_order_mapping.resize(grammar_compressed_alphabet_size);
+  index.colex_to_lex_alphabet.width(grammar_compressed_character_width);
+  index.colex_to_lex_alphabet.resize(grammar_compressed_alphabet_size);
   CalculateColexToLexOrderMapping
   (
     lex_to_colex_order_mapping,
-    index.colex_to_lex_order_mapping
+    index.colex_to_lex_alphabet
   );
   auto grammar_compressed_text_size
   {
@@ -920,9 +920,8 @@ void Serialize
 )
 {
   std::ofstream index_file {index_path};
-  sdsl::serialize(index.grammar_rule_sizes, index_file);
-  sdsl::serialize(index.grammar_rules, index_file);
-  sdsl::serialize(index.colex_to_lex_order_mapping, index_file);
+  // todo: serialize grammar trie
+  sdsl::serialize(index.colex_to_lex_alphabet, index_file);
   sdsl::serialize(index.lex_grammar_compressed_character_bucket_end_offsets, index_file);
   sdsl::serialize(index.colex_grammar_compressed_bwt, index_file);
   return;
@@ -934,33 +933,14 @@ void Load
   std::filesystem::path const &index_path
 )
 {
-  sdsl::util::clear(index.grammar_rule_sizes);
-  sdsl::util::clear(index.grammar_rules);
-  sdsl::util::clear(index.colex_to_lex_order_mapping);
+  sdsl::util::clear(index.colex_to_lex_alphabet);
   sdsl::util::clear(index.lex_grammar_compressed_character_bucket_end_offsets);
   sdsl::util::clear(index.colex_grammar_compressed_bwt);
   std::ifstream index_file {index_path};
-  index.grammar_rule_sizes.load(index_file);
-  index.grammar_rules.load(index_file);
-  index.colex_to_lex_order_mapping.load(index_file);
+  // todo: load grammar trie
+  index.colex_to_lex_alphabet.load(index_file);
   index.lex_grammar_compressed_character_bucket_end_offsets.load(index_file);
   index.colex_grammar_compressed_bwt.load(index_file);
-  InsertGrammarRules
-  (
-    index.grammar_rule_sizes,
-    index.grammar_rules,
-    index.lex_grammar_trie_root,
-    index.colex_grammar_trie_root,
-    0
-  );
-  {
-    uint64_t lex_rank {0};
-    CalculateTrieRankRanges(index.lex_grammar_trie_root, lex_rank);
-  }
-  {
-    uint64_t colex_rank {0};
-    CalculateTrieRankRanges(index.colex_grammar_trie_root, colex_rank);
-  }
   return;
 }
 
@@ -1158,7 +1138,7 @@ void BackwardSearchExactSlFactor
     {
       index.lex_grammar_compressed_character_bucket_end_offsets
       [
-        index.colex_to_lex_order_mapping[colex_rank] - 1
+        index.colex_to_lex_alphabet[colex_rank] - 1
       ]
     };
     if (pattern_range_begin_offset_L != pattern_range_end_offset_L)
@@ -1218,7 +1198,7 @@ void BackwardSearchExactSlFactor
   //     ++iterator;
   //   }
   //   std::cout
-  //   << "->(" << colex_rank << ":" << index.colex_to_lex_order_mapping[colex_rank] << ")"
+  //   << "->(" << colex_rank << ":" << index.colex_to_lex_alphabet[colex_rank] << ")"
   //   << "->L:(" << pattern_range_begin_offset_L << "," << pattern_range_end_offset_L << ")"
   //   << "->S:(" << pattern_range_begin_offset_S << "," << pattern_range_end_offset_S << ")\n";
   // }
@@ -1333,7 +1313,7 @@ auto BackwardSearchPatternSuffix
           {
             index.lex_grammar_compressed_character_bucket_end_offsets
             [
-              index.colex_to_lex_order_mapping[leftmost_colex_rank] - 1
+              index.colex_to_lex_alphabet[leftmost_colex_rank] - 1
             ]
           };
           pattern_range_begin_offset_S =
@@ -1384,7 +1364,7 @@ auto BackwardSearchPatternSuffix
       //     ++iterator;
       //   }
       //   std::cout
-      //   << "->(" << leftmost_colex_rank << ":" << index.colex_to_lex_order_mapping[leftmost_colex_rank]
+      //   << "->(" << leftmost_colex_rank << ":" << index.colex_to_lex_alphabet[leftmost_colex_rank]
       //   << "," << rightmost_colex_rank << ")"
       //   << "->S:(" << pattern_range_begin_offset_S << "," << pattern_range_end_offset_S << ")\n";
       // }
