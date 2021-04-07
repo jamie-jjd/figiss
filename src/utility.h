@@ -48,6 +48,22 @@ void Print
   return;
 }
 
+template
+<
+  typename File,
+  typename Pair
+>
+void PrintPair
+(
+  File &file,
+  Pair const &pair,
+  std::string const &endmarker = ""
+)
+{
+  file << "(" << std::get<0>(pair) << "," << std::get<1>(pair) << ")" << endmarker;
+  return;
+}
+
 std::filesystem::path CreateParentDirectoryByCategory
 (
   std::string const &category,
