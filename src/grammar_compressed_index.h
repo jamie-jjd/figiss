@@ -250,7 +250,124 @@ void InsertSlFactor
   return;
 }
 
-void CalculateSlFactorTrieRankRangesAndCounts (std::shared_ptr<SlFactorTrieNode> root)
+template <typename Text>
+void InsertSlFactors
+(
+  std::shared_ptr<SlFactorTrieNode> lex_sl_factor_trie_root,
+  std::shared_ptr<SlFactorTrieNode> colex_sl_factor_trie_root,
+  Text const &text,
+  uint64_t &grammar_compressed_text_size
+)
+{
+  auto reverse_text_begin {std::prev(std::end(text), 2)};
+  auto reverse_text_end {std::prev(std::begin(text))};
+  auto reverse_sl_factor_begin {reverse_text_begin};
+  auto reverse_sl_factor_end {reverse_text_begin};
+  while (reverse_sl_factor_end != reverse_text_end)
+  {
+    ++grammar_compressed_text_size;
+    CalculateNextSlFactor
+    (
+      reverse_text_end,
+      reverse_sl_factor_begin,
+      reverse_sl_factor_end
+    );
+    // Print
+    // (
+    //   std::cout,
+    //   std::next(reverse_sl_factor_end),
+    //   std::next(reverse_sl_factor_begin)
+    // );
+    InsertSlFactor
+    (
+      lex_sl_factor_trie_root,
+      std::begin(text),
+      std::next(reverse_sl_factor_end),
+      std::next(reverse_sl_factor_begin)
+    );
+    // PrintSlFactorTrie
+    // (
+    //   std::cout,
+    //   lex_sl_factor_trie_root,
+    //   std::begin(text)
+    // );
+    // Print
+    // (
+    //   std::cout,
+    //   reverse_sl_factor_begin,
+    //   reverse_sl_factor_end,
+    //   -1
+    // );
+    InsertSlFactor
+    (
+      colex_sl_factor_trie_root,
+      std::begin(text),
+      reverse_sl_factor_begin,
+      reverse_sl_factor_end,
+      -1
+    );
+    // PrintSlFactorTrie
+    // (
+    //   std::cout,
+    //   colex_sl_factor_trie_root,
+    //   std::begin(text),
+    //   -1
+    // );
+  }
+}
+
+template <typename TextIterator>
+auto LookupSlFactorRankRange
+(
+  std::shared_ptr<SlFactorTrieNode> current_node,
+  TextIterator text_begin,
+  TextIterator sl_factor_iterator,
+  TextIterator sl_factor_end,
+  int64_t const offset = 1
+)
+{
+  if
+  (
+    (current_node != nullptr)
+    &&
+    (sl_factor_iterator != sl_factor_end)
+  )
+  {
+    auto branches_iterator {std::end(current_node->branches)};
+    while ((branches_iterator = current_node->branches.find(*sl_factor_iterator)) != std::end(current_node->branches))
+    {
+      current_node = std::get<1>(*branches_iterator);
+      auto edge_iterator {std::next(text_begin, std::get<0>(current_node->offset_range))};
+      auto edge_end {std::next(text_begin, std::get<1>(current_node->offset_range))};
+      while
+      (
+        (sl_factor_iterator != sl_factor_end)
+        &&
+        (edge_iterator != edge_end)
+        &&
+        (*sl_factor_iterator == *edge_iterator)
+      )
+      {
+        sl_factor_iterator += offset;
+        edge_iterator += offset;
+      }
+      if (sl_factor_iterator != sl_factor_end)
+      {
+        if (edge_iterator != edge_end)
+        {
+          return decltype(current_node->rank_range){};
+        }
+      }
+      else
+      {
+        return current_node->rank_range;
+      }
+    }
+  }
+  return decltype(current_node->rank_range){};
+}
+
+void CalculateSlFactorTrieRankRanges (std::shared_ptr<SlFactorTrieNode> root)
 {
   uint64_t rank {};
   std::deque<std::pair<std::shared_ptr<SlFactorTrieNode>, bool>> nodes_is_forward;
@@ -282,17 +399,8 @@ void CalculateSlFactorTrieRankRangesAndCounts (std::shared_ptr<SlFactorTrieNode>
     {
       if (!current_node->branches.empty())
       {
-        auto branches_begin {std::begin(current_node->branches)};
-        auto branches_end {std::end(current_node->branches)};
-        auto branches_iterator {branches_begin};
-        while (branches_iterator != branches_end)
-        {
-          auto child_node {std::get<1>(*branches_iterator)};
-          current_node->count += child_node->count;
-          ++branches_iterator;
-        }
-        auto first_child_node {std::get<1>(*branches_begin)};
-        auto last_child_node {std::get<1>(*std::prev(branches_end))};
+        auto first_child_node {std::get<1>(*std::begin(current_node->branches))};
+        auto last_child_node {std::get<1>(*std::prev(std::end(current_node->branches)))};
         if (std::get<0>(current_node->rank_range) == 0)
         {
           std::get<0>(current_node->rank_range) = std::get<0>(first_child_node->rank_range);
@@ -305,6 +413,92 @@ void CalculateSlFactorTrieRankRangesAndCounts (std::shared_ptr<SlFactorTrieNode>
   return;
 }
 
+template
+<
+  typename Text,
+  typename GrammarCompressedText
+>
+void CalculateGrammarCompressedText
+(
+  Text const &text,
+  std::shared_ptr<SlFactorTrieNode> lex_sl_factor_trie_root,
+  GrammarCompressedText &grammar_compressed_text
+)
+{
+  auto reverse_text_begin {std::prev(std::end(text), 2)};
+  auto reverse_text_end {std::prev(std::begin(text))};
+  auto reverse_grammar_compressed_text_iterator {std::prev(std::end(grammar_compressed_text), 2)};
+  auto reverse_sl_factor_begin {reverse_text_begin};
+  auto reverse_sl_factor_end {reverse_text_begin};
+  while (reverse_sl_factor_end != reverse_text_end)
+  {
+    CalculateNextSlFactor
+    (
+      reverse_text_end,
+      reverse_sl_factor_begin,
+      reverse_sl_factor_end
+    );
+    // Print
+    // (
+    //   std::cout,
+    //   std::next(reverse_sl_factor_end),
+    //   std::next(reverse_sl_factor_begin)
+    // );
+    auto rank_range
+    {
+      LookupSlFactorRankRange
+      (
+        lex_sl_factor_trie_root,
+        std::begin(text),
+        std::next(reverse_sl_factor_end),
+        std::next(reverse_sl_factor_begin)
+      )
+    };
+    *reverse_grammar_compressed_text_iterator-- = std::get<0>(rank_range);
+  }
+  return;
+}
+
+void CalculateSlFactorTrieCounts (std::shared_ptr<SlFactorTrieNode> root)
+{
+  std::deque<std::pair<std::shared_ptr<SlFactorTrieNode>, bool>> nodes_is_forward;
+  nodes_is_forward.emplace_back(root, true);
+  while (!nodes_is_forward.empty())
+  {
+    auto current_node {std::get<0>(nodes_is_forward.back())};
+    auto &is_forward {std::get<1>(nodes_is_forward.back())};
+    if (is_forward)
+    {
+      is_forward = false;
+      if (!current_node->branches.empty())
+      {
+        auto branches_iterator {std::begin(current_node->branches)};
+        auto branches_end {std::end(current_node->branches)};
+        while (branches_iterator != branches_end)
+        {
+          nodes_is_forward.emplace_back(std::get<1>(*branches_iterator), true);
+          ++branches_iterator;
+        }
+      }
+    }
+    else
+    {
+      if (!current_node->branches.empty())
+      {
+        auto branches_iterator {std::begin(current_node->branches)};
+        auto branches_end {std::end(current_node->branches)};
+        while (branches_iterator != branches_end)
+        {
+          auto child_node {std::get<1>(*branches_iterator)};
+          current_node->count += child_node->count;
+          ++branches_iterator;
+        }
+      }
+      nodes_is_forward.pop_back();
+    }
+  }
+  return;
+}
 // template <typename Text>
 // uint64_t CalculateMaxSlFactorSize (Text const &text)
 // {
@@ -486,70 +680,22 @@ void Construct
   }
   auto lex_sl_factor_trie_root {std::make_shared<SlFactorTrieNode>()};
   auto colex_sl_factor_trie_root {std::make_shared<SlFactorTrieNode>()};
-  {
-    auto reverse_text_begin {std::prev(std::end(text), 2)};
-    auto reverse_text_end {std::prev(std::begin(text))};
-    auto reverse_sl_factor_begin {reverse_text_begin};
-    auto reverse_sl_factor_end {reverse_text_begin};
-    while (reverse_sl_factor_end != reverse_text_end)
-    {
-      CalculateNextSlFactor
-      (
-        reverse_text_end,
-        reverse_sl_factor_begin,
-        reverse_sl_factor_end
-      );
-      InsertSlFactor
-      (
-        lex_sl_factor_trie_root,
-        std::begin(text),
-        std::next(reverse_sl_factor_end),
-        std::next(reverse_sl_factor_begin)
-      );
-      // Print
-      // (
-      //   std::cout,
-      //   std::next(reverse_sl_factor_end),
-      //   std::next(reverse_sl_factor_begin)
-      // );
-      // PrintSlFactorTrie
-      // (
-      //   std::cout,
-      //   lex_sl_factor_trie_root,
-      //   std::begin(text)
-      // );
-      InsertSlFactor
-      (
-        colex_sl_factor_trie_root,
-        std::begin(text),
-        reverse_sl_factor_begin,
-        reverse_sl_factor_end,
-        -1
-      );
-      // Print
-      // (
-      //   std::cout,
-      //   reverse_sl_factor_begin,
-      //   reverse_sl_factor_end,
-      //   -1
-      // );
-      // PrintSlFactorTrie
-      // (
-      //   std::cout,
-      //   colex_sl_factor_trie_root,
-      //   std::begin(text),
-      //   -1
-      // );
-    }
-  }
-  CalculateSlFactorTrieRankRangesAndCounts(lex_sl_factor_trie_root);
+  uint64_t grammar_compressed_text_size {1};
+  InsertSlFactors
+  (
+    lex_sl_factor_trie_root,
+    colex_sl_factor_trie_root,
+    text,
+    grammar_compressed_text_size
+  );
+  CalculateSlFactorTrieRankRanges(lex_sl_factor_trie_root);
   // PrintSlFactorTrie
   // (
   //   std::cout,
   //   lex_sl_factor_trie_root,
   //   std::begin(text)
   // );
-  CalculateSlFactorTrieRankRangesAndCounts(colex_sl_factor_trie_root);
+  CalculateSlFactorTrieRankRanges(colex_sl_factor_trie_root);
   // PrintSlFactorTrie
   // (
   //   std::cout,
@@ -557,6 +703,20 @@ void Construct
   //   std::begin(text),
   //   -1
   // );
+  auto grammar_compressed_alphabet_size {std::get<1>(lex_sl_factor_trie_root->rank_range) + 1};
+  auto grammar_compressed_text_width {sdsl::bits::hi(grammar_compressed_alphabet_size - 1) + 1};
+  sdsl::int_vector<> grammar_compressed_text
+  (
+    grammar_compressed_text_size,
+    0,
+    grammar_compressed_text_width
+  );
+  CalculateGrammarCompressedText
+  (
+    text,
+    lex_sl_factor_trie_root,
+    grammar_compressed_text
+  );
   // auto grammar_compressed_alphabet_size {std::size(index.grammar_rule_sizes) + 1};
   // auto grammar_compressed_character_width {sdsl::bits::hi(std::size(index.grammar_rule_sizes)) + 1};
   // sdsl::int_vector<> lex_to_colex_order_mapping;
@@ -629,63 +789,6 @@ void Load
   return;
 }
 
-// template
-// <
-//   typename GrammarRulesIterator,
-//   typename SlFactorIterator
-// >
-// void LookupGrammarRule
-// (
-//   GrammarRulesIterator grammar_rules_begin,
-//   TrieNode *current_node,
-//   SlFactorIterator sl_factor_iterator,
-//   SlFactorIterator sl_factor_end,
-//   int64_t const offset,
-//   uint64_t &leftmost_rank,
-//   uint64_t &rightmost_rank
-// )
-// {
-//   leftmost_rank = rightmost_rank = 0;
-//   auto branches_iterator {std::end(current_node->branches)};
-//   while
-//   (
-//     (branches_iterator = current_node->branches.find(*sl_factor_iterator))
-//     !=
-//     std::end(current_node->branches)
-//   )
-//   {
-//     current_node = std::get<1>(*branches_iterator);
-//     auto edge_iterator {std::next(grammar_rules_begin, current_node->edge_begin_offset)};
-//     auto edge_end {std::next(grammar_rules_begin, current_node->edge_end_offset)};
-//     while
-//     (
-//       (sl_factor_iterator != sl_factor_end)
-//       &&
-//       (edge_iterator != edge_end)
-//       &&
-//       (*sl_factor_iterator == *edge_iterator)
-//     )
-//     {
-//       sl_factor_iterator += offset;
-//       edge_iterator += offset;
-//     }
-//     if (sl_factor_iterator != sl_factor_end)
-//     {
-//       if (edge_iterator != edge_end)
-//       {
-//         return;
-//       }
-//     }
-//     else
-//     {
-//       rightmost_rank = current_node->rightmost_rank;
-//       leftmost_rank = current_node->leftmost_rank;
-//       return;
-//     }
-//   }
-//   return;
-// }
-//
 // template <typename PatternIterator>
 // void BackwardSearchPatternPrefix
 // (
@@ -702,7 +805,7 @@ void Load
 //   uint64_t rightmost_colex_rank {0};
 //   LookupGrammarRule
 //   (
-//     std::begin(index.grammar_rules),
+//     std::begin(index.text),
 //     index.colex_grammar_trie_root,
 //     reverse_pattern_first_iterator,
 //     reverse_pattern_last_iterator,
@@ -774,7 +877,7 @@ void Load
 //   uint64_t colex_rank {0};
 //   LookupGrammarRule
 //   (
-//     std::begin(index.grammar_rules),
+//     std::begin(index.text),
 //     index.colex_grammar_trie_root,
 //     reverse_pattern_first_iterator,
 //     reverse_pattern_last_iterator,
@@ -916,7 +1019,7 @@ void Load
 //   {
 //     LookupGrammarRule
 //     (
-//       std::begin(index.grammar_rules),
+//       std::begin(index.text),
 //       index.lex_grammar_trie_root,
 //       std::next(reverse_pattern_last_iterator),
 //       std::next(reverse_pattern_begin),
@@ -947,7 +1050,7 @@ void Load
 //       uint64_t rightmost_colex_rank {0};
 //       LookupGrammarRule
 //       (
-//         std::begin(index.grammar_rules),
+//         std::begin(index.text),
 //         index.colex_grammar_trie_root,
 //         reverse_pattern_first_iterator,
 //         reverse_pattern_last_iterator,
@@ -1031,7 +1134,7 @@ void Load
 //   }
 //   LookupGrammarRule
 //   (
-//     std::begin(index.grammar_rules),
+//     std::begin(index.text),
 //     index.lex_grammar_trie_root,
 //     std::next(reverse_pattern_last_iterator),
 //     std::next(reverse_pattern_begin),
