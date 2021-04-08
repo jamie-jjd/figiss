@@ -866,6 +866,29 @@ void Construct
     grammar_rule_begin_offsets_end
   );
   // Print(std::cout, std::begin(grammar_rule_sizes), std::end(grammar_rule_sizes));
+  auto grammar_compressed_alphabet_size {std::size(grammar_rule_sizes) + 1};
+  auto grammar_compressed_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
+  auto grammar_compressed_text_size
+  {
+    std::distance
+    (
+      temporary_grammar_compressed_text_begin,
+      temporary_grammar_compressed_text_end
+    ) + 1
+  };
+  sdsl::int_vector<> grammar_compressed_text;
+  {
+    grammar_compressed_text.width(grammar_compressed_text_width);
+    grammar_compressed_text.resize(grammar_compressed_text_size);
+    std::copy
+    (
+      temporary_grammar_compressed_text_begin,
+      temporary_grammar_compressed_text_end,
+      std::begin(grammar_compressed_text)
+    );
+    *std::prev(std::end(grammar_compressed_text)) = 0;
+    // Print(std::cout, std::begin(grammar_compressed_text), std::end(grammar_compressed_text));
+  }
   sdsl::int_vector<8> grammar_rules;
   CalculateGrammarRules
   (
@@ -875,24 +898,25 @@ void Construct
     grammar_rule_begin_offsets_begin
   );
   // Print(std::cout, std::begin(grammar_rules), std::end(grammar_rules));
-  sdsl::util::clear(sl_types);
-  sdsl::util::clear(text);
+  {
+    sdsl::util::clear(sl_types);
+    sdsl::util::clear(text);
+    sdsl::util::clear(text_offsets);
+  }
   DynamicGrammarTrie lex_grammar_trie {1};
   DynamicGrammarTrie colex_grammar_trie {-1};
-  InsertGrammarRulesIntoDynamicGrammarTries
-  (
-    grammar_rule_sizes,
-    grammar_rules,
-    lex_grammar_trie,
-    colex_grammar_trie
-  );
-  // PrintDynamicGrammarTrie(std::cout, grammar_rules, lex_grammar_trie);
-  // PrintDynamicGrammarTrie(std::cout, grammar_rules, colex_grammar_trie);
-  CalculateLexGrammarTrieRankRanges(lex_grammar_trie);
-  // PrintDynamicGrammarTrie(std::cout, grammar_rules, lex_grammar_trie);
-  auto grammar_compressed_alphabet_size {std::size(grammar_rule_sizes) + 1};
-  auto grammar_compressed_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
   {
+    InsertGrammarRulesIntoDynamicGrammarTries
+    (
+      grammar_rule_sizes,
+      grammar_rules,
+      lex_grammar_trie,
+      colex_grammar_trie
+    );
+    // PrintDynamicGrammarTrie(std::cout, grammar_rules, lex_grammar_trie);
+    // PrintDynamicGrammarTrie(std::cout, grammar_rules, colex_grammar_trie);
+    CalculateLexGrammarTrieRankRanges(lex_grammar_trie);
+    // PrintDynamicGrammarTrie(std::cout, grammar_rules, lex_grammar_trie);
     sdsl::int_vector<> lex_to_colex;
     lex_to_colex.width(grammar_compressed_text_width);
     lex_to_colex.resize(grammar_compressed_alphabet_size);
@@ -908,25 +932,6 @@ void Construct
     }
     // Print(std::cout, std::begin(index.colex_to_lex), std::end(index.colex_to_lex));
   }
-  // auto grammar_compressed_text_size
-  // {
-  //   std::distance
-  //   (
-  //     temporary_grammar_compressed_text_begin,
-  //     temporary_grammar_compressed_text_end
-  //   ) + 1
-  // };
-  // sdsl::int_vector<> grammar_compressed_text;
-  // grammar_compressed_text.width(grammar_compressed_text_width);
-  // grammar_compressed_text.resize(grammar_compressed_text_size);
-  // std::copy
-  // (
-  //   temporary_grammar_compressed_text_begin,
-  //   temporary_grammar_compressed_text_end,
-  //   std::begin(grammar_compressed_text)
-  // );
-  // *std::prev(std::end(grammar_compressed_text)) = 0;
-  // sdsl::util::clear(text_offsets);
   // index.lex_grammar_compressed_character_bucket_end_offsets.width(sdsl::bits::hi(grammar_compressed_text_size) + 1);
   // index.lex_grammar_compressed_character_bucket_end_offsets.resize(grammar_compressed_alphabet_size);
   // CalculateCharacterBucketEndOffsets
