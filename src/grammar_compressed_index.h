@@ -249,39 +249,41 @@ template
   typename Text,
   typename SlTypes,
   typename GrammarRuleBeginOffsetsIterator,
-  typename TemporaryGrammarCompressedTextIterator
+  typename TemporaryGrammarCompressedTextIterator,
+  typename GrammarRuleCounts
 >
-void CalculateGrammarRuleBeginOffsetsAndTemporaryGrammarCompressedText
+void CalculateGrammarRuleCountsBeginOffsetsAndTemporaryGrammarCompressedText
 (
   Text const &text,
   SlTypes const &sl_types,
+  GrammarRuleCounts &rule_counts,
   GrammarRuleBeginOffsetsIterator begin_offsets_begin,
-  GrammarRuleBeginOffsetsIterator &begin_offsets_end,
-  TemporaryGrammarCompressedTextIterator temporary_grammar_compressed_text_begin,
-  TemporaryGrammarCompressedTextIterator &temporary_grammar_compressed_text_end
+  GrammarRuleBeginOffsetsIterator begin_offsets_end,
+  TemporaryGrammarCompressedTextIterator temporary_compressed_text_begin
 )
 {
+  std::deque<uint64_t> counts;
   auto invalid_text_offset {std::size(text)};
   uint64_t lex_rank {0};
-  auto previous_grammar_rule_iterator {std::prev(std::end(text))};
+  auto previous_rule_iterator {std::prev(std::end(text))};
   auto previous_sl_types_iterator {std::prev(std::end(sl_types))};
   auto begin_offsets_iterator {begin_offsets_begin};
   while (begin_offsets_iterator != begin_offsets_end)
   {
     uint64_t begin_offset {*begin_offsets_iterator};
-    auto grammar_rule_iterator {std::next(std::begin(text), begin_offset)};
+    auto rule_iterator {std::next(std::begin(text), begin_offset)};
     auto sl_types_iterator {std::next(std::begin(sl_types), begin_offset)};
     if
     (
-      (*previous_grammar_rule_iterator == *grammar_rule_iterator)
+      (*previous_rule_iterator == *rule_iterator)
       &&
       (*previous_sl_types_iterator == *sl_types_iterator)
     )
     {
       do
       {
-        ++previous_grammar_rule_iterator;
-        ++grammar_rule_iterator;
+        ++previous_rule_iterator;
+        ++rule_iterator;
         ++previous_sl_types_iterator;
         ++sl_types_iterator;
       }
@@ -291,7 +293,7 @@ void CalculateGrammarRuleBeginOffsetsAndTemporaryGrammarCompressedText
         &&
         !IsLeftmostSType(sl_types_iterator)
         &&
-        (*previous_grammar_rule_iterator == *grammar_rule_iterator)
+        (*previous_rule_iterator == *rule_iterator)
         &&
         (*previous_sl_types_iterator == *sl_types_iterator)
       );
@@ -304,25 +306,28 @@ void CalculateGrammarRuleBeginOffsetsAndTemporaryGrammarCompressedText
       {
         --lex_rank;
         *begin_offsets_iterator = invalid_text_offset;
+        ++counts.back();
+      }
+      else
+      {
+        counts.emplace_back(1);
       }
     }
-    *std::next(temporary_grammar_compressed_text_begin, (begin_offset + 1) / 2) = ++lex_rank;
-    previous_grammar_rule_iterator = std::next(std::begin(text), begin_offset);
+    else
+    {
+      counts.emplace_back(1);
+    }
+    *std::next(temporary_compressed_text_begin, (begin_offset + 1) / 2) = ++lex_rank;
+    previous_rule_iterator = std::next(std::begin(text), begin_offset);
     previous_sl_types_iterator = std::next(std::begin(sl_types), begin_offset);
     ++begin_offsets_iterator;
   }
-  begin_offsets_end = MoveVaildEntriesToFront
-  (
-    begin_offsets_begin,
-    begin_offsets_end,
-    invalid_text_offset
-  );
-  temporary_grammar_compressed_text_end = MoveVaildEntriesToFront
-  (
-    temporary_grammar_compressed_text_begin,
-    temporary_grammar_compressed_text_end,
-    invalid_text_offset
-  );
+  rule_counts.resize(std::size(counts));
+  auto rule_counts_iterator {std::begin(rule_counts)};
+  for (auto const &count : counts)
+  {
+    *rule_counts_iterator++ = count;
+  }
   return;
 }
 
@@ -337,9 +342,11 @@ void CalculateGrammarRuleSizes
   GrammarRuleSizes &sizes,
   SlTypes const &sl_types,
   GrammarRuleBeginOffsetsIterator begin_offsets_begin,
-  GrammarRuleBeginOffsetsIterator begin_offsets_end
+  GrammarRuleBeginOffsetsIterator begin_offsets_end,
+  uint64_t const invalid_value
 )
 {
+  begin_offsets_end = MoveVaildEntriesToFront(begin_offsets_begin, begin_offsets_end, invalid_value);
   sizes.resize(std::distance(begin_offsets_begin, begin_offsets_end));
   auto sizes_iterator {std::begin(sizes)};
   auto begin_offsets_iterator {begin_offsets_begin};
@@ -354,6 +361,67 @@ void CalculateGrammarRuleSizes
     *sizes_iterator = std::distance(sl_types_first_iterator, sl_types_last_iterator);
     ++sizes_iterator;
     ++begin_offsets_iterator;
+  }
+  return;
+}
+
+template
+<
+  typename Text,
+  typename GrammarRuleSizes,
+  typename GrammarRules,
+  typename GrammarRuleBeginOffsetsIterator
+>
+void CalculateGrammarRules
+(
+  Text const &text,
+  GrammarRuleSizes const &sizes,
+  GrammarRules &rules,
+  GrammarRuleBeginOffsetsIterator begin_offsets_begin
+)
+{
+  rules.resize(std::accumulate(std::begin(sizes), std::end(sizes), 0));
+  auto rules_iterator {std::begin(rules)};
+  auto begin_offsets_iterator {begin_offsets_begin};
+  auto sizes_iterator {std::begin(sizes)};
+  auto sizes_end {std::end(sizes)};
+  while (sizes_iterator != sizes_end)
+  {
+    auto rule_iterator {std::next(std::begin(text), *begin_offsets_iterator)};
+    auto rule_end {std::next(std::begin(text), *begin_offsets_iterator + *sizes_iterator)};
+    while (rule_iterator != rule_end)
+    {
+      *rules_iterator = *rule_iterator;
+      ++rules_iterator;
+      ++rule_iterator;
+    }
+    ++begin_offsets_iterator;
+    ++sizes_iterator;
+  }
+  return;
+}
+
+template
+<
+  typename GrammarCompressedText,
+  typename TemporaryGrammarCompressedTextIterator
+>
+void CalculateGrammarCompressedText
+(
+  GrammarCompressedText &text,
+  uint64_t const width,
+  TemporaryGrammarCompressedTextIterator begin,
+  TemporaryGrammarCompressedTextIterator end,
+  uint64_t const invalid_value
+)
+{
+  end = MoveVaildEntriesToFront(begin, end, invalid_value);
+  auto size {std::distance(begin, end) + 1};
+  {
+    text.width(width);
+    text.resize(size);
+    std::copy(begin, end, std::begin(text));
+    *std::prev(std::end(text)) = 0;
   }
   return;
 }
@@ -394,42 +462,6 @@ struct DynamicGrammarTrie
   {
   }
 };
-
-template
-<
-  typename Text,
-  typename GrammarRuleSizes,
-  typename GrammarRules,
-  typename GrammarRuleBeginOffsetsIterator
->
-void CalculateGrammarRules
-(
-  Text const &text,
-  GrammarRuleSizes const &sizes,
-  GrammarRules &rules,
-  GrammarRuleBeginOffsetsIterator begin_offsets_begin
-)
-{
-  rules.resize(std::accumulate(std::begin(sizes), std::end(sizes), 0));
-  auto rules_iterator {std::begin(rules)};
-  auto begin_offsets_iterator {begin_offsets_begin};
-  auto sizes_iterator {std::begin(sizes)};
-  auto sizes_end {std::end(sizes)};
-  while (sizes_iterator != sizes_end)
-  {
-    auto rule_iterator {std::next(std::begin(text), *begin_offsets_iterator)};
-    auto rule_end {std::next(std::begin(text), *begin_offsets_iterator + *sizes_iterator)};
-    while (rule_iterator != rule_end)
-    {
-      *rules_iterator = *rule_iterator;
-      ++rules_iterator;
-      ++rule_iterator;
-    }
-    ++begin_offsets_iterator;
-    ++sizes_iterator;
-  }
-  return;
-}
 
 template
 <
@@ -846,15 +878,17 @@ void Construct
   auto grammar_rule_begin_offsets_end {text_offsets_boundary};
   auto temporary_grammar_compressed_text_begin {text_offsets_boundary};
   auto temporary_grammar_compressed_text_end {std::end(text_offsets)};
-  CalculateGrammarRuleBeginOffsetsAndTemporaryGrammarCompressedText
+  sdsl::int_vector<> grammar_rule_counts;
+  CalculateGrammarRuleCountsBeginOffsetsAndTemporaryGrammarCompressedText
   (
     text,
     sl_types,
+    grammar_rule_counts,
     grammar_rule_begin_offsets_begin,
     grammar_rule_begin_offsets_end,
-    temporary_grammar_compressed_text_begin,
-    temporary_grammar_compressed_text_end
+    temporary_grammar_compressed_text_begin
   );
+  // Print(std::cout, std::begin(grammar_rule_counts), std::end(grammar_rule_counts));
   // Print(std::cout, grammar_rule_begin_offsets_begin, grammar_rule_begin_offsets_end);
   // Print(std::cout, temporary_grammar_compressed_text_begin, temporary_grammar_compressed_text_end);
   sdsl::int_vector<> grammar_rule_sizes;
@@ -863,32 +897,10 @@ void Construct
     grammar_rule_sizes,
     sl_types,
     grammar_rule_begin_offsets_begin,
-    grammar_rule_begin_offsets_end
+    grammar_rule_begin_offsets_end,
+    invalid_text_offset
   );
   // Print(std::cout, std::begin(grammar_rule_sizes), std::end(grammar_rule_sizes));
-  auto grammar_compressed_alphabet_size {std::size(grammar_rule_sizes) + 1};
-  auto grammar_compressed_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
-  auto grammar_compressed_text_size
-  {
-    std::distance
-    (
-      temporary_grammar_compressed_text_begin,
-      temporary_grammar_compressed_text_end
-    ) + 1
-  };
-  sdsl::int_vector<> grammar_compressed_text;
-  {
-    grammar_compressed_text.width(grammar_compressed_text_width);
-    grammar_compressed_text.resize(grammar_compressed_text_size);
-    std::copy
-    (
-      temporary_grammar_compressed_text_begin,
-      temporary_grammar_compressed_text_end,
-      std::begin(grammar_compressed_text)
-    );
-    *std::prev(std::end(grammar_compressed_text)) = 0;
-    // Print(std::cout, std::begin(grammar_compressed_text), std::end(grammar_compressed_text));
-  }
   sdsl::int_vector<8> grammar_rules;
   CalculateGrammarRules
   (
@@ -898,6 +910,18 @@ void Construct
     grammar_rule_begin_offsets_begin
   );
   // Print(std::cout, std::begin(grammar_rules), std::end(grammar_rules));
+  auto grammar_compressed_alphabet_size {std::size(grammar_rule_sizes) + 1};
+  auto grammar_compressed_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
+  sdsl::int_vector<> grammar_compressed_text;
+  CalculateGrammarCompressedText
+  (
+    grammar_compressed_text,
+    grammar_compressed_text_width,
+    temporary_grammar_compressed_text_begin,
+    temporary_grammar_compressed_text_end,
+    invalid_text_offset
+  );
+  // Print(std::cout, std::begin(grammar_compressed_text), std::end(grammar_compressed_text));
   {
     sdsl::util::clear(sl_types);
     sdsl::util::clear(text);
