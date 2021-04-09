@@ -765,7 +765,11 @@ void InsertGrammarRulesSuffixesIntoTemporaryLexGrammarTrie
     auto rule_end {std::next(rule_begin, *rule_sizes_iterator)};
     while (rule_begin != rule_end)
     {
+<<<<<<< HEAD
       // Print(std::cout, rule_begin, rule_end);
+=======
+      Print(std::cout, rule_begin, rule_end);
+>>>>>>> 0e0882f5212a78111247b66c89dbdc075aabb792
       InsertGrammarRuleSuffixIntoTemporaryGrammarTrie
       (
         temporary_lex_grammar_trie,
@@ -775,7 +779,11 @@ void InsertGrammarRulesSuffixesIntoTemporaryLexGrammarTrie
         0,
         *rule_counts_iterator
       );
+<<<<<<< HEAD
       // PrintTemporaryGrammarTrie(std::cout, rules, temporary_lex_grammar_trie);
+=======
+      PrintTemporaryGrammarTrie(std::cout, rules, temporary_lex_grammar_trie);
+>>>>>>> 0e0882f5212a78111247b66c89dbdc075aabb792
       ++rule_begin;
     }
     ++rule_counts_iterator;
