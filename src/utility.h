@@ -10,8 +10,6 @@
 #include <memory>
 #include <random>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 
 #include <sdsl/suffix_trees.hpp>
 #include <sdsl/wavelet_trees.hpp>
@@ -621,5 +619,28 @@ uint64_t CalculateTrieSize (Trie const &trie)
     }
   }
   return size;
+}
+
+template <typename Size>
+std::string ProperSizeRepresentation (Size const size)
+{
+  std::stringstream stringstream;
+  stringstream << std::fixed << std::setprecision(2);
+  if (size > (1024 * 1024))
+  {
+    stringstream << (size / (1024.0 * 1024.0));
+    return (stringstream.str() + "M");
+  }
+  else if (size > 1024)
+  {
+    stringstream << (size / 1024.0);
+    return (stringstream.str() + "K");
+  }
+  else
+  {
+    stringstream << (size * 1.0);
+    return (stringstream.str());
+  }
+  return "0";
 }
 }
