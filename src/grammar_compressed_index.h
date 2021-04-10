@@ -475,6 +475,7 @@ void PrintTemporaryGrammarTrie
   TemporaryGrammarTrie const &trie
 )
 {
+  uint64_t size {};
   std::deque<std::pair<TemporaryGrammarTrie::NodePointer, uint64_t>> nodes_depth;
   nodes_depth.emplace_back(trie.root, 0);
   while (!nodes_depth.empty())
@@ -482,6 +483,7 @@ void PrintTemporaryGrammarTrie
     auto current_node {std::get<0>(nodes_depth.back())};
     auto depth {std::get<1>(nodes_depth.back())};
     nodes_depth.pop_back();
+    ++size;
     file << depth << ":";
     auto edge_iterator {std::next(std::begin(labels), std::get<0>(current_node->edge_range))};
     auto edge_end {std::next(std::begin(labels), std::get<1>(current_node->edge_range))};
@@ -503,6 +505,7 @@ void PrintTemporaryGrammarTrie
       }
     }
   }
+  file << size << "\n";
   return;
 }
 
@@ -785,6 +788,46 @@ void InsertGrammarRulesSuffixesIntoTemporaryLexGrammarTrie
   return;
 }
 
+void CalculateTemporaryGrammarTrieCount (TemporaryGrammarTrie &trie)
+{
+  std::deque<std::pair<TemporaryGrammarTrie::NodePointer, bool>> nodes_is_forward;
+  nodes_is_forward.emplace_back(trie.root, true);
+  while (!nodes_is_forward.empty())
+  {
+    auto current_node {std::get<0>(nodes_is_forward.back())};
+    auto &is_forward {std::get<1>(nodes_is_forward.back())};
+    if (is_forward)
+    {
+      is_forward = false;
+      if (!current_node->branches.empty())
+      {
+        auto branches_iterator {std::begin(current_node->branches)};
+        auto branches_end {std::end(current_node->branches)};
+        while (branches_iterator != branches_end)
+        {
+          nodes_is_forward.emplace_back(std::get<1>(*branches_iterator), true);
+          ++branches_iterator;
+        }
+      }
+    }
+    else
+    {
+      if (!current_node->branches.empty())
+      {
+        auto branches_iterator {std::begin(current_node->branches)};
+        auto branches_end {std::end(current_node->branches)};
+        while (branches_iterator != branches_end)
+        {
+          current_node->count += std::get<1>(*branches_iterator)->count;
+          ++branches_iterator;
+        }
+      }
+      nodes_is_forward.pop_back();
+    }
+  }
+  return;
+}
+
 // template
 // <
 //   typename GrammarCompressedText,
@@ -1015,6 +1058,8 @@ void Construct
       grammar_rules,
       temporary_lex_grammar_trie
     );
+    // PrintTemporaryGrammarTrie(std::cout, grammar_rules, temporary_lex_grammar_trie);
+    CalculateTemporaryGrammarTrieCount(temporary_lex_grammar_trie);
     // PrintTemporaryGrammarTrie(std::cout, grammar_rules, temporary_lex_grammar_trie);
   }
   // index.lex_grammar_compressed_character_bucket_end_offsets.width(sdsl::bits::hi(grammar_compressed_text_size) + 1);
