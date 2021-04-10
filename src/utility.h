@@ -597,4 +597,29 @@ void PrintRunLengthWaveletTreeStatistics
   << "(" << (rlwt_hutu_size_in_mega_bytes / bwt_size_in_mega_bytes) * 100.0 << "\\%) \\\\\n";
   return;
 }
+
+template <typename Trie>
+uint64_t CalculateTrieSize (Trie const &trie)
+{
+  uint64_t size {};
+  std::deque<typename Trie::NodePointer> nodes;
+  if (trie.root != nullptr)
+  {
+    nodes.emplace_back(trie.root);
+    while (!nodes.empty())
+    {
+      ++size;
+      auto current_node {nodes.front()};
+      auto branches_iterator {std::begin(current_node->branches)};
+      auto branches_end {std::end(current_node->branches)};
+      while (branches_iterator != branches_end)
+      {
+        nodes.emplace_back(std::get<1>(*branches_iterator));
+        ++branches_iterator;
+      }
+      nodes.pop_front();
+    }
+  }
+  return size;
+}
 }
