@@ -1046,7 +1046,7 @@ struct Index
   // StaticGrammarTrie lex_grammar_rank_trie;
   // StaticGrammarTrie colex_grammar_rank_trie;
   sdsl::int_vector<> colex_to_lex;
-  // sdsl::int_vector<> lex_grammar_compressed_character_bucket_end_offsets;
+  sdsl::int_vector<> lex_grammar_rank_bucket_end_offsets;
   // sdsl::wm_int<> colex_grammar_compressed_bwt;
 };
 
@@ -1062,14 +1062,14 @@ struct Index
 //   PrintGrammarTrie(file, std::begin(index.grammar_rules), index.lex_grammar_rank_trie_root, 1);
 //   PrintGrammarTrie(file, std::begin(index.grammar_rules), index.colex_grammar_rank_trie_root, -1);
 //   file << index.colex_to_lex << "\n";
-//   file << index.lex_grammar_compressed_character_bucket_end_offsets << "\n";
+//   file << index.lex_grammar_rank_bucket_end_offsets << "\n";
 //   file << index.colex_grammar_compressed_bwt << "\n";
 //   return;
 // }
 
 void Construct
 (
-  // Index &index,
+  Index &index,
   std::filesystem::path const &text_path
 )
 {
@@ -1082,12 +1082,12 @@ void Construct
       sdsl::append_zero_symbol(text);
       // std::cout << "zero symbol appended\n";
     }
-    Print(std::cout, std::begin(text), std::end(text));
+    // Print(std::cout, std::begin(text), std::end(text));
   }
   sdsl::bit_vector sl_types;
   {
     CalculateSlTypes(text, sl_types);
-    Print(std::cout, std::begin(sl_types), std::end(sl_types));
+    // Print(std::cout, std::begin(sl_types), std::end(sl_types));
   }
   auto invalid_text_offset {std::size(text)};
   auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
@@ -1137,7 +1137,7 @@ void Construct
     grammar_rule_begin_offsets_end,
     temporary_grammar_compressed_text_begin
   );
-  Print(std::cout, std::begin(grammar_rule_counts), std::end(grammar_rule_counts));
+  // Print(std::cout, std::begin(grammar_rule_counts), std::end(grammar_rule_counts));
   // Print(std::cout, grammar_rule_begin_offsets_begin, grammar_rule_begin_offsets_end);
   // Print(std::cout, temporary_grammar_compressed_text_begin, temporary_grammar_compressed_text_end);
   sdsl::int_vector<> grammar_rule_sizes;
@@ -1149,7 +1149,7 @@ void Construct
     grammar_rule_begin_offsets_end,
     invalid_text_offset
   );
-  Print(std::cout, std::begin(grammar_rule_sizes), std::end(grammar_rule_sizes));
+  // Print(std::cout, std::begin(grammar_rule_sizes), std::end(grammar_rule_sizes));
   sdsl::int_vector<8> grammar_rules;
   CalculateGrammarRules
   (
@@ -1158,8 +1158,8 @@ void Construct
     grammar_rules,
     grammar_rule_begin_offsets_begin
   );
-  Print(std::cout, std::begin(grammar_rules), std::end(grammar_rules));
-  auto grammar_compressed_alphabet_size {std::size(grammar_rule_sizes) + 1};
+  // Print(std::cout, std::begin(grammar_rules), std::end(grammar_rules));
+  auto grammar_ranks_size {std::size(grammar_rule_sizes) + 1};
   auto grammar_compressed_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
   sdsl::int_vector<> grammar_compressed_text;
   CalculateGrammarCompressedText
@@ -1170,7 +1170,7 @@ void Construct
     temporary_grammar_compressed_text_end,
     invalid_text_offset
   );
-  Print(std::cout, std::begin(grammar_compressed_text), std::end(grammar_compressed_text));
+  // Print(std::cout, std::begin(grammar_compressed_text), std::end(grammar_compressed_text));
   {
     sdsl::util::clear(sl_types);
     sdsl::util::clear(text);
@@ -1200,38 +1200,34 @@ void Construct
     // PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
     // PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
     CalculateCumulativeLexGrammarRankRanges(lex_grammar_rank_trie);
-    PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
+    // PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
     sdsl::int_vector<> lex_to_colex;
     lex_to_colex.width(grammar_compressed_text_width);
-    lex_to_colex.resize(grammar_compressed_alphabet_size);
+    lex_to_colex.resize(grammar_ranks_size);
     lex_to_colex[0] = 0;
     CalculateCumulativeColexGrammarTrieRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
-    Print(std::cout, std::begin(lex_to_colex), std::end(lex_to_colex));
-    PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
-    // index.colex_to_lex.width(grammar_compressed_text_width);
-    // index.colex_to_lex.resize(grammar_compressed_alphabet_size);
-    // for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
-    // {
-    //   index.colex_to_lex[lex_to_colex[rank]] = rank;
-    // }
+    // Print(std::cout, std::begin(lex_to_colex), std::end(lex_to_colex));
+    // PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
+    index.colex_to_lex.width(grammar_compressed_text_width);
+    index.colex_to_lex.resize(grammar_ranks_size);
+    for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
+    {
+      index.colex_to_lex[lex_to_colex[rank]] = rank;
+    }
     // Print(std::cout, std::begin(index.colex_to_lex), std::end(index.colex_to_lex));
-    // InsertGrammarRulesSuffixesIntoTemporaryLexGrammarTrie
-    // (
-    //   grammar_rule_counts,
-    //   grammar_rule_sizes,
-    //   grammar_rules,
-    //   lex_grammar_rank_trie
-    // );
-    // // PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
-    // CalculateGrammarRankTrieCount(lex_grammar_rank_trie);
-    // PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
   }
-  // index.lex_grammar_compressed_character_bucket_end_offsets.width(sdsl::bits::hi(grammar_compressed_text_size) + 1);
-  // index.lex_grammar_compressed_character_bucket_end_offsets.resize(grammar_compressed_alphabet_size);
-  // CalculateCharacterBucketEndOffsets
+  index.lex_grammar_rank_bucket_end_offsets.width(sdsl::bits::hi(std::size(grammar_compressed_text)) + 1);
+  index.lex_grammar_rank_bucket_end_offsets.resize(grammar_ranks_size);
+  CalculateCharacterBucketEndOffsets
+  (
+    grammar_compressed_text,
+    index.lex_grammar_rank_bucket_end_offsets
+  );
+  // Print
   // (
-  //   grammar_compressed_text,
-  //   index.lex_grammar_compressed_character_bucket_end_offsets
+  //   std::cout,
+  //   std::begin(index.lex_grammar_rank_bucket_end_offsets),
+  //   std::end(index.lex_grammar_rank_bucket_end_offsets)
   // );
   // CalculateColexGrammarCompressedBwt
   // (
@@ -1251,7 +1247,7 @@ void Construct
 //   std::ofstream index_file {index_path};
 //   // todo: serialize grammar trie
 //   sdsl::serialize(index.colex_to_lex, index_file);
-//   sdsl::serialize(index.lex_grammar_compressed_character_bucket_end_offsets, index_file);
+//   sdsl::serialize(index.lex_grammar_rank_bucket_end_offsets, index_file);
 //   sdsl::serialize(index.colex_grammar_compressed_bwt, index_file);
 //   return;
 // }
@@ -1263,12 +1259,12 @@ void Construct
 // )
 // {
 //   sdsl::util::clear(index.colex_to_lex);
-//   sdsl::util::clear(index.lex_grammar_compressed_character_bucket_end_offsets);
+//   sdsl::util::clear(index.lex_grammar_rank_bucket_end_offsets);
 //   sdsl::util::clear(index.colex_grammar_compressed_bwt);
 //   std::ifstream index_file {index_path};
 //   // todo: load grammar trie
 //   index.colex_to_lex.load(index_file);
-//   index.lex_grammar_compressed_character_bucket_end_offsets.load(index_file);
+//   index.lex_grammar_rank_bucket_end_offsets.load(index_file);
 //   index.colex_grammar_compressed_bwt.load(index_file);
 //   return;
 // }
@@ -1465,7 +1461,7 @@ void Construct
 //   {
 //     auto character_begin_offset
 //     {
-//       index.lex_grammar_compressed_character_bucket_end_offsets
+//       index.lex_grammar_rank_bucket_end_offsets
 //       [
 //         index.colex_to_lex[colex_rank] - 1
 //       ]
@@ -1605,8 +1601,8 @@ void Construct
 //     );
 //     if (leftmost_lex_rank != 0)
 //     {
-//       pattern_range_begin_offset_S = index.lex_grammar_compressed_character_bucket_end_offsets[leftmost_lex_rank - 1];
-//       pattern_range_end_offset_S = index.lex_grammar_compressed_character_bucket_end_offsets[rightmost_lex_rank];
+//       pattern_range_begin_offset_S = index.lex_grammar_rank_bucket_end_offsets[leftmost_lex_rank - 1];
+//       pattern_range_end_offset_S = index.lex_grammar_rank_bucket_end_offsets[rightmost_lex_rank];
 //     }
 //     // {
 //     //   auto iterator {std::next(reverse_pattern_last_iterator)};
@@ -1640,7 +1636,7 @@ void Construct
 //         {
 //           auto character_begin_offset
 //           {
-//             index.lex_grammar_compressed_character_bucket_end_offsets
+//             index.lex_grammar_rank_bucket_end_offsets
 //             [
 //               index.colex_to_lex[leftmost_colex_rank] - 1
 //             ]
@@ -1720,8 +1716,8 @@ void Construct
 //   );
 //   if (leftmost_lex_rank != 0)
 //   {
-//     pattern_range_begin_offset_L = index.lex_grammar_compressed_character_bucket_end_offsets[leftmost_lex_rank - 1];
-//     pattern_range_end_offset_L = index.lex_grammar_compressed_character_bucket_end_offsets[rightmost_lex_rank];
+//     pattern_range_begin_offset_L = index.lex_grammar_rank_bucket_end_offsets[leftmost_lex_rank - 1];
+//     pattern_range_end_offset_L = index.lex_grammar_rank_bucket_end_offsets[rightmost_lex_rank];
 //   }
 //   // {
 //   //   auto iterator {std::next(reverse_pattern_last_iterator)};
