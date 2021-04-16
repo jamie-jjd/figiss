@@ -888,7 +888,7 @@ void InsertGrammarRulesIntoGrammarRankTries
   return;
 }
 
-void CalculateTemporaryLexGrammarTrieRankRanges (GrammarRankTrie &lex_grammar_rank_trie)
+void CalculateCumulativeLexGrammarRankRanges (GrammarRankTrie &lex_grammar_rank_trie)
 {
   std::deque<std::pair<GrammarRankTrie::NodePointer, bool>> nodes_is_forward;
   nodes_is_forward.emplace_back(lex_grammar_rank_trie.root, true);
@@ -1199,8 +1199,8 @@ void Construct
     );
     PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
     PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
-    // CalculateTemporaryLexGrammarTrieRankRanges(lex_grammar_rank_trie);
-    // PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
+    CalculateCumulativeLexGrammarRankRanges(lex_grammar_rank_trie);
+    PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
     // sdsl::int_vector<> lex_to_colex;
     // lex_to_colex.width(grammar_compressed_text_width);
     // lex_to_colex.resize(grammar_compressed_alphabet_size);
