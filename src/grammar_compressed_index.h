@@ -739,7 +739,7 @@ void PrintGrammarRankTrie
       file << *edge_iterator;
       edge_iterator += trie.edge_offset;
     }
-    PrintPair(file, current_node->rank_range);
+    PrintPair(file, current_node->rank_range, "\n");
     if (!current_node->branches.empty())
     {
       auto reverse_branches_iterator {std::rbegin(current_node->branches)};
@@ -752,6 +752,96 @@ void PrintGrammarRankTrie
     }
   }
   file << size << "\n";
+  return;
+}
+
+template <typename GrammarRulesIterator>
+void InsertGrammarRuleAndRankIntoGrammarRankTrie
+(
+  GrammarRankTrie &trie,
+  GrammarRulesIterator rules_begin,
+  GrammarRulesIterator rule_iterator,
+  GrammarRulesIterator rule_end,
+  uint64_t const rank
+)
+{
+  auto current_node {trie.root};
+  auto offset {trie.edge_offset};
+  while (true)
+  {
+    auto character {*rule_iterator};
+    auto branches_iterator {current_node->branches.find(character)};
+    if (branches_iterator == std::end(current_node->branches))
+    {
+      current_node->branches[character] = std::make_shared<GrammarRankTrie::Node>
+      (
+        GrammarRankTrie::EdgeRange
+        {
+          std::distance(rules_begin, rule_iterator),
+          std::distance(rules_begin, rule_end)
+        },
+        GrammarRankTrie::RankRange{rank, rank}
+      );
+      return;
+    }
+    else
+    {
+      auto child_node {std::get<1>(*branches_iterator)};
+      auto edge_iterator {std::next(rules_begin, std::get<0>(child_node->edge_range))};
+      auto edge_end {std::next(rules_begin, std::get<1>(child_node->edge_range))};
+      while
+      (
+        (rule_iterator != rule_end)
+        &&
+        (edge_iterator != edge_end)
+        &&
+        (*rule_iterator == *edge_iterator)
+      )
+      {
+        rule_iterator += offset;
+        edge_iterator += offset;
+      }
+      if (edge_iterator == edge_end)
+      {
+        if (rule_iterator != rule_end)
+        {
+          current_node = child_node;
+        }
+        else
+        {
+          child_node->rank_range = {rank, rank};
+          return;
+        }
+      }
+      else
+      {
+        auto edge_iterator_offset {std::distance(rules_begin, edge_iterator)};
+        auto internal_node
+        {
+          std::make_shared<GrammarRankTrie::Node>
+          (
+            GrammarRankTrie::EdgeRange
+            {
+              std::get<0>(child_node->edge_range),
+              edge_iterator_offset
+            }
+          )
+        };
+        std::get<1>(*branches_iterator) = internal_node;
+        internal_node->branches[*edge_iterator] = child_node;
+        std::get<0>(child_node->edge_range) = edge_iterator_offset;
+        if (rule_iterator != rule_end)
+        {
+          current_node = internal_node;
+        }
+        else
+        {
+          internal_node->rank_range = {rank, rank};
+          return;
+        }
+      }
+    }
+  }
   return;
 }
 
@@ -775,7 +865,7 @@ void InsertGrammarRulesIntoGrammarRankTries
   {
     auto rule_begin {rules_iterator};
     auto rule_end {std::next(rule_begin, *rule_sizes_iterator)};
-    InsertGrammarRuleSuffixIntoGrammarRankTrie
+    InsertGrammarRuleAndRankIntoGrammarRankTrie
     (
       lex_grammar_rank_trie,
       std::begin(rules),
@@ -783,7 +873,7 @@ void InsertGrammarRulesIntoGrammarRankTries
       rule_end,
       lex_rank
     );
-    InsertGrammarRuleSuffixIntoGrammarRankTrie
+    InsertGrammarRuleAndRankIntoGrammarRankTrie
     (
       colex_grammar_rank_trie,
       std::begin(rules),
@@ -1097,19 +1187,18 @@ void Construct
       grammar_rule_counts,
       lex_grammar_count_trie
     );
-    PrintGrammarCountTrie(std::cout, grammar_rules, lex_grammar_count_trie);
+    // PrintGrammarCountTrie(std::cout, grammar_rules, lex_grammar_count_trie);
     CalculateCumulativeGrammarCount(lex_grammar_count_trie);
-    PrintGrammarCountTrie(std::cout, grammar_rules, lex_grammar_count_trie);
-    // InsertGrammarRulesIntoGrammarRankAndCountTrie
-    // (
-    //   grammar_rule_sizes,
-    //   grammar_rules,
-    //   lex_grammar_count_trie,
-    //   lex_grammar_rank_trie,
-    //   colex_grammar_rank_trie
-    // );
-    // PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
-    // PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
+    InsertGrammarRulesIntoGrammarRankTries
+    // PrintGrammarCountTrie(std::cout, grammar_rules, lex_grammar_count_trie);
+    (
+      grammar_rule_sizes,
+      grammar_rules,
+      lex_grammar_rank_trie,
+      colex_grammar_rank_trie
+    );
+    PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
+    PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
     // CalculateTemporaryLexGrammarTrieRankRanges(lex_grammar_rank_trie);
     // PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
     // sdsl::int_vector<> lex_to_colex;
