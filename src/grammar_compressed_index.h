@@ -929,7 +929,7 @@ void CalculateCumulativeLexGrammarRankRanges (GrammarRankTrie &lex_grammar_rank_
 }
 
 template <typename LexToColex>
-void CalculateTemporaryColexGrammarTrieRankRangesAndLexToColex
+void CalculateCumulativeColexGrammarTrieRankRangesAndLexToColex
 (
   GrammarRankTrie colex_grammar_rank_trie,
   LexToColex &lex_to_colex
@@ -1159,7 +1159,7 @@ void Construct
     grammar_rule_begin_offsets_begin
   );
   Print(std::cout, std::begin(grammar_rules), std::end(grammar_rules));
-  // auto grammar_compressed_alphabet_size {std::size(grammar_rule_sizes) + 1};
+  auto grammar_compressed_alphabet_size {std::size(grammar_rule_sizes) + 1};
   auto grammar_compressed_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
   sdsl::int_vector<> grammar_compressed_text;
   CalculateGrammarCompressedText
@@ -1197,17 +1197,17 @@ void Construct
       lex_grammar_rank_trie,
       colex_grammar_rank_trie
     );
-    PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
-    PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
+    // PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
+    // PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
     CalculateCumulativeLexGrammarRankRanges(lex_grammar_rank_trie);
     PrintGrammarRankTrie(std::cout, grammar_rules, lex_grammar_rank_trie);
-    // sdsl::int_vector<> lex_to_colex;
-    // lex_to_colex.width(grammar_compressed_text_width);
-    // lex_to_colex.resize(grammar_compressed_alphabet_size);
-    // lex_to_colex[0] = 0;
-    // CalculateTemporaryColexGrammarTrieRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
-    // // Print(std::cout, std::begin(lex_to_colex), std::end(lex_to_colex));
-    // PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
+    sdsl::int_vector<> lex_to_colex;
+    lex_to_colex.width(grammar_compressed_text_width);
+    lex_to_colex.resize(grammar_compressed_alphabet_size);
+    lex_to_colex[0] = 0;
+    CalculateCumulativeColexGrammarTrieRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
+    Print(std::cout, std::begin(lex_to_colex), std::end(lex_to_colex));
+    PrintGrammarRankTrie(std::cout, grammar_rules, colex_grammar_rank_trie);
     // index.colex_to_lex.width(grammar_compressed_text_width);
     // index.colex_to_lex.resize(grammar_compressed_alphabet_size);
     // for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
