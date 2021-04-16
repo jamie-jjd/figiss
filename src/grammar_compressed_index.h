@@ -1189,8 +1189,8 @@ void Construct
     );
     // PrintGrammarCountTrie(std::cout, grammar_rules, lex_grammar_count_trie);
     CalculateCumulativeGrammarCount(lex_grammar_count_trie);
-    InsertGrammarRulesIntoGrammarRankTries
     // PrintGrammarCountTrie(std::cout, grammar_rules, lex_grammar_count_trie);
+    InsertGrammarRulesIntoGrammarRankTries
     (
       grammar_rule_sizes,
       grammar_rules,
