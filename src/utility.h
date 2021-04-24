@@ -19,6 +19,35 @@ namespace project
 template
 <
   typename File,
+  typename Container
+>
+void Print
+(
+  File &file,
+  Container const &container,
+  int64_t const step = 1,
+  std::string const &delimiter = " ",
+  std::string const &endmarker = "\n"
+)
+{
+  auto iterator {std::begin(container)};
+  auto last_iterator {std::prev(std::end(container))};
+  if (step < 0)
+  {
+    iterator = std::prev(std::end(container));
+    last_iterator = std::begin(container);
+  }
+  while (iterator != last_iterator)
+  {
+    file << *iterator << delimiter;
+    std::advance(iterator, step);
+  }
+  file << *last_iterator << endmarker;
+}
+
+template
+<
+  typename File,
   typename Iterator
 >
 void Print
