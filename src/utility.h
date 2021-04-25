@@ -25,24 +25,28 @@ void Print
 (
   File &file,
   Container const &container,
-  int64_t const step = 1,
+  int64_t step = 1,
   std::string const &delimiter = " ",
   std::string const &endmarker = "\n"
 )
 {
-  auto iterator {std::begin(container)};
-  auto last_iterator {std::prev(std::end(container))};
-  if (step < 0)
+  if (std::size(container) != 0)
   {
-    iterator = std::prev(std::end(container));
-    last_iterator = std::begin(container);
+    auto it {std::begin(container)};
+    auto prev_end {std::prev(std::end(container))};
+    if (step < 0)
+    {
+      it = std::prev(std::end(container));
+      prev_end = std::begin(container);
+    }
+    while (it != prev_end)
+    {
+      file << *it << delimiter;
+      std::advance(it, step);
+    }
+    file << *prev_end << endmarker;
   }
-  while (iterator != last_iterator)
-  {
-    file << *iterator << delimiter;
-    std::advance(iterator, step);
-  }
-  file << *last_iterator << endmarker;
+  return;
 }
 
 template
@@ -53,41 +57,24 @@ template
 void Print
 (
   File &file,
-  Iterator begin,
-  Iterator end,
+  Iterator first,
+  Iterator last,
   int64_t const step = 1,
   std::string const &delimiter = " ",
   std::string const &endmarker = "\n"
 )
 {
-  auto iterator {begin};
-  auto last_iterator {std::prev(end)};
-  if (step < 0)
+  if (std::distance(first, last) * step > 0)
   {
-    last_iterator = std::next(end);
+    auto it {first};
+    auto prev_last {std::prev(last, step)};
+    while (it != prev_last)
+    {
+      file << *it << delimiter;
+      std::advance(it, step);
+    }
+    file << *prev_last << endmarker;
   }
-  while (iterator != last_iterator)
-  {
-    file << *iterator << delimiter;
-    std::advance(iterator, step);
-  }
-  file << *last_iterator << endmarker;
-  return;
-}
-
-template
-<
-  typename File,
-  typename Pair
->
-void PrintPair
-(
-  File &file,
-  Pair const &pair,
-  std::string const &endmarker = ""
-)
-{
-  file << "(" << std::get<0>(pair) << "," << std::get<1>(pair) << ")" << endmarker;
   return;
 }
 
@@ -171,15 +158,15 @@ void GeneratePatterns
     std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
     auto random_begin_offset {std::bind(distribution, engine)};
     patterns.resize(pattern_amount * pattern_size);
-    auto patterns_iterator {std::begin(patterns)};
+    auto patterns_it {std::begin(patterns)};
     for (uint64_t i {0}; i != pattern_amount; ++i)
     {
-      auto text_iterator {std::next(std::begin(text), random_begin_offset())};
+      auto text_it {std::next(std::begin(text), random_begin_offset())};
       for (uint64_t j {0}; j != pattern_size; ++j)
       {
-        *patterns_iterator = *text_iterator;
-        ++patterns_iterator;
-        ++text_iterator;
+        *patterns_it = *text_it;
+        ++patterns_it;
+        ++text_it;
       }
     }
   }
@@ -272,25 +259,25 @@ void CalculateAndSerializeCompactText
   uint64_t codebook_size {*std::max_element(std::begin(text), std::end(text)) + 1};
   sdsl::int_vector<> codebook(codebook_size, 0);
   {
-    auto text_iterator {std::begin(text)};
+    auto text_it {std::begin(text)};
     auto text_end {std::end(text)};
-    while (text_iterator != text_end)
+    while (text_it != text_end)
     {
-      if (*text_iterator != 0)
+      if (*text_it != 0)
       {
-        codebook[*text_iterator] = 1;
+        codebook[*text_it] = 1;
       }
-      ++text_iterator;
+      ++text_it;
     }
   }
   std::partial_sum(std::begin(codebook), std::end(codebook), std::begin(codebook));
   {
-    auto text_iterator {std::begin(text)};
+    auto text_it {std::begin(text)};
     auto text_end {std::end(text)};
-    while (text_iterator != text_end)
+    while (text_it != text_end)
     {
-      *text_iterator = codebook[*text_iterator];
-      ++text_iterator;
+      *text_it = codebook[*text_it];
+      ++text_it;
     }
   }
   sdsl::util::bit_compress(text);
@@ -311,15 +298,15 @@ void CalculateAndSerializeBwt
   sdsl::load_from_file(text, text_path);
   sdsl::int_vector<> buffer;
   sdsl::qsufsort::construct_sa(buffer, text);
-  auto buffer_iterator {std::begin(buffer)};
+  auto buffer_it {std::begin(buffer)};
   auto buffer_end {std::end(buffer)};
-  while (buffer_iterator != buffer_end)
+  while (buffer_it != buffer_end)
   {
-    if (*buffer_iterator != 0)
+    if (*buffer_it != 0)
     {
-      *buffer_iterator = text[*buffer_iterator - 1];
+      *buffer_it = text[*buffer_it - 1];
     }
-    ++buffer_iterator;
+    ++buffer_it;
   }
   sdsl::util::bit_compress(buffer);
   auto parent_bwt_path {CreateParentDirectoryByCategory(category, text_path)};
@@ -334,15 +321,15 @@ uint64_t CalculateRuns (Text const &text)
 {
   uint64_t runs {};
   uint64_t previous_character {};
-  auto iterator {std::begin(text)};
-  while (iterator != std::end(text))
+  auto it {std::begin(text)};
+  while (it != std::end(text))
   {
-    if (previous_character != *iterator)
+    if (previous_character != *it)
     {
       ++runs;
-      previous_character = *iterator;
+      previous_character = *it;
     }
-    ++iterator;
+    ++it;
   }
   return runs;
 }
@@ -351,19 +338,19 @@ template <typename Text>
 double CalculateZerothEmpiricalEntropy (Text const &text)
 {
   std::map<uint64_t, uint64_t> alphabet_count;
-  auto text_iterator {std::begin(text)};
-  while (text_iterator != std::end(text))
+  auto text_it {std::begin(text)};
+  while (text_it != std::end(text))
   {
-    auto alphabet_count_iterator {alphabet_count.find(*text_iterator)};
-    if (alphabet_count_iterator != std::end(alphabet_count))
+    auto alphabet_count_it {alphabet_count.find(*text_it)};
+    if (alphabet_count_it != std::end(alphabet_count))
     {
-      ++std::get<1>(*alphabet_count_iterator);
+      ++std::get<1>(*alphabet_count_it);
     }
     else
     {
-      alphabet_count[*text_iterator] = 1;
+      alphabet_count[*text_it] = 1;
     }
-    ++text_iterator;
+    ++text_it;
   }
   double zeroth_empirical_entropy {};
   auto lg_size {std::log2(std::size(text))};
@@ -411,14 +398,14 @@ struct KmerTrie
     kth_empirical_entropy {}
   {
     auto text_begin {std::begin(text)};
-    auto text_iterator {text_begin};
-    auto text_last_iterator {std::prev(std::end(text), k)};
-    while (text_iterator != text_last_iterator)
+    auto text_it {text_begin};
+    auto text_last_it {std::prev(std::end(text), k)};
+    while (text_it != text_last_it)
     {
-      auto k_mer_begin {text_iterator};
+      auto k_mer_begin {text_it};
       auto k_mer_end {std::next(k_mer_begin, k)};
       Insert(text_begin, k_mer_begin, k_mer_end);
-      ++text_iterator;
+      ++text_it;
     }
     kth_empirical_entropy = CalculateCumulative0thEmpiricalEntropy(root) / std::size(text);
   }
@@ -427,58 +414,58 @@ struct KmerTrie
   void Insert
   (
     TextIterator text_begin,
-    TextIterator k_mer_iterator,
+    TextIterator k_mer_it,
     TextIterator k_mer_end
   )
   {
     auto current_node {root};
-    while (k_mer_iterator != k_mer_end)
+    while (k_mer_it != k_mer_end)
     {
-      auto character {*k_mer_iterator};
-      auto branches_iterator {current_node->branches.find(character)};
-      if (branches_iterator == std::end(current_node->branches))
+      auto character {*k_mer_it};
+      auto branches_it {current_node->branches.find(character)};
+      if (branches_it == std::end(current_node->branches))
       {
         current_node = current_node->branches[character] = std::make_shared<Node>
         (
-          std::distance(text_begin, k_mer_iterator),
+          std::distance(text_begin, k_mer_it),
           std::distance(text_begin, k_mer_end)
         );
-        k_mer_iterator = k_mer_end;
+        k_mer_it = k_mer_end;
       }
       else
       {
-        auto child_node {std::get<1>(*branches_iterator)};
-        auto edge_iterator {std::next(text_begin, child_node->edge_begin_offset)};
+        auto child_node {std::get<1>(*branches_it)};
+        auto edge_it {std::next(text_begin, child_node->edge_begin_offset)};
         auto edge_end {std::next(text_begin, child_node->edge_end_offset)};
         while
         (
-          (k_mer_iterator != k_mer_end)
+          (k_mer_it != k_mer_end)
           &&
-          (edge_iterator != edge_end)
+          (edge_it != edge_end)
           &&
-          (*k_mer_iterator == *edge_iterator)
+          (*k_mer_it == *edge_it)
         )
         {
-          ++k_mer_iterator;
-          ++edge_iterator;
+          ++k_mer_it;
+          ++edge_it;
         }
         if
         (
-          (k_mer_iterator != k_mer_end)
+          (k_mer_it != k_mer_end)
           &&
-          (edge_iterator != edge_end)
+          (edge_it != edge_end)
         )
         {
-          auto edge_it_offset {std::distance(text_begin, edge_iterator)};
+          auto edge_it_offset {std::distance(text_begin, edge_it)};
           auto internal_node {std::make_shared<Node>(child_node->edge_begin_offset, edge_it_offset)};
           child_node->edge_begin_offset = edge_it_offset;
-          internal_node->branches[*edge_iterator] = child_node;
-          current_node = internal_node->branches[*k_mer_iterator] = std::make_shared<Node>
+          internal_node->branches[*edge_it] = child_node;
+          current_node = internal_node->branches[*k_mer_it] = std::make_shared<Node>
           (
-            std::distance(text_begin, k_mer_iterator),
+            std::distance(text_begin, k_mer_it),
             std::distance(text_begin, k_mer_end)
           );
-          std::get<1>(*branches_iterator) = internal_node;
+          std::get<1>(*branches_it) = internal_node;
         }
         else
         {
@@ -495,12 +482,12 @@ struct KmerTrie
     double cumulative_0th_empirical_entropy {};
     if (std::size(current_node->context) == 0)
     {
-      auto branches_iterator {std::begin(current_node->branches)};
+      auto branches_it {std::begin(current_node->branches)};
       auto branches_end {std::end(current_node->branches)};
-      while (branches_iterator != branches_end)
+      while (branches_it != branches_end)
       {
-        cumulative_0th_empirical_entropy += CalculateCumulative0thEmpiricalEntropy(std::get<1>(*branches_iterator));
-        ++branches_iterator;
+        cumulative_0th_empirical_entropy += CalculateCumulative0thEmpiricalEntropy(std::get<1>(*branches_it));
+        ++branches_it;
       }
     }
     else
