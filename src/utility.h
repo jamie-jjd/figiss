@@ -25,7 +25,7 @@ void Print
 (
   File &file,
   Container const &container,
-  int64_t step = 1,
+  int8_t step = 1,
   std::string const &delimiter = " ",
   std::string const &endmarker = "\n"
 )
@@ -59,7 +59,7 @@ void Print
   File &file,
   Iterator first,
   Iterator last,
-  int64_t const step = 1,
+  int8_t const step = 1,
   std::string const &delimiter = " ",
   std::string const &endmarker = "\n"
 )
@@ -141,28 +141,44 @@ void CalculatePrefix
   return;
 }
 
-template <typename Patterns>
-void GeneratePatterns
+struct ConcatenatedPatterns
+{
+  uint64_t amount;
+  uint64_t unit_size;
+  sdsl::int_vector<8> labels;
+
+  ConcatenatedPatterns () = default;
+
+  ConcatenatedPatterns
+  (
+    uint64_t const amount_,
+    uint64_t const unit_size_
+  )
+  : amount {amount_},
+    unit_size {unit_size_}
+  {
+  }
+};
+
+void GenerateConcatnatedPatterns
 (
   std::filesystem::path const &text_path,
-  uint64_t const pattern_amount,
-  uint64_t const pattern_size,
-  Patterns &patterns
+  ConcatenatedPatterns &patterns
 )
 {
   sdsl::int_vector<8> text;
   sdsl::load_vector_from_file(text, text_path);
-  if (pattern_size < std::size(text))
+  if (patterns.unit_size <= std::size(text))
   {
     std::mt19937 engine {std::random_device{}()};
-    std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - pattern_size);
+    std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - patterns.unit_size);
     auto random_begin_offset {std::bind(distribution, engine)};
-    patterns.resize(pattern_amount * pattern_size);
-    auto patterns_it {std::begin(patterns)};
-    for (uint64_t i {0}; i != pattern_amount; ++i)
+    patterns.labels.resize(patterns.amount * patterns.unit_size);
+    auto patterns_it {std::begin(patterns.labels)};
+    for (uint64_t i {}; i != patterns.amount; ++i)
     {
       auto text_it {std::next(std::begin(text), random_begin_offset())};
-      for (uint64_t j {0}; j != pattern_size; ++j)
+      for (uint64_t j {}; j != patterns.unit_size; ++j)
       {
         *patterns_it = *text_it;
         ++patterns_it;
@@ -173,15 +189,10 @@ void GeneratePatterns
   return;
 }
 
-auto GenerateAndSerializePatterns
-(
-  std::filesystem::path const &text_path,
-  uint64_t const pattern_amount,
-  uint64_t const pattern_size
-)
+auto GenerateAndSerializeConcatenatedPatterns (std::filesystem::path const &text_path)
 {
-  sdsl::int_vector<8> patterns;
-  GeneratePatterns(text_path, pattern_amount, pattern_size, patterns);
+  ConcatenatedPatterns patterns;
+  GenerateConcatnatedPatterns(text_path, patterns);
   auto parent_patterns_path {CreateParentDirectoryByCategory("patterns", text_path)};
   auto patterns_path
   {
@@ -189,36 +200,30 @@ auto GenerateAndSerializePatterns
     (
       parent_patterns_path,
       text_path.filename().string(),
-      std::string{"."} + std::to_string(pattern_amount) + "." + std::to_string(pattern_size)
+      std::string{"."} + std::to_string(patterns.amount) + "." + std::to_string(patterns.unit_size)
     )
   };
-  if (std::size(patterns) == (pattern_amount * pattern_size))
+  if (std::size(patterns.labels) != 0)
   {
     std::ofstream patterns_file {patterns_path};
-    sdsl::int_vector<> pattern_amount_size(2, 0, 64);
-    pattern_amount_size[0] = pattern_amount;
-    pattern_amount_size[1] = pattern_size;
-    sdsl::serialize(pattern_amount_size, patterns_file);
-    sdsl::serialize(patterns, patterns_file);
+    sdsl::write_member(patterns.amount, patterns_file);
+    sdsl::write_member(patterns.unit_size, patterns_file);
+    sdsl::serialize(patterns.labels, patterns_file);
   }
   return patterns_path;
 }
 
 template <typename Patterns>
-void LoadPatterns
+void LoadConcatenatedPatterns
 (
   std::filesystem::path const &patterns_path,
-  uint64_t &pattern_amount,
-  uint64_t &pattern_size,
   Patterns &patterns
 )
 {
   std::ifstream patterns_file {patterns_file};
-  sdsl::int_vector<> pattern_amount_size;
-  pattern_amount_size.load(patterns_file);
-  pattern_amount = pattern_amount_size[0];
-  pattern_size = pattern_amount_size[1];
-  patterns.load(patterns_file);
+  sdsl::read_member(patterns.amount, patterns_file);
+  sdsl::read_member(patterns.unit_size, patterns_file);
+  patterns.labels.load(patterns_file);
   return;
 }
 
