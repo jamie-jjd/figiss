@@ -107,7 +107,7 @@ std::filesystem::path CreatePath
   return (parent_path / (filename + extensions));
 }
 
-void CalculatePrefix
+void GeneratePrefix
 (
   std::filesystem::path const &text_path,
   uint64_t const size_in_megabytes
