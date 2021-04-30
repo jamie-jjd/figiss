@@ -15,18 +15,19 @@ void LoadIndexAndFmindex
 {
   auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
   auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".index")};
-  if (!std::filesystem::exists(index_path))
+  // if (!std::filesystem::exists(index_path))
   {
     std::cout << "construct & serialize index ...\n";
     ConstructIndex(index, text_path);
     SerializeIndex(index, index_path);
   }
-  else
-  {
-    LoadIndex(index, index_path);
-  }
+  // else
+  // {
+  //   std::cout << "load index ...\n";
+  //   LoadIndex(index, index_path);
+  // }
   auto fm_index_path {CreatePath(parent_index_path, text_path.filename().string(), ".fm_index")};
-  if (!std::filesystem::exists(fm_index_path))
+  // if (!std::filesystem::exists(fm_index_path))
   {
     sdsl::int_vector<8> text;
     sdsl::load_vector_from_file(text, text_path);
@@ -35,11 +36,12 @@ void LoadIndexAndFmindex
     std::ofstream fm_index_file {fm_index_path};
     sdsl::serialize(fm_index, fm_index_file);
   }
-  else
-  {
-    std::ifstream fm_index_file {fm_index_path};
-    sdsl::load(fm_index, fm_index_file);
-  }
+  // else
+  // {
+  //   std::ifstream fm_index_file {fm_index_path};
+  //   std::cout << "load FM-index ...\n";
+  //   sdsl::load(fm_index, fm_index_file);
+  // }
   return;
 }
 
@@ -127,7 +129,7 @@ void TestCount (std::filesystem::path const &text_path)
   LoadIndexAndFmindex(index, fm_index, text_path);
   sdsl::int_vector<8> text;
   sdsl::load_vector_from_file(text, text_path);
-  for (uint64_t unit_size {10}; (unit_size != 100) && (unit_size < std::size(text)); unit_size += 10)
+  for (uint64_t unit_size {1}; (unit_size <= 100) && (unit_size < std::size(text) + 1); ++unit_size)
   {
     auto patterns {ConcatenatedPatterns{100, unit_size}};
     GenerateConcatnatedPatterns(text_path, patterns);
