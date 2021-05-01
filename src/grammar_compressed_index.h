@@ -1138,10 +1138,8 @@ void ConstructIndex
     // Print(std::cout, text);
   }
   sdsl::bit_vector sl_types;
-  {
-    CalculateSlTypes(text, sl_types);
-    // Print(std::cout, sl_types);
-  }
+  CalculateSlTypes(text, sl_types);
+  // Print(std::cout, sl_types);
   auto invalid_text_offset {std::size(text)};
   auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
   sdsl::int_vector<> text_offsets;
@@ -1211,9 +1209,10 @@ void ConstructIndex
     grammar_rule_begin_offsets_begin
   );
   // Print(std::cout, index.grammar_rules);
+  sdsl::int_vector<> lex_text;
+  sdsl::int_vector<> lex_to_colex;
   auto grammar_ranks_size {std::size(grammar_rule_sizes) + 1};
   auto lex_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
-  sdsl::int_vector<> lex_text;
   CalculateLexText
   (
     lex_text,
@@ -1228,56 +1227,59 @@ void ConstructIndex
     sdsl::util::clear(text);
     sdsl::util::clear(text_offsets);
   }
-  DynamicGrammarTrie lex_grammar_count_trie;
-  DynamicGrammarTrie lex_grammar_rank_trie;
-  DynamicGrammarTrie colex_grammar_rank_trie {-1};
-  InsertGrammarRuleSuffixesAndCountsIntoDynamicGrammarTrie
-  (
-    grammar_rule_sizes,
-    index.grammar_rules,
-    grammar_rule_counts,
-    lex_grammar_count_trie
-  );
-  // PrintDynamicGrammarTrie(std::cout, grammar_rules, lex_grammar_count_trie, false);
-  CalculateCumulativeGrammarCount(lex_grammar_count_trie);
-  // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_count_trie, false);
-  ConstructStaticGrammarTrie
-  (
-    lex_grammar_count_trie,
-    index.lex_grammar_count_trie,
-    false
-  );
-  // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.lex_grammar_count_trie, false);
-  InsertGrammarRulesIntoDynamicGrammarTries
-  (
-    grammar_rule_sizes,
-    index.grammar_rules,
-    lex_grammar_rank_trie,
-    colex_grammar_rank_trie
-  );
-  // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
-  // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
-  CalculateCumulativeLexRankRanges(lex_grammar_rank_trie);
-  // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
-  ConstructStaticGrammarTrie
-  (
-    lex_grammar_rank_trie,
-    index.lex_grammar_rank_trie
-  );
-  // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.lex_grammar_rank_trie);
-  sdsl::int_vector<> lex_to_colex;
-  lex_to_colex.width(lex_text_width);
-  lex_to_colex.resize(grammar_ranks_size);
-  lex_to_colex[0] = 0;
-  CalculateCumulativeColexRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
-  // Print(std::cout, lex_to_colex);
-  // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
-  ConstructStaticGrammarTrie
-  (
-    colex_grammar_rank_trie,
-    index.colex_grammar_rank_trie
-  );
-  // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.colex_grammar_rank_trie);
+  {
+    DynamicGrammarTrie lex_grammar_count_trie;
+    InsertGrammarRuleSuffixesAndCountsIntoDynamicGrammarTrie
+    (
+      grammar_rule_sizes,
+      index.grammar_rules,
+      grammar_rule_counts,
+      lex_grammar_count_trie
+    );
+    // PrintDynamicGrammarTrie(std::cout, grammar_rules, lex_grammar_count_trie, false);
+    CalculateCumulativeGrammarCount(lex_grammar_count_trie);
+    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_count_trie, false);
+    ConstructStaticGrammarTrie
+    (
+      lex_grammar_count_trie,
+      index.lex_grammar_count_trie,
+      false
+    );
+    // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.lex_grammar_count_trie, false);
+  }
+  {
+    DynamicGrammarTrie lex_grammar_rank_trie;
+    DynamicGrammarTrie colex_grammar_rank_trie {-1};
+    InsertGrammarRulesIntoDynamicGrammarTries
+    (
+      grammar_rule_sizes,
+      index.grammar_rules,
+      lex_grammar_rank_trie,
+      colex_grammar_rank_trie
+    );
+    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
+    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
+    CalculateCumulativeLexRankRanges(lex_grammar_rank_trie);
+    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
+    ConstructStaticGrammarTrie
+    (
+      lex_grammar_rank_trie,
+      index.lex_grammar_rank_trie
+    );
+    // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.lex_grammar_rank_trie);
+    lex_to_colex.width(lex_text_width);
+    lex_to_colex.resize(grammar_ranks_size);
+    lex_to_colex[0] = 0;
+    CalculateCumulativeColexRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
+    // Print(std::cout, lex_to_colex);
+    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
+    ConstructStaticGrammarTrie
+    (
+      colex_grammar_rank_trie,
+      index.colex_grammar_rank_trie
+    );
+    // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.colex_grammar_rank_trie);
+  }
   {
     index.colex_to_lex.width(lex_text_width);
     index.colex_to_lex.resize(grammar_ranks_size);
@@ -1286,6 +1288,8 @@ void ConstructIndex
       index.colex_to_lex[lex_to_colex[rank]] = rank;
     }
     // Print(std::cout, index.colex_to_lex);
+  }
+  {
     index.lex_rank_bucket_end_offsets.width(sdsl::bits::hi(std::size(lex_text)) + 1);
     index.lex_rank_bucket_end_offsets.resize(grammar_ranks_size);
     CalculateCharacterBucketEndOffsets
@@ -1294,6 +1298,8 @@ void ConstructIndex
       index.lex_rank_bucket_end_offsets
     );
     // Print(std::cout, index.lex_rank_bucket_end_offsets);
+  }
+  {
     CalculateColexBwt(lex_text, lex_to_colex, index.colex_bwt);
     // Print(std::cout, index.colex_bwt);
   }
