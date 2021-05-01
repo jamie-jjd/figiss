@@ -1138,8 +1138,10 @@ void ConstructIndex
     // Print(std::cout, text);
   }
   sdsl::bit_vector sl_types;
-  CalculateSlTypes(text, sl_types);
-  // Print(std::cout, sl_types);
+  {
+    CalculateSlTypes(text, sl_types);
+    // Print(std::cout, sl_types);
+  }
   auto invalid_text_offset {std::size(text)};
   auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
   sdsl::int_vector<> text_offsets;
@@ -1167,61 +1169,71 @@ void ConstructIndex
     // Print(std::cout, text_offsets);
   }
   auto text_offsets_boundary {std::begin(text_offsets)};
-  text_offsets_boundary = MoveVaildEntriesToFront
-  (
-    std::begin(text_offsets),
-    std::end(text_offsets),
-    invalid_text_offset
-  );
-  // Print(std::cout, text_offsets);
+  {
+    text_offsets_boundary = MoveVaildEntriesToFront
+    (
+      std::begin(text_offsets),
+      std::end(text_offsets),
+      invalid_text_offset
+    );
+    // Print(std::cout, text_offsets);
+  }
   auto grammar_rule_begin_offsets_begin {std::begin(text_offsets)};
   auto grammar_rule_begin_offsets_end {text_offsets_boundary};
   auto temporary_lex_text_begin {text_offsets_boundary};
   auto temporary_lex_text_end {std::end(text_offsets)};
   sdsl::int_vector<> grammar_rule_counts;
-  CalculateGrammarRuleCountsBeginOffsetsAndTemporaryLexText
-  (
-    text,
-    sl_types,
-    grammar_rule_counts,
-    grammar_rule_begin_offsets_begin,
-    grammar_rule_begin_offsets_end,
-    temporary_lex_text_begin
-  );
-  // Print(std::cout, grammar_rule_counts);
-  // Print(std::cout, grammar_rule_begin_offsets_begin, grammar_rule_begin_offsets_end);
-  // Print(std::cout, temporary_lex_text_begin, temporary_lex_text_end);
+  {
+    CalculateGrammarRuleCountsBeginOffsetsAndTemporaryLexText
+    (
+      text,
+      sl_types,
+      grammar_rule_counts,
+      grammar_rule_begin_offsets_begin,
+      grammar_rule_begin_offsets_end,
+      temporary_lex_text_begin
+    );
+    // Print(std::cout, grammar_rule_counts);
+    // Print(std::cout, grammar_rule_begin_offsets_begin, grammar_rule_begin_offsets_end);
+    // Print(std::cout, temporary_lex_text_begin, temporary_lex_text_end);
+  }
   sdsl::int_vector<> grammar_rule_sizes;
-  CalculateGrammarRuleSizes
-  (
-    grammar_rule_sizes,
-    sl_types,
-    grammar_rule_begin_offsets_begin,
-    grammar_rule_begin_offsets_end,
-    invalid_text_offset
-  );
-  // Print(std::cout, grammar_rule_sizes);
-  CalculateGrammarRules
-  (
-    text,
-    grammar_rule_sizes,
-    index.grammar_rules,
-    grammar_rule_begin_offsets_begin
-  );
-  // Print(std::cout, index.grammar_rules);
+  {
+    CalculateGrammarRuleSizes
+    (
+      grammar_rule_sizes,
+      sl_types,
+      grammar_rule_begin_offsets_begin,
+      grammar_rule_begin_offsets_end,
+      invalid_text_offset
+    );
+    // Print(std::cout, grammar_rule_sizes);
+  }
+  {
+    CalculateGrammarRules
+    (
+      text,
+      grammar_rule_sizes,
+      index.grammar_rules,
+      grammar_rule_begin_offsets_begin
+    );
+    // Print(std::cout, index.grammar_rules);
+  }
   sdsl::int_vector<> lex_text;
   sdsl::int_vector<> lex_to_colex;
   auto grammar_ranks_size {std::size(grammar_rule_sizes) + 1};
   auto lex_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
-  CalculateLexText
-  (
-    lex_text,
-    lex_text_width,
-    temporary_lex_text_begin,
-    temporary_lex_text_end,
-    invalid_text_offset
-  );
-  // Print(std::cout, lex_text);
+  {
+    CalculateLexText
+    (
+      lex_text,
+      lex_text_width,
+      temporary_lex_text_begin,
+      temporary_lex_text_end,
+      invalid_text_offset
+    );
+    // Print(std::cout, lex_text);    
+  }
   {
     sdsl::util::clear(sl_types);
     sdsl::util::clear(text);
