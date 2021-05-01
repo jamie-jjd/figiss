@@ -482,7 +482,7 @@ void PrintDynamicGrammarTrie
       }
     }
   }
-  file << size << "\n";
+  file << (--size) << "\n";
   return;
 }
 
@@ -902,9 +902,10 @@ struct StaticGrammarTrie
 {
   sdsl::bit_vector level_order;
   sdsl::bit_vector::select_1_type level_order_select;
-  sdsl::int_vector<8> branch_characters;
-  sdsl::int_vector<> edge_ranges;
-  sdsl::int_vector<> rank_ranges;
+  sdsl::int_vector<> edge_begin_offsets;
+  sdsl::int_vector<> edge_prev_end_offsets;
+  sdsl::int_vector<> leftmost_ranks;
+  sdsl::int_vector<> rightmost_ranks;
   sdsl::int_vector<> counts;
   int8_t step;
 };
@@ -928,25 +929,25 @@ void PrintStaticGrammarTrie
   }
   file << "\n";
   Print(file, labels);
-  std::deque<std::pair<uint64_t, uint64_t>> nodes;
+  std::deque<std::pair<uint64_t, uint64_t>> offsets;
   uint64_t begin_offset {};
   uint64_t end_offset {trie.level_order_select(1)};
   for (auto offset {end_offset - 1}; offset != (begin_offset - 1); --offset)
   {
-    nodes.emplace_back(offset, 1);
+    offsets.emplace_back(offset, 1);
   }
   uint64_t size {};
-  while (!nodes.empty())
+  while (!offsets.empty())
   {
     ++size;
-    auto offset {std::get<0>(nodes.back())};
-    auto depth {std::get<1>(nodes.back())};
-    nodes.pop_back();
-    file << depth << ":" << trie.branch_characters[offset];
-    file << "[" << trie.edge_ranges[offset * 2] << "," << trie.edge_ranges[offset * 2 + 1] << "]";
+    auto offset {std::get<0>(offsets.back())};
+    auto depth {std::get<1>(offsets.back())};
+    offsets.pop_back();
+    file << depth << ":" << labels[trie.edge_begin_offsets[offset]];
+    file << "[" << trie.edge_begin_offsets[offset] << "," << trie.edge_prev_end_offsets[offset] << "]";
     if (is_rank)
     {
-      file << "[" << trie.rank_ranges[offset * 2] << "," << trie.rank_ranges[offset * 2 + 1] << "]";
+      file << "[" << trie.leftmost_ranks[offset] << "," << trie.rightmost_ranks[offset] << "]";
     }
     else
     {
@@ -957,7 +958,7 @@ void PrintStaticGrammarTrie
     end_offset = trie.level_order_select(offset + 2) - (offset + 2) + 1;
     for (auto offset {end_offset - 1}; offset != (begin_offset - 1); --offset)
     {
-      nodes.emplace_back(offset, depth + 1);
+      offsets.emplace_back(offset, depth + 1);
     }
   }
   file << size << "\n";
@@ -973,11 +974,21 @@ void SerializeStaticGrammarTrie
 {
   sdsl::serialize(trie.level_order, file);
   sdsl::serialize(trie.level_order_select, file);
-  sdsl::serialize(trie.branch_characters, file);
-  sdsl::serialize(trie.edge_ranges, file);
-  sdsl::serialize(trie.rank_ranges, file);
+  sdsl::serialize(trie.edge_begin_offsets, file);
+  sdsl::serialize(trie.edge_prev_end_offsets, file);
+  sdsl::serialize(trie.leftmost_ranks, file);
+  sdsl::serialize(trie.rightmost_ranks, file);
   sdsl::serialize(trie.counts, file);
   sdsl::write_member(trie.step, file);
+  // {
+  //   std::cout << "level_order: " << sdsl::size_in_bytes(trie.level_order) << "\n";
+  //   std::cout << "level_order_select: " << sdsl::size_in_bytes(trie.level_order_select) << "\n";
+  //   std::cout << "edge_begin_offsets: " << sdsl::size_in_bytes(trie.edge_begin_offsets) << "\n";
+  //   std::cout << "edge_prev_end_offsets: " << sdsl::size_in_bytes(trie.edge_prev_end_offsets) << "\n";
+  //   std::cout << "leftmost_ranks: " << sdsl::size_in_bytes(trie.leftmost_ranks) << "\n";
+  //   std::cout << "rightmost_ranks: " << sdsl::size_in_bytes(trie.rightmost_ranks) << "\n";
+  //   std::cout << "counts: " << sdsl::size_in_bytes(trie.counts) << "\n";
+  // }
   return;
 }
 
@@ -991,9 +1002,10 @@ void LoadStaticGrammarTrie
   trie.level_order.load(file);
   trie.level_order_select.load(file);
   trie.level_order_select.set_vector(&trie.level_order);
-  trie.branch_characters.load(file);
-  trie.edge_ranges.load(file);
-  trie.rank_ranges.load(file);
+  trie.edge_begin_offsets.load(file);
+  trie.edge_prev_end_offsets.load(file);
+  trie.leftmost_ranks.load(file);
+  trie.rightmost_ranks.load(file);
   trie.counts.load(file);
   sdsl::read_member(trie.step, file);
   return;
@@ -1024,9 +1036,10 @@ void ConstructStaticGrammarTrie
 )
 {
   std::deque<uint8_t> level_order;
-  std::deque<uint8_t> branch_characters;
-  std::deque<uint64_t> edge_ranges;
-  std::deque<uint64_t> rank_ranges;
+  std::deque<uint64_t> edge_begin_offsets;
+  std::deque<uint64_t> edge_prev_end_offsets;
+  std::deque<uint64_t> leftmost_ranks;
+  std::deque<uint64_t> rightmost_ranks;
   std::deque<uint64_t> counts;
   std::deque<DynamicGrammarTrie::NodePointer> nodes;
   nodes.emplace_back(dynamic_trie.root);
@@ -1039,16 +1052,14 @@ void ConstructStaticGrammarTrie
       auto branches_end {std::end(node->branches)};
       while (branches_it != branches_end)
       {
-        auto character {std::get<0>(*branches_it)};
         auto child_node {std::get<1>(*branches_it)};
         level_order.emplace_back(0);
-        branch_characters.emplace_back(character);
-        edge_ranges.emplace_back(std::get<0>(child_node->edge_range));
-        edge_ranges.emplace_back(std::get<1>(child_node->edge_range));
+        edge_begin_offsets.emplace_back(std::get<0>(child_node->edge_range));
+        edge_prev_end_offsets.emplace_back(std::get<1>(child_node->edge_range));
         if (is_rank)
         {
-          rank_ranges.emplace_back(std::get<0>(child_node->rank_range));
-          rank_ranges.emplace_back(std::get<1>(child_node->rank_range));
+          leftmost_ranks.emplace_back(std::get<0>(child_node->rank_range));
+          rightmost_ranks.emplace_back(std::get<1>(child_node->rank_range));
         }
         else
         {
@@ -1065,14 +1076,12 @@ void ConstructStaticGrammarTrie
     std::copy(std::begin(level_order), std::end(level_order), std::begin(static_trie.level_order));
     static_trie.level_order_select = decltype(static_trie.level_order_select){&static_trie.level_order};
   }
-  {
-    static_trie.branch_characters.resize(std::size(branch_characters));
-    std::copy(std::begin(branch_characters), std::end(branch_characters), std::begin(static_trie.branch_characters));
-  }
-  InitializeAndCopy(edge_ranges, static_trie.edge_ranges);
+  InitializeAndCopy(edge_begin_offsets, static_trie.edge_begin_offsets);
+  InitializeAndCopy(edge_prev_end_offsets, static_trie.edge_prev_end_offsets);
   if (is_rank)
   {
-    InitializeAndCopy(rank_ranges, static_trie.rank_ranges);
+    InitializeAndCopy(leftmost_ranks, static_trie.leftmost_ranks);
+    InitializeAndCopy(rightmost_ranks, static_trie.rightmost_ranks);
   }
   else
   {
@@ -1269,23 +1278,25 @@ void ConstructIndex
     index.colex_grammar_rank_trie
   );
   // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.colex_grammar_rank_trie);
-  index.colex_to_lex.width(lex_text_width);
-  index.colex_to_lex.resize(grammar_ranks_size);
-  for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
   {
-    index.colex_to_lex[lex_to_colex[rank]] = rank;
+    index.colex_to_lex.width(lex_text_width);
+    index.colex_to_lex.resize(grammar_ranks_size);
+    for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
+    {
+      index.colex_to_lex[lex_to_colex[rank]] = rank;
+    }
+    // Print(std::cout, index.colex_to_lex);
+    index.lex_rank_bucket_end_offsets.width(sdsl::bits::hi(std::size(lex_text)) + 1);
+    index.lex_rank_bucket_end_offsets.resize(grammar_ranks_size);
+    CalculateCharacterBucketEndOffsets
+    (
+      lex_text,
+      index.lex_rank_bucket_end_offsets
+    );
+    // Print(std::cout, index.lex_rank_bucket_end_offsets);
+    CalculateColexBwt(lex_text, lex_to_colex, index.colex_bwt);
+    // Print(std::cout, index.colex_bwt);
   }
-  // Print(std::cout, index.colex_to_lex);
-  index.lex_rank_bucket_end_offsets.width(sdsl::bits::hi(std::size(lex_text)) + 1);
-  index.lex_rank_bucket_end_offsets.resize(grammar_ranks_size);
-  CalculateCharacterBucketEndOffsets
-  (
-    lex_text,
-    index.lex_rank_bucket_end_offsets
-  );
-  // Print(std::cout, index.lex_rank_bucket_end_offsets);
-  CalculateColexBwt(lex_text, lex_to_colex, index.colex_bwt);
-  // Print(std::cout, index.colex_bwt);
   return;
 }
 
@@ -1295,8 +1306,9 @@ void SerializeIndex
   std::filesystem::path index_path
 )
 {
-  std::ofstream index_file {index_path};
+  std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
   sdsl::serialize(index.grammar_rules, index_file);
+  // std::cout << "grammar_rules: " << sdsl::size_in_bytes(index.grammar_rules) << "\n";
   SerializeStaticGrammarTrie(index.lex_grammar_count_trie, index_file);
   SerializeStaticGrammarTrie(index.lex_grammar_rank_trie, index_file);
   SerializeStaticGrammarTrie(index.colex_grammar_rank_trie, index_file);
@@ -1373,15 +1385,32 @@ uint64_t LookUpSlFactorCountInStaticGrammarTrie
   SlFactorIterator last
 )
 {
-  uint64_t offset {};
+  uint64_t begin_offset {};
   uint64_t end_offset {trie.level_order_select(1)};
-  while (offset != end_offset)
+  uint64_t offset {};
+  while (begin_offset != end_offset)
   {
-    while ((offset != end_offset) && (*it != trie.branch_characters[offset])) { ++offset; }
-    if (offset != end_offset)
+    while (begin_offset != end_offset)
     {
-      auto edge_it {std::next(std::begin(labels), trie.edge_ranges[offset * 2])};
-      auto edge_end {std::next(std::begin(labels), trie.edge_ranges[offset * 2 + 1] + trie.step)};
+      offset = begin_offset + (end_offset - begin_offset) / 2;
+      auto branch_character {labels[trie.edge_begin_offsets[offset]]};
+      if (*it == branch_character)
+      {
+        break;
+      }
+      else if (*it < branch_character)
+      {
+        end_offset = offset;
+      }
+      else
+      {
+        begin_offset = offset + 1;
+      }
+    }
+    if (begin_offset != end_offset)
+    {
+      auto edge_it {std::next(std::begin(labels), trie.edge_begin_offsets[offset])};
+      auto edge_end {std::next(std::begin(labels), trie.edge_prev_end_offsets[offset] + trie.step)};
       while ((it != last) && (edge_it != edge_end) && (*it == *edge_it))
       {
         it += trie.step;
@@ -1395,8 +1424,8 @@ uint64_t LookUpSlFactorCountInStaticGrammarTrie
         }
         else
         {
+          begin_offset = trie.level_order_select(offset + 1) - (offset + 1) + 1;
           end_offset = trie.level_order_select(offset + 2) - (offset + 2) + 1;
-          offset = trie.level_order_select(offset + 1) - (offset + 1) + 1;
         }
       }
       else
@@ -1421,15 +1450,32 @@ std::pair<uint64_t, uint64_t> LookUpSlFactorRankRangeInStaticGrammarTrie
   SlFactorIterator last
 )
 {
-  uint64_t offset {};
+  uint64_t begin_offset {};
   uint64_t end_offset {trie.level_order_select(1)};
-  while (offset != end_offset)
+  uint64_t offset {};
+  while (begin_offset != end_offset)
   {
-    while ((offset != end_offset) && (*it != trie.branch_characters[offset])) { ++offset; }
-    if (offset != end_offset)
+    while (begin_offset != end_offset)
     {
-      auto edge_it {std::next(std::begin(labels), trie.edge_ranges[offset * 2])};
-      auto edge_end {std::next(std::begin(labels), trie.edge_ranges[offset * 2 + 1] + trie.step)};
+      offset = begin_offset + (end_offset - begin_offset) / 2;
+      auto branch_character {labels[trie.edge_begin_offsets[offset]]};
+      if (*it == branch_character)
+      {
+        break;
+      }
+      else if (*it < branch_character)
+      {
+        end_offset = offset;
+      }
+      else
+      {
+        begin_offset = offset + 1;
+      }
+    }
+    if (begin_offset != end_offset)
+    {
+      auto edge_it {std::next(std::begin(labels), trie.edge_begin_offsets[offset])};
+      auto edge_end {std::next(std::begin(labels), trie.edge_prev_end_offsets[offset] + trie.step)};
       while ((it != last) && (edge_it != edge_end) && (*it == *edge_it))
       {
         it += trie.step;
@@ -1443,16 +1489,16 @@ std::pair<uint64_t, uint64_t> LookUpSlFactorRankRangeInStaticGrammarTrie
         }
         else
         {
+          begin_offset = trie.level_order_select(offset + 1) - (offset + 1) + 1;
           end_offset = trie.level_order_select(offset + 2) - (offset + 2) + 1;
-          offset = trie.level_order_select(offset + 1) - (offset + 1) + 1;
         }
       }
       else
       {
         return
         {
-          trie.rank_ranges[offset * 2],
-          trie.rank_ranges[offset * 2 + 1]
+          trie.leftmost_ranks[offset],
+          trie.rightmost_ranks[offset]
         };
       }
     }
