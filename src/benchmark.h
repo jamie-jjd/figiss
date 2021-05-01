@@ -33,7 +33,7 @@ void LoadIndexAndFmindex
     sdsl::load_vector_from_file(text, text_path);
     std::cout << "construct & serialize FM-index ...\n";
     sdsl::construct_im(fm_index, text);
-    std::ofstream fm_index_file {fm_index_path};
+    std::fstream fm_index_file(fm_index_path, std::ios_base::out | std::ios_base::trunc);
     sdsl::serialize(fm_index, fm_index_file);
   }
   // else
