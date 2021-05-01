@@ -133,7 +133,7 @@ void GeneratePrefix
       std::string{"."} + std::to_string(size_in_megabytes) + "mb"
     )
   };
-  std::ofstream prefix_file {prefix_path};
+  std::fstream prefix_file(prefix_path, std::ios_base::out | std::ios_base::trunc);
   for (uint64_t i {}; i != (size_in_megabytes * 1024 * 1024); ++i)
   {
     prefix_file << text[i];
@@ -205,7 +205,7 @@ auto GenerateAndSerializeConcatenatedPatterns (std::filesystem::path const &text
   };
   if (std::size(patterns.labels) != 0)
   {
-    std::ofstream patterns_file {patterns_path};
+    std::fstream patterns_file(patterns_path, std::ios_base::out | std::ios_base::trunc);
     sdsl::write_member(patterns.amount, patterns_file);
     sdsl::write_member(patterns.unit_size, patterns_file);
     sdsl::serialize(patterns.labels, patterns_file);
@@ -244,7 +244,7 @@ void ConvertByteToIntText
   std::copy(std::begin(byte_text), std::end(byte_text), std::begin(int_text));
   auto parent_int_text_path {CreateParentDirectoryByCategory(category, byte_text_path)};
   auto int_text_path {CreatePath(parent_int_text_path, byte_text_path.filename().string())};
-  std::ofstream int_text_file {int_text_path};
+  std::fstream int_text_file(int_text_path, std::ios_base::out | std::ios_base::trunc);
   sdsl::serialize(int_text, int_text_file);
   return;
 }
@@ -288,7 +288,7 @@ void CalculateAndSerializeCompactText
   sdsl::util::bit_compress(text);
   auto parent_compact_text_path {CreateParentDirectoryByCategory(category, text_path)};
   auto compact_text_path {CreatePath(parent_compact_text_path, text_path.filename().string())};
-  std::ofstream compact_text_file {compact_text_path};
+  std::fstream compact_text_file(compact_text_path, std::ios_base::out | std::ios_base::trunc);
   sdsl::serialize(text, compact_text_file);
   return;
 }
@@ -316,7 +316,7 @@ void CalculateAndSerializeBwt
   sdsl::util::bit_compress(buffer);
   auto parent_bwt_path {CreateParentDirectoryByCategory(category, text_path)};
   auto bwt_path {CreatePath(parent_bwt_path, text_path.filename().string())};
-  std::ofstream bwt_file {bwt_path};
+  std::fstream bwt_file (bwt_path, std::ios_base::out | std::ios_base::trunc);
   sdsl::serialize(buffer, bwt_file);
   return;
 }
@@ -532,7 +532,7 @@ void PrintTextStatistics
   sdsl::load_from_file(text, text_path);
   auto parent_statistics_path {CreateParentDirectoryByCategory(category, text_path)};
   auto statistics_path {CreatePath(parent_statistics_path, text_path.filename().string())};
-  std::ofstream statistics_file {statistics_path};
+  std::fstream statistics_file (statistics_path, std::ios_base::out | std::ios_base::trunc);
   auto n {std::size(text)};
   auto r {CalculateRuns(text)};
   auto lg_sigma {static_cast<uint64_t>(text.width())};
@@ -605,7 +605,7 @@ void PrintRunLengthWaveletTreeStatistics
   auto rlwt_hutu_size_in_mega_bytes {CalculateRunLengthWaveletTreeSizeInMegaBytes<sdsl::wt_hutu_int<>>(bwt)};
   auto parent_path {CreateParentDirectoryByCategory(category, bwt_path)};
   auto path {CreatePath(parent_path, bwt_path.filename().string())};
-  std::ofstream file {path};
+  std::fstream file (path, std::ios_base::out | std::ios_base::trunc);
   file
   << std::fixed << std::setprecision(2)
   << bwt_path.filename().string() << "\n"
