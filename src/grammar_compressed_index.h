@@ -966,30 +966,54 @@ void PrintStaticGrammarTrie
 }
 
 template <typename File>
-void SerializeStaticGrammarTrie
+uint64_t SerializeStaticGrammarTrie
 (
   StaticGrammarTrie const &trie,
   File &file
 )
 {
-  sdsl::serialize(trie.level_order, file);
-  sdsl::serialize(trie.level_order_select, file);
-  sdsl::serialize(trie.edge_begin_offsets, file);
-  sdsl::serialize(trie.edge_prev_end_offsets, file);
-  sdsl::serialize(trie.leftmost_ranks, file);
-  sdsl::serialize(trie.rightmost_ranks, file);
-  sdsl::serialize(trie.counts, file);
-  sdsl::write_member(trie.step, file);
-  // {
-  //   std::cout << "level_order: " << sdsl::size_in_bytes(trie.level_order) << "\n";
-  //   std::cout << "level_order_select: " << sdsl::size_in_bytes(trie.level_order_select) << "\n";
-  //   std::cout << "edge_begin_offsets: " << sdsl::size_in_bytes(trie.edge_begin_offsets) << "\n";
-  //   std::cout << "edge_prev_end_offsets: " << sdsl::size_in_bytes(trie.edge_prev_end_offsets) << "\n";
-  //   std::cout << "leftmost_ranks: " << sdsl::size_in_bytes(trie.leftmost_ranks) << "\n";
-  //   std::cout << "rightmost_ranks: " << sdsl::size_in_bytes(trie.rightmost_ranks) << "\n";
-  //   std::cout << "counts: " << sdsl::size_in_bytes(trie.counts) << "\n";
-  // }
-  return;
+  uint64_t total_size {};
+  {
+    auto size {sdsl::serialize(trie.level_order, file)};
+    total_size += size;
+    // std::cout << "level_order: " << size << "(bytes)\n";
+  }
+  {
+    auto size {sdsl::serialize(trie.level_order_select, file)};
+    total_size += size;
+    // std::cout << "level_order_select: " << size << "(bytes)\n";
+  }
+  {
+    auto size {sdsl::serialize(trie.edge_begin_offsets, file)};
+    total_size += size;
+    // std::cout << "edge_begin_offsets: " << size << "(bytes)\n";
+  }
+  {
+    auto size {sdsl::serialize(trie.edge_prev_end_offsets, file)};
+    total_size += size;
+    // std::cout << "edge_prev_end_offsets: " << size << "(bytes)\n";
+  }
+  {
+    auto size {sdsl::serialize(trie.leftmost_ranks, file)};
+    total_size += size;
+    // std::cout << "leftmost_ranks: " << size << "(bytes)\n";
+  }
+  {
+    auto size {sdsl::serialize(trie.rightmost_ranks, file)};
+    total_size += size;
+    // std::cout << "rightmost_ranks: " << size << "(bytes)\n";
+  }
+  {
+    auto size {sdsl::serialize(trie.counts, file)};
+    total_size += size;
+    // std::cout << "counts: " << size << "(bytes)\n";
+  }
+  {
+    auto size {sdsl::write_member(trie.step, file)};
+    total_size += size;
+    // std::cout << "step: " << size << "(bytes)\n";
+  }
+  return total_size;
 }
 
 template <typename File>
@@ -1232,7 +1256,7 @@ void ConstructIndex
       temporary_lex_text_end,
       invalid_text_offset
     );
-    // Print(std::cout, lex_text);    
+    // Print(std::cout, lex_text);
   }
   {
     sdsl::util::clear(sl_types);
@@ -1292,48 +1316,76 @@ void ConstructIndex
     );
     // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.colex_grammar_rank_trie);
   }
-  {
-    index.colex_to_lex.width(lex_text_width);
-    index.colex_to_lex.resize(grammar_ranks_size);
-    for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
-    {
-      index.colex_to_lex[lex_to_colex[rank]] = rank;
-    }
-    // Print(std::cout, index.colex_to_lex);
-  }
-  {
-    index.lex_rank_bucket_end_offsets.width(sdsl::bits::hi(std::size(lex_text)) + 1);
-    index.lex_rank_bucket_end_offsets.resize(grammar_ranks_size);
-    CalculateCharacterBucketEndOffsets
-    (
-      lex_text,
-      index.lex_rank_bucket_end_offsets
-    );
-    // Print(std::cout, index.lex_rank_bucket_end_offsets);
-  }
-  {
-    CalculateColexBwt(lex_text, lex_to_colex, index.colex_bwt);
-    // Print(std::cout, index.colex_bwt);
-  }
+  // {
+  //   index.colex_to_lex.width(lex_text_width);
+  //   index.colex_to_lex.resize(grammar_ranks_size);
+  //   for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
+  //   {
+  //     index.colex_to_lex[lex_to_colex[rank]] = rank;
+  //   }
+  //   // Print(std::cout, index.colex_to_lex);
+  // }
+  // {
+  //   index.lex_rank_bucket_end_offsets.width(sdsl::bits::hi(std::size(lex_text)) + 1);
+  //   index.lex_rank_bucket_end_offsets.resize(grammar_ranks_size);
+  //   CalculateCharacterBucketEndOffsets
+  //   (
+  //     lex_text,
+  //     index.lex_rank_bucket_end_offsets
+  //   );
+  //   // Print(std::cout, index.lex_rank_bucket_end_offsets);
+  // }
+  // {
+  //   CalculateColexBwt(lex_text, lex_to_colex, index.colex_bwt);
+  //   // Print(std::cout, index.colex_bwt);
+  // }
   return;
 }
 
-void SerializeIndex
+uint64_t SerializeIndex
 (
   Index &index,
   std::filesystem::path index_path
 )
 {
+  uint64_t total_size {};
   std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
-  sdsl::serialize(index.grammar_rules, index_file);
-  // std::cout << "grammar_rules: " << sdsl::size_in_bytes(index.grammar_rules) << "\n";
-  SerializeStaticGrammarTrie(index.lex_grammar_count_trie, index_file);
-  SerializeStaticGrammarTrie(index.lex_grammar_rank_trie, index_file);
-  SerializeStaticGrammarTrie(index.colex_grammar_rank_trie, index_file);
-  sdsl::serialize(index.colex_to_lex, index_file);
-  sdsl::serialize(index.lex_rank_bucket_end_offsets, index_file);
-  sdsl::serialize(index.colex_bwt, index_file);
-  return;
+  {
+    auto size {sdsl::serialize(index.grammar_rules, index_file)};
+    total_size += size;
+    // std::cout << "grammar_rules: " << size << "\n";
+  }
+  {
+    auto size {SerializeStaticGrammarTrie(index.lex_grammar_count_trie, index_file)};
+    total_size += size;
+    // std::cout << "lex_grammar_count_trie" << size << "\n";
+  }
+  {
+    auto size {SerializeStaticGrammarTrie(index.lex_grammar_rank_trie, index_file)};
+    total_size += size;
+    // std::cout << "lex_grammar_rank_trie" << size << "\n";
+  }
+  {
+    auto size {SerializeStaticGrammarTrie(index.colex_grammar_rank_trie, index_file)};
+    total_size += size;
+    // std::cout << "colex_grammar_rank_trie" << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(index.colex_to_lex, index_file)};
+    total_size += size;
+    // std::cout << "colex_to_lex" << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(index.lex_rank_bucket_end_offsets, index_file)};
+    total_size += size;
+    // std::cout << "lex_rank_bucket_end_offsets" << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(index.colex_bwt, index_file)};
+    total_size += size;
+    // std::cout << "colex_bwt" << size << "\n";
+  }
+  return total_size;
 }
 
 void LoadIndex
