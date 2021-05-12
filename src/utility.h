@@ -322,21 +322,21 @@ void CalculateAndSerializeBwt
 }
 
 template <typename Text>
-uint64_t CalculateRuns (Text const &text)
+uint64_t CalculateRunsSize (Text const &text)
 {
-  uint64_t runs {};
-  uint64_t previous_character {};
+  uint64_t runs_size {};
+  uint64_t prev_character {std::numeric_limits<uint64_t>::max()};
   auto it {std::begin(text)};
   while (it != std::end(text))
   {
-    if (previous_character != *it)
+    if (prev_character != *it)
     {
-      ++runs;
-      previous_character = *it;
+      ++runs_size;
+      prev_character = *it;
     }
     ++it;
   }
-  return runs;
+  return runs_size;
 }
 
 template <typename Text>
@@ -534,7 +534,7 @@ void PrintTextStatistics
   auto statistics_path {CreatePath(parent_statistics_path, text_path.filename().string())};
   std::fstream statistics_file (statistics_path, std::ios_base::out | std::ios_base::trunc);
   auto n {std::size(text)};
-  auto r {CalculateRuns(text)};
+  auto r {CalculateRunsSize(text)};
   auto lg_sigma {static_cast<uint64_t>(text.width())};
   auto H_0 {CalculateZerothEmpiricalEntropy(text)};
   std::vector<double> H_ks;
