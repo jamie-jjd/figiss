@@ -1118,63 +1118,141 @@ struct RunLengthWaveletTree
 {
   uint64_t level_size;
   uint64_t runs_size;
-  sdsl::bit_vector all_level_run_bits;
-  sdsl::bit_vector::rank_1_type all_level_run_bits_rank;
-  sdsl::bit_vector::select_1_type all_level_run_bits_select;
-  sdsl::sd_vector<> first_level_length_bits;
-  sdsl::sd_vector<>::rank_1_type first_level_length_bits_rank;
-  sdsl::sd_vector<>::select_1_type first_level_length_bits_select;
-  sdsl::sd_vector<> middle_level_length_bits;
-  sdsl::sd_vector<>::select_1_type middle_level_length_bits_select;
-  sdsl::sd_vector<> last_level_length_bits;
-  sdsl::sd_vector<>::select_1_type last_level_length_bits_select;
+  sdsl::bit_vector all_run_bits;
+  sdsl::bit_vector::rank_1_type all_run_bits_rank;
+  sdsl::bit_vector::select_1_type all_run_bits_select;
+  sdsl::sd_vector<> first_length_bits;
+  sdsl::sd_vector<>::rank_1_type first_length_bits_rank;
+  sdsl::sd_vector<>::select_1_type first_length_bits_select;
+  sdsl::sd_vector<> middle_length_bits;
+  sdsl::sd_vector<>::select_1_type middle_length_bits_select;
+  sdsl::sd_vector<> last_length_bits;
+  sdsl::sd_vector<>::select_1_type last_length_bits_select;
   sdsl::int_vector<> run_bucket_begin_offsets;
   sdsl::int_vector<> character_bucket_begin_offsets;
 };
 
-// uint64_t Access (RunLengthWaveletTree const &rlwt, uint64_t run_offset)
-// {
-//   uint64_t run {};
-//   uint64_t it_offset {run_offset};
-//   uint64_t begin_character {};
-//   for (uint64_t level {}; level != rlwt.level_size; ++level)
-//   {
-//     auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[begin_character]};
-//     auto ones_size
-//     {
-//       rlwt.all_level_run_bits_rank(begin_offset + it_offset)
-//       - rlwt.all_level_run_bits_rank(begin_offset)
-//     };
-//     run <<= 1;
-//     if (rlwt.all_level_run_bits[begin_offset + it_offset])
-//     {
-//       run |= 1ULL;
-//       it_offset = ones_size;
-//       begin_character += (1ULL << (rlwt.level_size - 1 - level));
-//     }
-//     else
-//     {
-//       it_offset -= ones_size;
-//     }
-//   }
-//   return run;
-// }
-//
-// template <typename File>
-// void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
-// {
-//   auto length_width {sdsl::bits::hi(std::size(rlwt.first_level_length_bits)) + 1};
-//   sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
-//   sdsl::int_vector<> lengths(rlwt.runs_size, 0, length_width);
-//   file << rlwt.level_size << "\n";
-//   file << rlwt.runs_size << "\n";
-//   for (uint64_t offset {}; offset != rlwt.runs_size; ++offset)
-//   {
-//     runs[offset] = Access(rlwt, offset);
-//   }
-//   Print(std::cout, runs);
-//   return;
-// }
+uint64_t Access (RunLengthWaveletTree const &rlwt, uint64_t offset)
+{
+  uint64_t it_offset {rlwt.first_length_bits_rank(offset)};
+  uint64_t run {};
+  uint64_t begin_character {};
+  for (uint64_t level {}; level != rlwt.level_size; ++level)
+  {
+    auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[begin_character]};
+    auto ones_size {rlwt.all_run_bits_rank(begin_offset + it_offset) - rlwt.all_run_bits_rank(begin_offset)};
+    run <<= 1;
+    if (rlwt.all_run_bits[begin_offset + it_offset])
+    {
+      run |= 1ULL;
+      it_offset = ones_size;
+      begin_character += (1ULL << (rlwt.level_size - 1 - level));
+    }
+    else
+    {
+      it_offset -= ones_size;
+    }
+  }
+  return run;
+}
+
+template <typename File>
+void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
+{
+  auto length_width {sdsl::bits::hi(std::size(rlwt.first_length_bits)) + 1};
+  sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
+  sdsl::int_vector<> lengths(rlwt.runs_size, 0, length_width);
+  file << rlwt.level_size << "\n";
+  file << rlwt.runs_size << "\n";
+  for (uint64_t run_offset {}; run_offset != rlwt.runs_size; ++run_offset)
+  {
+    runs[run_offset] = Access(rlwt, rlwt.first_length_bits_select(run_offset + 1));
+  }
+  Print(file, runs);
+  for (uint64_t run_offset {}; run_offset != rlwt.runs_size; ++run_offset)
+  {
+    lengths[run_offset] = rlwt.first_length_bits_select(run_offset + 2) - rlwt.first_length_bits_select(run_offset + 1);
+  }
+  Print(file, lengths);
+  {
+    sdsl::int_vector<> one_runs(rlwt.runs_size, 0, rlwt.level_size);
+    sdsl::int_vector<> one_lengths(rlwt.runs_size, 0, length_width);
+    uint64_t prefix_mask {};
+    uint64_t mask {1ULL << (rlwt.level_size - 1)};
+    auto run_bits_it {std::begin(rlwt.all_run_bits)};
+    for (uint64_t level {}; level != rlwt.level_size; ++level)
+    {
+      auto runs_it {std::begin(runs)};
+      auto new_runs_it {std::begin(runs)};
+      auto one_runs_it {std::begin(one_runs)};
+      auto lengths_it {std::begin(lengths)};
+      auto lengths_end {std::end(lengths)};
+      auto new_lengths_it {std::begin(lengths)};
+      auto one_lengths_it {std::begin(one_lengths)};
+      auto one_lengths_end {std::end(one_lengths)};
+      auto prefix {*runs_it & prefix_mask};
+      while (lengths_it != lengths_end)
+      {
+        while ((lengths_it != lengths_end) && ((*runs_it & prefix_mask) == prefix))
+        {
+          if (*run_bits_it++)
+          {
+            *one_runs_it++ = *runs_it++;
+            *one_lengths_it++ = *lengths_it++;
+          }
+          else
+          {
+            *new_runs_it++ = *runs_it++;
+            *new_lengths_it++ = *lengths_it++;
+          }
+        }
+        {
+          one_lengths_end = one_lengths_it;
+          one_runs_it = std::begin(one_runs);
+          one_lengths_it = std::begin(one_lengths);
+          while (one_lengths_it != one_lengths_end)
+          {
+            *new_runs_it++ = *one_runs_it++;
+            *new_lengths_it++ = *one_lengths_it++;
+          }
+          one_runs_it = std::begin(one_runs);
+          one_lengths_it = std::begin(one_lengths);
+        }
+        prefix = *runs_it & prefix_mask;
+      }
+      Print
+      (
+        file,
+        std::next(std::begin(rlwt.all_run_bits), level * rlwt.runs_size),
+        std::next(std::begin(rlwt.all_run_bits), (level + 1) * rlwt.runs_size)
+      );
+      if (level == 0)
+      {
+        Print(file, rlwt.first_length_bits);
+      }
+      else if (level != (rlwt.level_size - 1))
+      {
+        Print
+        (
+          file,
+          std::next(std::begin(rlwt.middle_length_bits), (level - 1) * std::size(rlwt.first_length_bits)),
+          std::next(std::begin(rlwt.middle_length_bits), level * std::size(rlwt.first_length_bits))
+        );
+      }
+      else
+      {
+        Print(file, rlwt.last_length_bits);
+      }
+      Print(file, runs);
+      Print(file, lengths);
+      prefix_mask |= mask;
+      mask >>= 1;
+    }
+    Print(file, rlwt.run_bucket_begin_offsets);
+    Print(file, rlwt.character_bucket_begin_offsets);
+  }
+  return;
+}
 
 template <typename Text>
 auto CalculateRunsSizeAndMaxRunLength (Text const &text)
@@ -1258,7 +1336,7 @@ void ConstructRunLengthWaveletTree
     // std::cout << rlwt.level_size << "\n";
     rlwt.runs_size = std::get<0>(pair);
     // std::cout << rlwt.runs_size << "\n";
-    rlwt.all_level_run_bits.resize(rlwt.level_size * rlwt.runs_size);
+    rlwt.all_run_bits.resize(rlwt.level_size * rlwt.runs_size);
   }
   sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
   sdsl::int_vector<> lengths(rlwt.runs_size, 0, length_width);
@@ -1266,12 +1344,12 @@ void ConstructRunLengthWaveletTree
   // Print(std::cout, runs);
   // Print(std::cout, lengths);
   {
-    sdsl::bit_vector length_bits(std::size(text));
+    sdsl::bit_vector length_bits(std::size(text) + 1);
     sdsl::int_vector<> one_runs(rlwt.runs_size, 0, rlwt.level_size);
     sdsl::int_vector<> one_lengths(rlwt.runs_size, 0, length_width);
     uint64_t prefix_mask {};
     uint64_t mask {1ULL << (rlwt.level_size - 1)};
-    auto run_bits_it {std::begin(rlwt.all_level_run_bits)};
+    auto run_bits_it {std::begin(rlwt.all_run_bits)};
     for (uint64_t level {}; level != rlwt.level_size; ++level)
     {
       sdsl::util::set_to_value(length_bits, 0);
@@ -1317,36 +1395,37 @@ void ConstructRunLengthWaveletTree
         }
         prefix = *runs_it & prefix_mask;
       }
+      *length_bits_it = 1;
       // Print
       // (
       //   std::cout,
-      //   std::next(std::begin(rlwt.all_level_run_bits), level * rlwt.runs_size),
-      //   std::next(std::begin(rlwt.all_level_run_bits), (level + 1) * rlwt.runs_size)
+      //   std::next(std::begin(rlwt.all_run_bits), level * rlwt.runs_size),
+      //   std::next(std::begin(rlwt.all_run_bits), (level + 1) * rlwt.runs_size)
       // );
       // Print(std::cout, length_bits);
       // Print(std::cout, runs);
       // Print(std::cout, lengths);
       if (level == 0)
       {
-        rlwt.first_level_length_bits = decltype(rlwt.first_level_length_bits)(length_bits);
-        rlwt.first_level_length_bits_rank = decltype(rlwt.first_level_length_bits_rank)(&rlwt.first_level_length_bits);
-        rlwt.first_level_length_bits_select = decltype(rlwt.first_level_length_bits_select)(&rlwt.first_level_length_bits);
+        rlwt.first_length_bits = decltype(rlwt.first_length_bits)(length_bits);
+        rlwt.first_length_bits_rank = decltype(rlwt.first_length_bits_rank)(&rlwt.first_length_bits);
+        rlwt.first_length_bits_select = decltype(rlwt.first_length_bits_select)(&rlwt.first_length_bits);
       }
       else if (level != (rlwt.level_size - 1))
       {
-        rlwt.middle_level_length_bits = decltype(rlwt.middle_level_length_bits)(length_bits);
-        rlwt.middle_level_length_bits_select = decltype(rlwt.middle_level_length_bits_select)(&rlwt.middle_level_length_bits);
+        rlwt.middle_length_bits = decltype(rlwt.middle_length_bits)(length_bits);
+        rlwt.middle_length_bits_select = decltype(rlwt.middle_length_bits_select)(&rlwt.middle_length_bits);
       }
       else
       {
-        rlwt.last_level_length_bits = decltype(rlwt.last_level_length_bits)(length_bits);
-        rlwt.last_level_length_bits_select = decltype(rlwt.last_level_length_bits_select)(&rlwt.last_level_length_bits);
+        rlwt.last_length_bits = decltype(rlwt.last_length_bits)(length_bits);
+        rlwt.last_length_bits_select = decltype(rlwt.last_length_bits_select)(&rlwt.last_length_bits);
       }
       prefix_mask |= mask;
       mask >>= 1;
     }
-    rlwt.all_level_run_bits_rank = decltype(rlwt.all_level_run_bits_rank)(&rlwt.all_level_run_bits);
-    rlwt.all_level_run_bits_select = decltype(rlwt.all_level_run_bits_select)(&rlwt.all_level_run_bits);
+    rlwt.all_run_bits_rank = decltype(rlwt.all_run_bits_rank)(&rlwt.all_run_bits);
+    rlwt.all_run_bits_select = decltype(rlwt.all_run_bits_select)(&rlwt.all_run_bits);
   }
   {
     uint64_t alphabet_size {*std::max_element(std::begin(runs), std::end(runs)) + 1};
@@ -1629,6 +1708,7 @@ void ConstructIndex
     // Print(std::cout, colex_bwt);
     sdsl::construct_im(index.colex_bwt, colex_bwt);
     ConstructRunLengthWaveletTree(colex_bwt, index.colex_bwt_rlwt);
+    // PrintRunLengthWaveletTree(std::cout, index.colex_bwt_rlwt);
   }
   return;
 }
