@@ -226,7 +226,7 @@ void CalculateGrammarRuleCountsBeginOffsetsAndTemporaryLexText
   TemporaryLexTextIterator temporary_compressed_text_begin
 )
 {
-  std::deque<uint64_t> counts;
+  std::vector<uint64_t> counts;
   auto invalid_text_offset {std::size(text)};
   uint64_t lex_rank {};
   auto prev_rule_it {std::prev(std::end(text))};
@@ -449,7 +449,7 @@ void PrintDynamicGrammarTrie
   }
   file << "\n";
   Print(file, labels);
-  std::deque<std::pair<DynamicGrammarTrie::NodePointer, uint64_t>> nodes;
+  std::vector<std::pair<DynamicGrammarTrie::NodePointer, uint64_t>> nodes;
   nodes.emplace_back(trie.root, 0);
   while (!nodes.empty())
   {
@@ -612,7 +612,7 @@ void InsertGrammarRuleSuffixesAndCountsIntoDynamicGrammarTrie
 
 void CalculateCumulativeGrammarCount (DynamicGrammarTrie &trie)
 {
-  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
+  std::vector<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
   nodes.emplace_back(trie.root, true);
   while (!nodes.empty())
   {
@@ -779,7 +779,7 @@ void InsertGrammarRulesIntoDynamicGrammarTries
 
 void CalculateCumulativeLexRankRanges (DynamicGrammarTrie &lex_grammar_rank_trie)
 {
-  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
+  std::vector<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
   nodes.emplace_back(lex_grammar_rank_trie.root, true);
   while (!nodes.empty())
   {
@@ -825,7 +825,7 @@ void CalculateCumulativeColexRankRangesAndLexToColex
 )
 {
   uint64_t colex_rank {1};
-  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
+  std::vector<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
   nodes.emplace_back(colex_grammar_rank_trie.root, true);
   while (!nodes.empty())
   {
@@ -883,18 +883,17 @@ void CalculateColexBwt
   ColexBwt &colex_bwt
 )
 {
-  sdsl::int_vector<> buffer;
-  sdsl::qsufsort::construct_sa(buffer, lex_text);
-  auto buffer_it {std::begin(buffer)};
-  while (buffer_it != std::end(buffer))
+  sdsl::qsufsort::construct_sa(colex_bwt, lex_text);
+  auto it {std::begin(colex_bwt)};
+  while (it != std::end(colex_bwt))
   {
-    if (*buffer_it != 0)
+    if (*it != 0)
     {
-      *buffer_it = lex_to_colex[lex_text[(*buffer_it - 1)]];
+      *it = lex_to_colex[lex_text[(*it - 1)]];
     }
-    ++buffer_it;
+    ++it;
   }
-  sdsl::construct_im(colex_bwt, buffer);
+  sdsl::util::bit_compress(colex_bwt);
   return;
 }
 
@@ -929,7 +928,7 @@ void PrintStaticGrammarTrie
   }
   file << "\n";
   Print(file, labels);
-  std::deque<std::pair<uint64_t, uint64_t>> offsets;
+  std::vector<std::pair<uint64_t, uint64_t>> offsets;
   uint64_t begin_offset {};
   uint64_t end_offset {trie.level_order_select(1)};
   for (auto offset {end_offset - 1}; offset != (begin_offset - 1); --offset)
@@ -1059,12 +1058,12 @@ void ConstructStaticGrammarTrie
   bool const is_rank = true
 )
 {
-  std::deque<uint8_t> level_order;
-  std::deque<uint64_t> edge_begin_offsets;
-  std::deque<uint64_t> edge_prev_end_offsets;
-  std::deque<uint64_t> leftmost_ranks;
-  std::deque<uint64_t> rightmost_ranks;
-  std::deque<uint64_t> counts;
+  std::vector<uint8_t> level_order;
+  std::vector<uint64_t> edge_begin_offsets;
+  std::vector<uint64_t> edge_prev_end_offsets;
+  std::vector<uint64_t> leftmost_ranks;
+  std::vector<uint64_t> rightmost_ranks;
+  std::vector<uint64_t> counts;
   std::deque<DynamicGrammarTrie::NodePointer> nodes;
   nodes.emplace_back(dynamic_trie.root);
   while (!nodes.empty())
@@ -1098,7 +1097,7 @@ void ConstructStaticGrammarTrie
   {
     static_trie.level_order.resize(std::size(level_order));
     std::copy(std::begin(level_order), std::end(level_order), std::begin(static_trie.level_order));
-    static_trie.level_order_select = decltype(static_trie.level_order_select){&static_trie.level_order};
+    static_trie.level_order_select = decltype(static_trie.level_order_select)(&static_trie.level_order);
   }
   InitializeAndCopy(edge_begin_offsets, static_trie.edge_begin_offsets);
   InitializeAndCopy(edge_prev_end_offsets, static_trie.edge_prev_end_offsets);
@@ -1115,6 +1114,299 @@ void ConstructStaticGrammarTrie
   return;
 }
 
+struct RunLengthWaveletTree
+{
+  uint64_t level_size;
+  uint64_t runs_size;
+  sdsl::bit_vector all_level_run_bits;
+  sdsl::bit_vector::rank_1_type all_level_run_bits_rank;
+  sdsl::bit_vector::select_1_type all_level_run_bits_select;
+  sdsl::sd_vector<> first_level_length_bits;
+  sdsl::sd_vector<>::rank_1_type first_level_length_bits_rank;
+  sdsl::sd_vector<>::select_1_type first_level_length_bits_select;
+  sdsl::sd_vector<> middle_level_length_bits;
+  sdsl::sd_vector<>::select_1_type middle_level_length_bits_select;
+  sdsl::sd_vector<> last_level_length_bits;
+  sdsl::sd_vector<>::select_1_type last_level_length_bits_select;
+  sdsl::int_vector<> run_bucket_begin_offsets;
+  sdsl::int_vector<> character_bucket_begin_offsets;
+};
+
+// uint64_t Access (RunLengthWaveletTree const &rlwt, uint64_t run_offset)
+// {
+//   uint64_t run {};
+//   uint64_t it_offset {run_offset};
+//   uint64_t begin_character {};
+//   for (uint64_t level {}; level != rlwt.level_size; ++level)
+//   {
+//     auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[begin_character]};
+//     auto ones_size
+//     {
+//       rlwt.all_level_run_bits_rank(begin_offset + it_offset)
+//       - rlwt.all_level_run_bits_rank(begin_offset)
+//     };
+//     run <<= 1;
+//     if (rlwt.all_level_run_bits[begin_offset + it_offset])
+//     {
+//       run |= 1ULL;
+//       it_offset = ones_size;
+//       begin_character += (1ULL << (rlwt.level_size - 1 - level));
+//     }
+//     else
+//     {
+//       it_offset -= ones_size;
+//     }
+//   }
+//   return run;
+// }
+//
+// template <typename File>
+// void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
+// {
+//   auto length_width {sdsl::bits::hi(std::size(rlwt.first_level_length_bits)) + 1};
+//   sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
+//   sdsl::int_vector<> lengths(rlwt.runs_size, 0, length_width);
+//   file << rlwt.level_size << "\n";
+//   file << rlwt.runs_size << "\n";
+//   for (uint64_t offset {}; offset != rlwt.runs_size; ++offset)
+//   {
+//     runs[offset] = Access(rlwt, offset);
+//   }
+//   Print(std::cout, runs);
+//   return;
+// }
+
+template <typename Text>
+auto CalculateRunsSizeAndMaxRunLength (Text const &text)
+{
+  uint64_t runs_size {};
+  uint64_t max_run_length {};
+  uint64_t run_length {};
+  uint64_t prev_character {std::numeric_limits<uint64_t>::max()};
+  auto it {std::begin(text)};
+  while (it != std::end(text))
+  {
+    if (*it != prev_character)
+    {
+      prev_character = *it;
+      ++runs_size;
+      if (run_length > max_run_length)
+      {
+        max_run_length = run_length;
+      }
+      run_length = 1;
+    }
+    else
+    {
+      ++run_length;
+    }
+    ++it;
+  }
+  if (run_length > max_run_length)
+  {
+    max_run_length = run_length;
+  }
+  return std::pair<uint64_t, uint64_t>{runs_size, max_run_length};
+}
+
+template
+<
+  typename Text,
+  typename Runs,
+  typename Lengths
+>
+void CalculateRunsAndLengths
+(
+  Text const &text,
+  Runs &runs,
+  Lengths &lengths
+)
+{
+  auto it {std::begin(text)};
+  auto runs_it {std::prev(std::begin(runs))};
+  auto lengths_it {std::prev(std::begin(lengths))};
+  auto prev_character {std::size(text)};
+  while (it != std::end(text))
+  {
+    if (*it != prev_character)
+    {
+      ++runs_it;
+      ++lengths_it;
+      *runs_it = prev_character = *it;
+      *lengths_it = 1;
+    }
+    else
+    {
+      ++(*lengths_it);
+    }
+    ++it;
+  }
+  return;
+}
+
+void ConstructRunLengthWaveletTree
+(
+  sdsl::int_vector<> const &text,
+  RunLengthWaveletTree &rlwt
+)
+{
+  // Print(std::cout, text);
+  auto pair {CalculateRunsSizeAndMaxRunLength(text)};
+  auto length_width {sdsl::bits::hi(std::get<1>(pair)) + 1};
+  {
+    rlwt.level_size = text.width();
+    // std::cout << rlwt.level_size << "\n";
+    rlwt.runs_size = std::get<0>(pair);
+    // std::cout << rlwt.runs_size << "\n";
+    rlwt.all_level_run_bits.resize(rlwt.level_size * rlwt.runs_size);
+  }
+  sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
+  sdsl::int_vector<> lengths(rlwt.runs_size, 0, length_width);
+  CalculateRunsAndLengths(text, runs, lengths);
+  // Print(std::cout, runs);
+  // Print(std::cout, lengths);
+  {
+    sdsl::bit_vector length_bits(std::size(text));
+    sdsl::int_vector<> one_runs(rlwt.runs_size, 0, rlwt.level_size);
+    sdsl::int_vector<> one_lengths(rlwt.runs_size, 0, length_width);
+    uint64_t prefix_mask {};
+    uint64_t mask {1ULL << (rlwt.level_size - 1)};
+    auto run_bits_it {std::begin(rlwt.all_level_run_bits)};
+    for (uint64_t level {}; level != rlwt.level_size; ++level)
+    {
+      sdsl::util::set_to_value(length_bits, 0);
+      auto runs_it {std::begin(runs)};
+      auto new_runs_it {std::begin(runs)};
+      auto one_runs_it {std::begin(one_runs)};
+      auto lengths_it {std::begin(lengths)};
+      auto lengths_end {std::end(lengths)};
+      auto new_lengths_it {std::begin(lengths)};
+      auto one_lengths_it {std::begin(one_lengths)};
+      auto one_lengths_end {std::end(one_lengths)};
+      auto length_bits_it {std::begin(length_bits)};
+      auto prefix {*runs_it & prefix_mask};
+      while (lengths_it != lengths_end)
+      {
+        while ((lengths_it != lengths_end) && ((*runs_it & prefix_mask) == prefix))
+        {
+          *length_bits_it = 1;
+          length_bits_it += *lengths_it;
+          *run_bits_it = *runs_it & mask;
+          if (*run_bits_it++)
+          {
+            *one_runs_it++ = *runs_it++;
+            *one_lengths_it++ = *lengths_it++;
+          }
+          else
+          {
+            *new_runs_it++ = *runs_it++;
+            *new_lengths_it++ = *lengths_it++;
+          }
+        }
+        {
+          one_lengths_end = one_lengths_it;
+          one_runs_it = std::begin(one_runs);
+          one_lengths_it = std::begin(one_lengths);
+          while (one_lengths_it != one_lengths_end)
+          {
+            *new_runs_it++ = *one_runs_it++;
+            *new_lengths_it++ = *one_lengths_it++;
+          }
+          one_runs_it = std::begin(one_runs);
+          one_lengths_it = std::begin(one_lengths);
+        }
+        prefix = *runs_it & prefix_mask;
+      }
+      // Print
+      // (
+      //   std::cout,
+      //   std::next(std::begin(rlwt.all_level_run_bits), level * rlwt.runs_size),
+      //   std::next(std::begin(rlwt.all_level_run_bits), (level + 1) * rlwt.runs_size)
+      // );
+      // Print(std::cout, length_bits);
+      // Print(std::cout, runs);
+      // Print(std::cout, lengths);
+      if (level == 0)
+      {
+        rlwt.first_level_length_bits = decltype(rlwt.first_level_length_bits)(length_bits);
+        rlwt.first_level_length_bits_rank = decltype(rlwt.first_level_length_bits_rank)(&rlwt.first_level_length_bits);
+        rlwt.first_level_length_bits_select = decltype(rlwt.first_level_length_bits_select)(&rlwt.first_level_length_bits);
+      }
+      else if (level != (rlwt.level_size - 1))
+      {
+        rlwt.middle_level_length_bits = decltype(rlwt.middle_level_length_bits)(length_bits);
+        rlwt.middle_level_length_bits_select = decltype(rlwt.middle_level_length_bits_select)(&rlwt.middle_level_length_bits);
+      }
+      else
+      {
+        rlwt.last_level_length_bits = decltype(rlwt.last_level_length_bits)(length_bits);
+        rlwt.last_level_length_bits_select = decltype(rlwt.last_level_length_bits_select)(&rlwt.last_level_length_bits);
+      }
+      prefix_mask |= mask;
+      mask >>= 1;
+    }
+    rlwt.all_level_run_bits_rank = decltype(rlwt.all_level_run_bits_rank)(&rlwt.all_level_run_bits);
+    rlwt.all_level_run_bits_select = decltype(rlwt.all_level_run_bits_select)(&rlwt.all_level_run_bits);
+  }
+  {
+    uint64_t alphabet_size {*std::max_element(std::begin(runs), std::end(runs)) + 1};
+    rlwt.run_bucket_begin_offsets.width(sdsl::bits::hi(std::size(runs)) + 1);
+    rlwt.run_bucket_begin_offsets.resize(alphabet_size + 1);
+    rlwt.character_bucket_begin_offsets.width(sdsl::bits::hi(std::size(text)) + 1);
+    rlwt.character_bucket_begin_offsets.resize(alphabet_size + 1);
+    auto runs_begin {std::begin(runs)};
+    auto runs_it {std::begin(runs)};
+    auto lengths_it {std::begin(lengths)};
+    auto run_bucket_it {std::next(std::begin(rlwt.run_bucket_begin_offsets))};
+    auto character_bucket_it {std::next(std::begin(rlwt.character_bucket_begin_offsets))};
+    uint64_t prev_run {};
+    uint64_t character_bucket_offset {};
+    while (lengths_it != std::end(lengths))
+    {
+      if (*runs_it != prev_run)
+      {
+        prev_run = *runs_it;
+        *run_bucket_it++ = std::distance(runs_begin, runs_it);
+        *character_bucket_it++ = character_bucket_offset;
+      }
+      character_bucket_offset += *lengths_it;
+      ++runs_it;
+      ++lengths_it;
+    }
+    *(std::prev(std::end(rlwt.run_bucket_begin_offsets))) = std::size(runs);
+    *(std::prev(std::end(rlwt.character_bucket_begin_offsets))) = std::size(text);
+    // Print(std::cout, rlwt.run_bucket_begin_offsets);
+    // Print(std::cout, rlwt.character_bucket_begin_offsets);
+  }
+  return;
+}
+
+// uint64_t SerializeRunLengthWaveletTree
+// (
+//   RunLengthWaveletTree const &rlwt,
+//   std::filesystem::path const &index_path
+// )
+// {
+//   uint64_t total_size {};
+//   std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
+//   {
+//     auto size {sdsl::write_member(rlwt.runs_size, index_file)};
+//     total_size += size;
+//   }
+//   return total_size;
+// }
+//
+// void LoadRunLengthWaveletTree
+// (
+//   RunLengthWaveletTree &rlwt,
+//   std::filesystem::path const &index_path
+// )
+// {
+//   std::ifstream index_file {index_path};
+//   sdsl::read_member(rlwt.runs_size, index_file);
+//   return;
+// }
+
 struct Index
 {
   sdsl::int_vector<8> grammar_rules;
@@ -1122,9 +1414,9 @@ struct Index
   StaticGrammarTrie lex_grammar_rank_trie;
   StaticGrammarTrie colex_grammar_rank_trie;
   sdsl::int_vector<> colex_to_lex;
-  sdsl::int_vector<> lex_rank_bucket_end_offsets;
+  sdsl::int_vector<> lex_rank_bucket_begin_offsets;
   sdsl::wt_int<> colex_bwt;
-  // RunLengthWaveletTree colex_bwt;
+  RunLengthWaveletTree colex_bwt_rlwt;
 };
 
 template <typename File>
@@ -1139,7 +1431,7 @@ void PrintIndex
   PrintStaticGrammarTrie(file, index.grammar_rules, index.lex_grammar_rank_trie);
   PrintStaticGrammarTrie(file, index.grammar_rules, index.colex_grammar_rank_trie);
   Print(file, index.colex_to_lex);
-  Print(file, index.lex_rank_bucket_end_offsets);
+  Print(file, index.lex_rank_bucket_begin_offsets);
   Print(file, index.colex_bwt);
   return;
 }
@@ -1316,36 +1608,35 @@ void ConstructIndex
     );
     // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.colex_grammar_rank_trie);
   }
-  // {
-  //   index.colex_to_lex.width(lex_text_width);
-  //   index.colex_to_lex.resize(grammar_ranks_size);
-  //   for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
-  //   {
-  //     index.colex_to_lex[lex_to_colex[rank]] = rank;
-  //   }
-  //   // Print(std::cout, index.colex_to_lex);
-  // }
-  // {
-  //   index.lex_rank_bucket_end_offsets.width(sdsl::bits::hi(std::size(lex_text)) + 1);
-  //   index.lex_rank_bucket_end_offsets.resize(grammar_ranks_size);
-  //   CalculateCharacterBucketEndOffsets
-  //   (
-  //     lex_text,
-  //     index.lex_rank_bucket_end_offsets
-  //   );
-  //   // Print(std::cout, index.lex_rank_bucket_end_offsets);
-  // }
-  // {
-  //   CalculateColexBwt(lex_text, lex_to_colex, index.colex_bwt);
-  //   // Print(std::cout, index.colex_bwt);
-  // }
+  {
+    index.colex_to_lex.width(lex_text_width);
+    index.colex_to_lex.resize(grammar_ranks_size);
+    for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
+    {
+      index.colex_to_lex[lex_to_colex[rank]] = rank;
+    }
+    // Print(std::cout, index.colex_to_lex);
+  }
+  {
+    index.lex_rank_bucket_begin_offsets.width(sdsl::bits::hi(std::size(lex_text)) + 1);
+    index.lex_rank_bucket_begin_offsets.resize(grammar_ranks_size + 1);
+    CalculateCharacterBucketBeginOffsets(lex_text, index.lex_rank_bucket_begin_offsets);
+    // Print(std::cout, index.lex_rank_bucket_begin_offsets);
+  }
+  {
+    sdsl::int_vector<> colex_bwt;
+    CalculateColexBwt(lex_text, lex_to_colex, colex_bwt);
+    // Print(std::cout, colex_bwt);
+    sdsl::construct_im(index.colex_bwt, colex_bwt);
+    ConstructRunLengthWaveletTree(colex_bwt, index.colex_bwt_rlwt);
+  }
   return;
 }
 
 uint64_t SerializeIndex
 (
-  Index &index,
-  std::filesystem::path index_path
+  Index const &index,
+  std::filesystem::path const &index_path
 )
 {
   uint64_t total_size {};
@@ -1376,9 +1667,9 @@ uint64_t SerializeIndex
     // std::cout << "colex_to_lex" << size << "\n";
   }
   {
-    auto size {sdsl::serialize(index.lex_rank_bucket_end_offsets, index_file)};
+    auto size {sdsl::serialize(index.lex_rank_bucket_begin_offsets, index_file)};
     total_size += size;
-    // std::cout << "lex_rank_bucket_end_offsets" << size << "\n";
+    // std::cout << "lex_rank_bucket_begin_offsets" << size << "\n";
   }
   {
     auto size {sdsl::serialize(index.colex_bwt, index_file)};
@@ -1400,7 +1691,7 @@ void LoadIndex
   LoadStaticGrammarTrie(index.lex_grammar_rank_trie, index_file);
   LoadStaticGrammarTrie(index.colex_grammar_rank_trie, index_file);
   index.colex_to_lex.load(index_file);
-  index.lex_rank_bucket_end_offsets.load(index_file);
+  index.lex_rank_bucket_begin_offsets.load(index_file);
   index.colex_bwt.load(index_file);
   return;
 }
@@ -1676,7 +1967,7 @@ auto BackwardSearchPatternProperSubstring
   auto colex_rank {std::get<0>(colex_rank_range)};
   if (!IsEmptyRange(colex_rank_range))
   {
-    auto begin_offset {index.lex_rank_bucket_end_offsets[index.colex_to_lex[colex_rank] - 1]};
+    auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
     if (!IsEmptyRange(pattern_range_l))
     {
       pattern_range_l =
@@ -1775,8 +2066,8 @@ auto BackwardSearchPatternSuffix
       {
         pattern_range_s =
         {
-          index.lex_rank_bucket_end_offsets[std::get<0>(lex_rank_range) - 1],
-          (index.lex_rank_bucket_end_offsets[std::get<1>(lex_rank_range)] - 1)
+          index.lex_rank_bucket_begin_offsets[std::get<0>(lex_rank_range)],
+          (index.lex_rank_bucket_begin_offsets[std::get<1>(lex_rank_range) + 1] - 1)
         };
       }
       // {
@@ -1820,7 +2111,7 @@ auto BackwardSearchPatternSuffix
           else
           {
             auto colex_rank {std::get<0>(colex_rank_range)};
-            auto begin_offset {index.lex_rank_bucket_end_offsets[index.colex_to_lex[colex_rank] - 1]};
+            auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
             pattern_range_s =
             {
               begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range_s), colex_rank),
@@ -1876,8 +2167,8 @@ auto BackwardSearchPatternSuffix
       {
         pattern_range_l =
         {
-          index.lex_rank_bucket_end_offsets[std::get<0>(lex_rank_range) - 1],
-          (index.lex_rank_bucket_end_offsets[std::get<1>(lex_rank_range)] - 1)
+          index.lex_rank_bucket_begin_offsets[std::get<0>(lex_rank_range)],
+          (index.lex_rank_bucket_begin_offsets[std::get<1>(lex_rank_range) + 1] - 1)
         };
       }
       // {
