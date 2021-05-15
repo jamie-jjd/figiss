@@ -1,6 +1,5 @@
 #pragma once
 
-#include <deque>
 #include <map>
 #include <memory>
 
@@ -1064,18 +1063,18 @@ void ConstructStaticGrammarTrie
   std::vector<uint64_t> leftmost_ranks;
   std::vector<uint64_t> rightmost_ranks;
   std::vector<uint64_t> counts;
-  std::deque<DynamicGrammarTrie::NodePointer> nodes;
+  std::vector<DynamicGrammarTrie::NodePointer> nodes;
   nodes.emplace_back(dynamic_trie.root);
   while (!nodes.empty())
   {
-    auto node {nodes.front()}; nodes.pop_front();
+    auto node {nodes.back()}; nodes.pop_back();
     if (!node->branches.empty())
     {
-      auto branches_it {std::begin(node->branches)};
-      auto branches_end {std::end(node->branches)};
-      while (branches_it != branches_end)
+      auto branches_rit {std::rbegin(node->branches)};
+      auto branches_rend {std::rend(node->branches)};
+      while (branches_rit != branches_rend)
       {
-        auto child_node {std::get<1>(*branches_it)};
+        auto child_node {std::get<1>(*branches_rit)};
         level_order.emplace_back(0);
         edge_begin_offsets.emplace_back(std::get<0>(child_node->edge_range));
         edge_prev_end_offsets.emplace_back(std::get<1>(child_node->edge_range));
@@ -1089,7 +1088,7 @@ void ConstructStaticGrammarTrie
           counts.emplace_back(child_node->count);
         }
         nodes.emplace_back(child_node);
-        ++branches_it;
+        ++branches_rit;
       }
     }
     level_order.emplace_back(1);
@@ -1129,37 +1128,83 @@ struct RunLengthWaveletTree
   sdsl::sd_vector<> last_length_bits;
   sdsl::sd_vector<>::select_1_type last_length_bits_select;
   sdsl::int_vector<> run_bucket_begin_offsets;
-  sdsl::int_vector<> character_bucket_begin_offsets;
 };
 
 uint64_t Access (RunLengthWaveletTree const &rlwt, uint64_t offset)
 {
-  uint64_t it_offset {rlwt.first_length_bits_rank(offset)};
+  offset = rlwt.first_length_bits_rank(offset + 1) - 1;
   uint64_t run {};
-  uint64_t begin_character {};
+  uint64_t prefix {};
+  uint64_t mask {1ULL << rlwt.level_size};
   for (uint64_t level {}; level != rlwt.level_size; ++level)
   {
-    auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[begin_character]};
-    auto ones_size {rlwt.all_run_bits_rank(begin_offset + it_offset) - rlwt.all_run_bits_rank(begin_offset)};
+    auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[prefix]};
+    auto ones_offset {rlwt.all_run_bits_rank(begin_offset + offset) - rlwt.all_run_bits_rank(begin_offset)};
     run <<= 1;
-    if (rlwt.all_run_bits[begin_offset + it_offset])
+    mask >>= 1;
+    if (rlwt.all_run_bits[begin_offset + offset])
     {
       run |= 1ULL;
-      it_offset = ones_size;
-      begin_character += (1ULL << (rlwt.level_size - 1 - level));
+      prefix |= mask;
+      offset = ones_offset;
     }
     else
     {
-      it_offset -= ones_size;
+      offset -= ones_offset;
     }
   }
   return run;
+}
+
+uint64_t Rank
+(
+  RunLengthWaveletTree const &rlwt,
+  uint64_t offset,
+  uint64_t character
+)
+{
+  if (offset == 0) { return 0; }
+  auto run_offset {rlwt.first_length_bits_rank(offset)};
+  auto run_rank {run_offset};
+  uint64_t prefix {};
+  uint64_t mask {1ULL << rlwt.level_size};
+  for (uint64_t level {}; level != rlwt.level_size; ++level)
+  {
+    auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[prefix]};
+    auto ones_offset {rlwt.all_run_bits_rank(begin_offset + run_rank) - rlwt.all_run_bits_rank(begin_offset)};
+    mask >>= 1;
+    if (character & mask)
+    {
+      prefix |= mask;
+      run_rank = ones_offset;
+    }
+    else
+    {
+      run_rank -= ones_offset;
+    }
+  }
+  auto run_bucket_offset {rlwt.run_bucket_begin_offsets[character] + 1};
+  if (character != Access(rlwt, offset - 1))
+  {
+    return
+    (
+      rlwt.last_length_bits_select(run_bucket_offset + run_rank)
+      - rlwt.last_length_bits_select(run_bucket_offset)
+    );
+  }
+  return
+  (
+    rlwt.last_length_bits_select(run_bucket_offset + run_rank - 1)
+    - rlwt.last_length_bits_select(run_bucket_offset)
+    + (offset - rlwt.first_length_bits_select(run_offset))
+  );
 }
 
 template <typename File>
 void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
 {
   auto length_width {sdsl::bits::hi(std::size(rlwt.first_length_bits)) + 1};
+  file << length_width << "\n";
   sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
   sdsl::int_vector<> lengths(rlwt.runs_size, 0, length_width);
   file << rlwt.level_size << "\n";
@@ -1183,17 +1228,17 @@ void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
     for (uint64_t level {}; level != rlwt.level_size; ++level)
     {
       auto runs_it {std::begin(runs)};
+      auto runs_end {std::end(runs)};
       auto new_runs_it {std::begin(runs)};
       auto one_runs_it {std::begin(one_runs)};
+      auto one_runs_end {std::end(one_runs)};
       auto lengths_it {std::begin(lengths)};
-      auto lengths_end {std::end(lengths)};
       auto new_lengths_it {std::begin(lengths)};
       auto one_lengths_it {std::begin(one_lengths)};
-      auto one_lengths_end {std::end(one_lengths)};
       auto prefix {*runs_it & prefix_mask};
-      while (lengths_it != lengths_end)
+      while (runs_it != runs_end)
       {
-        while ((lengths_it != lengths_end) && ((*runs_it & prefix_mask) == prefix))
+        while ((runs_it != runs_end) && ((*runs_it & prefix_mask) == prefix))
         {
           if (*run_bits_it++)
           {
@@ -1207,10 +1252,10 @@ void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
           }
         }
         {
-          one_lengths_end = one_lengths_it;
+          one_runs_end = one_runs_it;
           one_runs_it = std::begin(one_runs);
           one_lengths_it = std::begin(one_lengths);
-          while (one_lengths_it != one_lengths_end)
+          while (one_runs_it != one_runs_end)
           {
             *new_runs_it++ = *one_runs_it++;
             *new_lengths_it++ = *one_lengths_it++;
@@ -1230,7 +1275,7 @@ void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
       {
         Print(file, rlwt.first_length_bits);
       }
-      else if (level != (rlwt.level_size - 1))
+      else
       {
         Print
         (
@@ -1239,52 +1284,20 @@ void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
           std::next(std::begin(rlwt.middle_length_bits), level * std::size(rlwt.first_length_bits))
         );
       }
-      else
-      {
-        Print(file, rlwt.last_length_bits);
-      }
       Print(file, runs);
       Print(file, lengths);
       prefix_mask |= mask;
       mask >>= 1;
     }
+    Print(file, rlwt.last_length_bits);
     Print(file, rlwt.run_bucket_begin_offsets);
-    Print(file, rlwt.character_bucket_begin_offsets);
+    for (uint64_t run {}; run != std::size(rlwt.run_bucket_begin_offsets); ++run)
+    {
+      file << rlwt.last_length_bits_select(rlwt.run_bucket_begin_offsets[run] + 1);
+      file << ((run != std::size(rlwt.run_bucket_begin_offsets) - 1) ? " " : "\n");
+    }
   }
   return;
-}
-
-template <typename Text>
-auto CalculateRunsSizeAndMaxRunLength (Text const &text)
-{
-  uint64_t runs_size {};
-  uint64_t max_run_length {};
-  uint64_t run_length {};
-  uint64_t prev_character {std::numeric_limits<uint64_t>::max()};
-  auto it {std::begin(text)};
-  while (it != std::end(text))
-  {
-    if (*it != prev_character)
-    {
-      prev_character = *it;
-      ++runs_size;
-      if (run_length > max_run_length)
-      {
-        max_run_length = run_length;
-      }
-      run_length = 1;
-    }
-    else
-    {
-      ++run_length;
-    }
-    ++it;
-  }
-  if (run_length > max_run_length)
-  {
-    max_run_length = run_length;
-  }
-  return std::pair<uint64_t, uint64_t>{runs_size, max_run_length};
 }
 
 template
@@ -1329,12 +1342,12 @@ void ConstructRunLengthWaveletTree
 )
 {
   // Print(std::cout, text);
-  auto pair {CalculateRunsSizeAndMaxRunLength(text)};
-  auto length_width {sdsl::bits::hi(std::get<1>(pair)) + 1};
+  auto length_width {sdsl::bits::hi(std::size(text)) + 1};
+  // std::cout << length_width << "\n";
   {
     rlwt.level_size = text.width();
     // std::cout << rlwt.level_size << "\n";
-    rlwt.runs_size = std::get<0>(pair);
+    rlwt.runs_size = CalculateRunsSize(text);
     // std::cout << rlwt.runs_size << "\n";
     rlwt.all_run_bits.resize(rlwt.level_size * rlwt.runs_size);
   }
@@ -1344,32 +1357,36 @@ void ConstructRunLengthWaveletTree
   // Print(std::cout, runs);
   // Print(std::cout, lengths);
   {
-    sdsl::bit_vector length_bits(std::size(text) + 1);
+    sdsl::bit_vector first_length_bits(std::size(text) + 1);
+    sdsl::bit_vector middle_length_bits((rlwt.level_size - 1) * (std::size(text) + 1));
     sdsl::int_vector<> one_runs(rlwt.runs_size, 0, rlwt.level_size);
     sdsl::int_vector<> one_lengths(rlwt.runs_size, 0, length_width);
     uint64_t prefix_mask {};
     uint64_t mask {1ULL << (rlwt.level_size - 1)};
     auto run_bits_it {std::begin(rlwt.all_run_bits)};
+    auto length_bits_it {std::begin(first_length_bits)};
     for (uint64_t level {}; level != rlwt.level_size; ++level)
     {
-      sdsl::util::set_to_value(length_bits, 0);
+      if (level == 1)
+      {
+        length_bits_it = std::begin(middle_length_bits);
+      }
       auto runs_it {std::begin(runs)};
+      auto runs_end {std::end(runs)};
       auto new_runs_it {std::begin(runs)};
       auto one_runs_it {std::begin(one_runs)};
+      auto one_runs_end {std::end(one_runs)};
       auto lengths_it {std::begin(lengths)};
-      auto lengths_end {std::end(lengths)};
       auto new_lengths_it {std::begin(lengths)};
       auto one_lengths_it {std::begin(one_lengths)};
-      auto one_lengths_end {std::end(one_lengths)};
-      auto length_bits_it {std::begin(length_bits)};
       auto prefix {*runs_it & prefix_mask};
-      while (lengths_it != lengths_end)
+      while (runs_it != runs_end)
       {
-        while ((lengths_it != lengths_end) && ((*runs_it & prefix_mask) == prefix))
+        while ((runs_it != runs_end) && ((*runs_it & prefix_mask) == prefix))
         {
+          *run_bits_it = *runs_it & mask;
           *length_bits_it = 1;
           length_bits_it += *lengths_it;
-          *run_bits_it = *runs_it & mask;
           if (*run_bits_it++)
           {
             *one_runs_it++ = *runs_it++;
@@ -1382,10 +1399,10 @@ void ConstructRunLengthWaveletTree
           }
         }
         {
-          one_lengths_end = one_lengths_it;
+          one_runs_end = one_runs_it;
           one_runs_it = std::begin(one_runs);
           one_lengths_it = std::begin(one_lengths);
-          while (one_lengths_it != one_lengths_end)
+          while (one_runs_it != one_runs_end)
           {
             *new_runs_it++ = *one_runs_it++;
             *new_lengths_it++ = *one_lengths_it++;
@@ -1395,67 +1412,72 @@ void ConstructRunLengthWaveletTree
         }
         prefix = *runs_it & prefix_mask;
       }
-      *length_bits_it = 1;
+      *length_bits_it++ = 1;
       // Print
       // (
       //   std::cout,
       //   std::next(std::begin(rlwt.all_run_bits), level * rlwt.runs_size),
       //   std::next(std::begin(rlwt.all_run_bits), (level + 1) * rlwt.runs_size)
       // );
-      // Print(std::cout, length_bits);
-      // Print(std::cout, runs);
-      // Print(std::cout, lengths);
       if (level == 0)
       {
-        rlwt.first_length_bits = decltype(rlwt.first_length_bits)(length_bits);
+        rlwt.first_length_bits = decltype(rlwt.first_length_bits)(first_length_bits);
         rlwt.first_length_bits_rank = decltype(rlwt.first_length_bits_rank)(&rlwt.first_length_bits);
         rlwt.first_length_bits_select = decltype(rlwt.first_length_bits_select)(&rlwt.first_length_bits);
+        // Print(std::cout, first_length_bits);
       }
-      else if (level != (rlwt.level_size - 1))
-      {
-        rlwt.middle_length_bits = decltype(rlwt.middle_length_bits)(length_bits);
-        rlwt.middle_length_bits_select = decltype(rlwt.middle_length_bits_select)(&rlwt.middle_length_bits);
-      }
-      else
-      {
-        rlwt.last_length_bits = decltype(rlwt.last_length_bits)(length_bits);
-        rlwt.last_length_bits_select = decltype(rlwt.last_length_bits_select)(&rlwt.last_length_bits);
-      }
+      // else
+      // {
+      //   Print
+      //   (
+      //     std::cout,
+      //     std::next(std::begin(middle_length_bits), (level - 1) * (std::size(text) + 1)),
+      //     std::next(std::begin(middle_length_bits), level * (std::size(text) + 1))
+      //   );
+      // }
+      // Print(std::cout, runs);
+      // Print(std::cout, lengths);
       prefix_mask |= mask;
       mask >>= 1;
     }
     rlwt.all_run_bits_rank = decltype(rlwt.all_run_bits_rank)(&rlwt.all_run_bits);
     rlwt.all_run_bits_select = decltype(rlwt.all_run_bits_select)(&rlwt.all_run_bits);
+    rlwt.middle_length_bits = decltype(rlwt.middle_length_bits)(middle_length_bits);
+    rlwt.middle_length_bits_select = decltype(rlwt.middle_length_bits_select)(&rlwt.middle_length_bits);
   }
   {
+    sdsl::bit_vector last_length_bits(std::size(text) + 1);
     uint64_t alphabet_size {*std::max_element(std::begin(runs), std::end(runs)) + 1};
-    rlwt.run_bucket_begin_offsets.width(sdsl::bits::hi(std::size(runs)) + 1);
+    rlwt.run_bucket_begin_offsets.width(sdsl::bits::hi(rlwt.runs_size) + 1);
     rlwt.run_bucket_begin_offsets.resize(alphabet_size + 1);
-    rlwt.character_bucket_begin_offsets.width(sdsl::bits::hi(std::size(text)) + 1);
-    rlwt.character_bucket_begin_offsets.resize(alphabet_size + 1);
     auto runs_begin {std::begin(runs)};
     auto runs_it {std::begin(runs)};
     auto lengths_it {std::begin(lengths)};
-    auto run_bucket_it {std::next(std::begin(rlwt.run_bucket_begin_offsets))};
-    auto character_bucket_it {std::next(std::begin(rlwt.character_bucket_begin_offsets))};
-    uint64_t prev_run {};
-    uint64_t character_bucket_offset {};
-    while (lengths_it != std::end(lengths))
+    auto run_bucket_it {std::begin(rlwt.run_bucket_begin_offsets)};
+    auto length_bits_it {std::begin(last_length_bits)};
+    uint64_t prev_run {std::numeric_limits<uint64_t>::max()};
+    while (runs_it != std::end(runs))
     {
       if (*runs_it != prev_run)
       {
         prev_run = *runs_it;
         *run_bucket_it++ = std::distance(runs_begin, runs_it);
-        *character_bucket_it++ = character_bucket_offset;
       }
-      character_bucket_offset += *lengths_it;
       ++runs_it;
-      ++lengths_it;
+      *length_bits_it = 1;
+      length_bits_it += *lengths_it++;
     }
-    *(std::prev(std::end(rlwt.run_bucket_begin_offsets))) = std::size(runs);
-    *(std::prev(std::end(rlwt.character_bucket_begin_offsets))) = std::size(text);
+    *length_bits_it = 1;
+    *(std::prev(std::end(rlwt.run_bucket_begin_offsets))) = rlwt.runs_size;
+    rlwt.last_length_bits = decltype(rlwt.last_length_bits)(last_length_bits);
+    rlwt.last_length_bits_select = decltype(rlwt.last_length_bits_select)(&rlwt.last_length_bits);
+    // Print(std::cout, rlwt.last_length_bits);
     // Print(std::cout, rlwt.run_bucket_begin_offsets);
-    // Print(std::cout, rlwt.character_bucket_begin_offsets);
+    // for (uint64_t run {}; run != (alphabet_size + 1); ++run)
+    // {
+    //   std::cout << rlwt.last_length_bits_select(rlwt.run_bucket_begin_offsets[run] + 1);
+    //   std::cout << ((run != alphabet_size) ? " " : "\n");
+    // }
   }
   return;
 }
