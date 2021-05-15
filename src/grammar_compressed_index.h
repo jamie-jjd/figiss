@@ -1115,7 +1115,7 @@ void ConstructStaticGrammarTrie
 
 struct RunLengthWaveletTree
 {
-  uint64_t level_size;
+  uint8_t level_size;
   uint64_t runs_size;
   sdsl::bit_vector all_run_bits;
   sdsl::bit_vector::rank_1_type all_run_bits_rank;
@@ -1136,7 +1136,7 @@ uint64_t Access (RunLengthWaveletTree const &rlwt, uint64_t offset)
   uint64_t run {};
   uint64_t prefix {};
   uint64_t mask {1ULL << rlwt.level_size};
-  for (uint64_t level {}; level != rlwt.level_size; ++level)
+  for (uint8_t level {}; level != rlwt.level_size; ++level)
   {
     auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[prefix]};
     auto ones_offset {rlwt.all_run_bits_rank(begin_offset + offset) - rlwt.all_run_bits_rank(begin_offset)};
@@ -1168,7 +1168,7 @@ uint64_t Rank
   auto run_rank {run_offset};
   uint64_t prefix {};
   uint64_t mask {1ULL << rlwt.level_size};
-  for (uint64_t level {}; level != rlwt.level_size; ++level)
+  for (uint8_t level {}; level != rlwt.level_size; ++level)
   {
     auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[prefix]};
     auto ones_offset {rlwt.all_run_bits_rank(begin_offset + run_rank) - rlwt.all_run_bits_rank(begin_offset)};
@@ -1207,7 +1207,7 @@ void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
   file << length_width << "\n";
   sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
   sdsl::int_vector<> lengths(rlwt.runs_size, 0, length_width);
-  file << rlwt.level_size << "\n";
+  file << static_cast<uint64_t>(rlwt.level_size) << "\n";
   file << rlwt.runs_size << "\n";
   for (uint64_t run_offset {}; run_offset != rlwt.runs_size; ++run_offset)
   {
@@ -1225,7 +1225,7 @@ void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
     uint64_t prefix_mask {};
     uint64_t mask {1ULL << (rlwt.level_size - 1)};
     auto run_bits_it {std::begin(rlwt.all_run_bits)};
-    for (uint64_t level {}; level != rlwt.level_size; ++level)
+    for (uint8_t level {}; level != rlwt.level_size; ++level)
     {
       auto runs_it {std::begin(runs)};
       auto runs_end {std::end(runs)};
@@ -1365,7 +1365,7 @@ void ConstructRunLengthWaveletTree
     uint64_t mask {1ULL << (rlwt.level_size - 1)};
     auto run_bits_it {std::begin(rlwt.all_run_bits)};
     auto length_bits_it {std::begin(first_length_bits)};
-    for (uint64_t level {}; level != rlwt.level_size; ++level)
+    for (uint8_t level {}; level != rlwt.level_size; ++level)
     {
       if (level == 1)
       {
@@ -1482,31 +1482,108 @@ void ConstructRunLengthWaveletTree
   return;
 }
 
-// uint64_t SerializeRunLengthWaveletTree
-// (
-//   RunLengthWaveletTree const &rlwt,
-//   std::filesystem::path const &index_path
-// )
-// {
-//   uint64_t total_size {};
-//   std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
-//   {
-//     auto size {sdsl::write_member(rlwt.runs_size, index_file)};
-//     total_size += size;
-//   }
-//   return total_size;
-// }
-//
-// void LoadRunLengthWaveletTree
-// (
-//   RunLengthWaveletTree &rlwt,
-//   std::filesystem::path const &index_path
-// )
-// {
-//   std::ifstream index_file {index_path};
-//   sdsl::read_member(rlwt.runs_size, index_file);
-//   return;
-// }
+template <typename File>
+uint64_t SerializeRunLengthWaveletTree
+(
+  RunLengthWaveletTree const &rlwt,
+  File &index_file
+)
+{
+  uint64_t total_size {};
+  {
+    auto size {sdsl::write_member(rlwt.level_size, index_file)};
+    total_size += size;
+    // std::cout << "level_size: " << size << "\n";
+  }
+  {
+    auto size {sdsl::write_member(rlwt.runs_size, index_file)};
+    total_size += size;
+    // std::cout << "runs_size: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.all_run_bits, index_file)};
+    total_size += size;
+    // std::cout << "all_run_bits: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.all_run_bits_rank, index_file)};
+    total_size += size;
+    // std::cout << "all_run_bits_rank: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.all_run_bits_select, index_file)};
+    total_size += size;
+    // std::cout << "all_run_bits_select: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.first_length_bits, index_file)};
+    total_size += size;
+    // std::cout << "first_length_bits: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.first_length_bits_rank, index_file)};
+    total_size += size;
+    // std::cout << "first_length_bits_rank: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.first_length_bits_select, index_file)};
+    total_size += size;
+    // std::cout << "first_length_bits_select: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.middle_length_bits, index_file)};
+    total_size += size;
+    // std::cout << "middle_length_bits: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.middle_length_bits_select, index_file)};
+    total_size += size;
+    // std::cout << "middle_length_bits_select: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.last_length_bits, index_file)};
+    total_size += size;
+    // std::cout << "last_length_bits: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.last_length_bits_select, index_file)};
+    total_size += size;
+    // std::cout << "last_length_bits_select: " << size << "\n";
+  }
+  {
+    auto size {sdsl::serialize(rlwt.run_bucket_begin_offsets, index_file)};
+    total_size += size;
+    // std::cout << "run_bucket_begin_offsets: " << size << "\n";
+  }
+  return total_size;
+}
+
+template <typename File>
+void LoadRunLengthWaveletTree
+(
+  RunLengthWaveletTree &rlwt,
+  File &index_file
+)
+{
+  sdsl::read_member(rlwt.level_size, index_file);
+  sdsl::read_member(rlwt.runs_size, index_file);
+  sdsl::load(rlwt.all_run_bits, index_file);
+  sdsl::load(rlwt.all_run_bits_rank, index_file);
+  sdsl::load(rlwt.all_run_bits_select, index_file);
+  rlwt.all_run_bits_rank.set_vector(&rlwt.all_run_bits);
+  rlwt.all_run_bits_select.set_vector(&rlwt.all_run_bits);
+  sdsl::load(rlwt.first_length_bits, index_file);
+  sdsl::load(rlwt.first_length_bits_rank, index_file);
+  sdsl::load(rlwt.first_length_bits_select, index_file);
+  rlwt.first_length_bits_rank.set_vector(&rlwt.first_length_bits);
+  rlwt.first_length_bits_select.set_vector(&rlwt.first_length_bits);
+  sdsl::load(rlwt.middle_length_bits, index_file);
+  rlwt.middle_length_bits_select.set_vector(&rlwt.middle_length_bits);
+  sdsl::load(rlwt.last_length_bits, index_file);
+  rlwt.last_length_bits_select.set_vector(&rlwt.last_length_bits);
+  sdsl::load(rlwt.run_bucket_begin_offsets, index_file);
+  return;
+}
 
 struct Index
 {
@@ -1534,6 +1611,7 @@ void PrintIndex
   Print(file, index.colex_to_lex);
   Print(file, index.lex_rank_bucket_begin_offsets);
   Print(file, index.colex_bwt);
+  PrintRunLengthWaveletTree(file, index.colex_bwt_rlwt);
   return;
 }
 
@@ -1778,6 +1856,11 @@ uint64_t SerializeIndex
     total_size += size;
     // std::cout << "colex_bwt" << size << "\n";
   }
+  {
+    auto size {SerializeRunLengthWaveletTree(index.colex_bwt_rlwt, index_file)};
+    total_size += size;
+    // std::cout << "colex_bwt_rlwt: " << size << "\n";
+  }
   return total_size;
 }
 
@@ -1795,6 +1878,7 @@ void LoadIndex
   index.colex_to_lex.load(index_file);
   index.lex_rank_bucket_begin_offsets.load(index_file);
   index.colex_bwt.load(index_file);
+  LoadRunLengthWaveletTree(index.colex_bwt_rlwt, index_file);
   return;
 }
 
