@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include <map>
 #include <memory>
 
@@ -225,7 +226,7 @@ void CalculateGrammarRuleCountsBeginOffsetsAndTemporaryLexText
   TemporaryLexTextIterator temporary_compressed_text_begin
 )
 {
-  std::vector<uint64_t> counts;
+  std::deque<uint64_t> counts;
   auto invalid_text_offset {std::size(text)};
   uint64_t lex_rank {};
   auto prev_rule_it {std::prev(std::end(text))};
@@ -448,7 +449,7 @@ void PrintDynamicGrammarTrie
   }
   file << "\n";
   Print(file, labels);
-  std::vector<std::pair<DynamicGrammarTrie::NodePointer, uint64_t>> nodes;
+  std::deque<std::pair<DynamicGrammarTrie::NodePointer, uint64_t>> nodes;
   nodes.emplace_back(trie.root, 0);
   while (!nodes.empty())
   {
@@ -611,7 +612,7 @@ void InsertGrammarRuleSuffixesAndCountsIntoDynamicGrammarTrie
 
 void CalculateCumulativeGrammarCount (DynamicGrammarTrie &trie)
 {
-  std::vector<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
+  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
   nodes.emplace_back(trie.root, true);
   while (!nodes.empty())
   {
@@ -778,7 +779,7 @@ void InsertGrammarRulesIntoDynamicGrammarTries
 
 void CalculateCumulativeLexRankRanges (DynamicGrammarTrie &lex_grammar_rank_trie)
 {
-  std::vector<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
+  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
   nodes.emplace_back(lex_grammar_rank_trie.root, true);
   while (!nodes.empty())
   {
@@ -824,7 +825,7 @@ void CalculateCumulativeColexRankRangesAndLexToColex
 )
 {
   uint64_t colex_rank {1};
-  std::vector<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
+  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
   nodes.emplace_back(colex_grammar_rank_trie.root, true);
   while (!nodes.empty())
   {
@@ -927,7 +928,7 @@ void PrintStaticGrammarTrie
   }
   file << "\n";
   Print(file, labels);
-  std::vector<std::pair<uint64_t, uint64_t>> offsets;
+  std::deque<std::pair<uint64_t, uint64_t>> offsets;
   uint64_t begin_offset {};
   uint64_t end_offset {trie.level_order_select(1)};
   for (auto offset {end_offset - 1}; offset != (begin_offset - 1); --offset)
@@ -1057,24 +1058,24 @@ void ConstructStaticGrammarTrie
   bool const is_rank = true
 )
 {
-  std::vector<uint8_t> level_order;
-  std::vector<uint64_t> edge_begin_offsets;
-  std::vector<uint64_t> edge_prev_end_offsets;
-  std::vector<uint64_t> leftmost_ranks;
-  std::vector<uint64_t> rightmost_ranks;
-  std::vector<uint64_t> counts;
-  std::vector<DynamicGrammarTrie::NodePointer> nodes;
+  std::deque<uint8_t> level_order;
+  std::deque<uint64_t> edge_begin_offsets;
+  std::deque<uint64_t> edge_prev_end_offsets;
+  std::deque<uint64_t> leftmost_ranks;
+  std::deque<uint64_t> rightmost_ranks;
+  std::deque<uint64_t> counts;
+  std::deque<DynamicGrammarTrie::NodePointer> nodes;
   nodes.emplace_back(dynamic_trie.root);
   while (!nodes.empty())
   {
-    auto node {nodes.back()}; nodes.pop_back();
+    auto node {nodes.front()}; nodes.pop_front();
     if (!node->branches.empty())
     {
-      auto branches_rit {std::rbegin(node->branches)};
-      auto branches_rend {std::rend(node->branches)};
-      while (branches_rit != branches_rend)
+      auto branches_it {std::begin(node->branches)};
+      auto branches_end {std::end(node->branches)};
+      while (branches_it != branches_end)
       {
-        auto child_node {std::get<1>(*branches_rit)};
+        auto child_node {std::get<1>(*branches_it)};
         level_order.emplace_back(0);
         edge_begin_offsets.emplace_back(std::get<0>(child_node->edge_range));
         edge_prev_end_offsets.emplace_back(std::get<1>(child_node->edge_range));
@@ -1088,7 +1089,7 @@ void ConstructStaticGrammarTrie
           counts.emplace_back(child_node->count);
         }
         nodes.emplace_back(child_node);
-        ++branches_rit;
+        ++branches_it;
       }
     }
     level_order.emplace_back(1);
@@ -1201,6 +1202,17 @@ uint64_t Rank
   );
 }
 
+// struct RangeCountParameterList
+// {
+//   uint8_t level;
+//   uint64_t first_run_length;
+//   uint64_t last_run_length;
+//   uint64_t lower_run_bound;
+//   uint64_t upper_run_bound;
+//   uint64_t lower_prefix_bound;
+//   uint64_t upper_prefix_bound;
+// };
+//
 // uint64_t RangeCount
 // (
 //   RunLengthWaveletTree const &rlwt,
@@ -1210,7 +1222,92 @@ uint64_t Rank
 //   uint64_t upper_value_bound
 // )
 // {
-//
+//   uint64_t count {};
+//   std::deque<RangeCountParameterList> lists;
+//   lists.emplace_back
+//   (
+//     0,
+//     rlwt.first_length_bits_rank(lower_bound + 1),
+//     rlwt.first_length_bits_rank(upper_bound + 1),
+//     (lower_bound + 1) - rlwt.first_length_bits_select(lower_run_bound),
+//     (upper_bound + 1) - rlwt.first_length_bits_select(upper_run_bound),
+//     0,
+//     rlwt.alphabet_size - 1
+//   );
+//   while (!lists.empty())
+//   {
+//     auto list {lists.back()}; lists.pop_back();
+//     if
+//     (
+//       (list.lower_run_bound <= list.upper_run_bound)
+//       &&
+//       (
+//         ((lower_value_bound <= list.lower_prefix_bound) && (list.lower_prefix_bound <= upper_value_bound))
+//         ||
+//         ((lower_value_bound <= list.upper_prefix_bound) && (list.upper_prefix_bound <= upper_value_bound))
+//       )
+//     )
+//     {
+//       if ((lower_value_bound <= list.lower_prefix_bound) && (list.upper_prefix_bound <= upper_value_bound))
+//       {
+//         if (list.lower_prefix_bound == list.upper_prefix_bound)
+//         {
+//           count += list.first_run_length;
+//         }
+//         else if (list.lower_prefix_bound == (list.upper_prefix_bound - 1))
+//         {
+//           count += (list.first_run_length + list.last_run_length);
+//         }
+//         else
+//         {
+//           uint64_t middle_length {};
+//           if (list.level == 0)
+//           {
+//             middle_length =
+//             (
+//               rlwt.first_length_bits_select(list.upper_run_bound + 1)
+//               - rlwt.first_length_bits_select(list.lower_bound + 2)
+//             );
+//           }
+//           else if (list.level < rlwt.level_size)
+//           {
+//             middle_length =
+//             (
+//               rlwt.middle_length_bits_select(offset + list.upper_bound + 1)
+//               - rlwt.first_length_bits_select(offset + list.lower_bound + 2)
+//             );
+//           }
+//           else
+//           {
+//             middle_length =
+//             (
+//               rlwt.first_length_bits_select(list.upper_bound + 1)
+//               - rlwt.first_length_bits_select(list.lower_bound + 2)
+//             );
+//           }
+//           count += (list.first_run_length + middle_length + list.last_run_length);
+//         }
+//       }
+//       else
+//       {
+//         auto begin_offset {(list.level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[list.lower_prefix_bound]};
+//         auto ones_begin_offset {rlwt.all_run_bits_rank(begin_offset)};
+//         auto ones_lower_bound_offset {rlwt.all_run_bits_rank(begin_offset + list.lower_bound) - ones_begin_offset}
+//         auto ones_upper_bound_offset {rlwt.all_run_bits_rank(begin_offset + list.upper_bound) - ones_begin_offset};
+//         mask >>= 1;
+//         if (character & mask)
+//         {
+//           prefix |= mask;
+//           run_rank = ones_offset;
+//         }
+//         else
+//         {
+//           run_rank -= ones_offset;
+//         }
+//       }
+//     }
+//   }
+//   return count;
 // }
 
 template <typename File>
@@ -1765,7 +1862,7 @@ void ConstructIndex
     );
     // PrintDynamicGrammarTrie(std::cout, grammar_rules, lex_grammar_count_trie, false);
     CalculateCumulativeGrammarCount(lex_grammar_count_trie);
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_count_trie, false);
+    PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_count_trie, false);
     ConstructStaticGrammarTrie
     (
       lex_grammar_count_trie,
@@ -1787,7 +1884,7 @@ void ConstructIndex
     // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
     // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
     CalculateCumulativeLexRankRanges(lex_grammar_rank_trie);
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
+    PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
     ConstructStaticGrammarTrie
     (
       lex_grammar_rank_trie,
@@ -1799,7 +1896,7 @@ void ConstructIndex
     lex_to_colex[0] = 0;
     CalculateCumulativeColexRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
     // Print(std::cout, lex_to_colex);
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
+    PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
     ConstructStaticGrammarTrie
     (
       colex_grammar_rank_trie,
