@@ -1134,25 +1134,28 @@ struct RunLengthWaveletTree
 
 uint64_t Access (RunLengthWaveletTree const &rlwt, uint64_t offset)
 {
-  offset = rlwt.first_length_bits_rank(offset + 1) - 1;
   uint64_t run {};
-  uint64_t prefix {};
-  uint64_t mask {1ULL << rlwt.level_size};
-  for (uint8_t level {}; level != rlwt.level_size; ++level)
+  if (offset < (std::size(rlwt.first_length_bits) - 1))
   {
-    auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[prefix]};
-    auto ones_offset {rlwt.all_run_bits_rank(begin_offset + offset) - rlwt.all_run_bits_rank(begin_offset)};
-    run <<= 1;
-    mask >>= 1;
-    if (rlwt.all_run_bits[begin_offset + offset])
+    offset = rlwt.first_length_bits_rank(offset + 1) - 1;
+    uint64_t prefix {};
+    uint64_t mask {1ULL << rlwt.level_size};
+    for (uint8_t level {}; level != rlwt.level_size; ++level)
     {
-      run |= 1ULL;
-      prefix |= mask;
-      offset = ones_offset;
-    }
-    else
-    {
-      offset -= ones_offset;
+      auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[prefix]};
+      auto ones_offset {rlwt.all_run_bits_rank(begin_offset + offset) - rlwt.all_run_bits_rank(begin_offset)};
+      run <<= 1;
+      mask >>= 1;
+      if (rlwt.all_run_bits[begin_offset + offset])
+      {
+        run |= 1ULL;
+        prefix |= mask;
+        offset = ones_offset;
+      }
+      else
+      {
+        offset -= ones_offset;
+      }
     }
   }
   return run;
@@ -1165,7 +1168,14 @@ uint64_t Rank
   uint64_t character
 )
 {
-  if (offset == 0) { return 0; }
+  if (offset == 0 || character >= rlwt.alphabet_size)
+  {
+    return 0;
+  }
+  if (offset > std::size(rlwt.first_length_bits) - 1)
+  {
+    offset = std::size(rlwt.first_length_bits) - 1;
+  }
   auto run_offset {rlwt.first_length_bits_rank(offset)};
   auto run_rank {run_offset};
   uint64_t prefix {};
@@ -1173,136 +1183,124 @@ uint64_t Rank
   for (uint8_t level {}; level != rlwt.level_size; ++level)
   {
     auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[prefix]};
-    auto ones_offset {rlwt.all_run_bits_rank(begin_offset + run_rank) - rlwt.all_run_bits_rank(begin_offset)};
+    auto ones_size {rlwt.all_run_bits_rank(begin_offset + run_rank) - rlwt.all_run_bits_rank(begin_offset)};
     mask >>= 1;
     if (character & mask)
     {
       prefix |= mask;
-      run_rank = ones_offset;
+      run_rank = ones_size;
     }
     else
     {
-      run_rank -= ones_offset;
+      run_rank -= ones_size;
     }
   }
-  auto run_bucket_offset {rlwt.run_bucket_begin_offsets[character] + 1};
+  auto run_bucket_offset {rlwt.run_bucket_begin_offsets[character]};
+  auto character_bucket_begin_offset {rlwt.last_length_bits_select(run_bucket_offset + 1)};
   if (character != Access(rlwt, offset - 1))
   {
     return
     (
-      rlwt.last_length_bits_select(run_bucket_offset + run_rank)
-      - rlwt.last_length_bits_select(run_bucket_offset)
+      rlwt.last_length_bits_select(run_bucket_offset + run_rank + 1)
+      - character_bucket_begin_offset
     );
   }
   return
   (
-    rlwt.last_length_bits_select(run_bucket_offset + run_rank - 1)
-    - rlwt.last_length_bits_select(run_bucket_offset)
+    rlwt.last_length_bits_select(run_bucket_offset + run_rank)
+    - character_bucket_begin_offset
     + (offset - rlwt.first_length_bits_select(run_offset))
   );
 }
 
-// struct RangeCountParameterList
-// {
-//   uint8_t level;
-//   uint64_t first_run_length;
-//   uint64_t last_run_length;
-//   uint64_t lower_run_bound;
-//   uint64_t upper_run_bound;
-//   uint64_t lower_prefix_bound;
-//   uint64_t upper_prefix_bound;
-// };
-//
 // uint64_t RangeCount
 // (
 //   RunLengthWaveletTree const &rlwt,
-//   uint64_t lower_bound,
-//   uint64_t upper_bound,
-//   uint64_t lower_value_bound,
-//   uint64_t upper_value_bound
+//   uint64_t lower_offset,
+//   uint64_t upper_offset,
+//   uint64_t lower_value,
+//   uint64_t upper_value
 // )
 // {
 //   uint64_t count {};
-//   std::deque<RangeCountParameterList> lists;
-//   lists.emplace_back
-//   (
-//     0,
-//     rlwt.first_length_bits_rank(lower_bound + 1),
-//     rlwt.first_length_bits_rank(upper_bound + 1),
-//     (lower_bound + 1) - rlwt.first_length_bits_select(lower_run_bound),
-//     (upper_bound + 1) - rlwt.first_length_bits_select(upper_run_bound),
-//     0,
-//     rlwt.alphabet_size - 1
-//   );
-//   while (!lists.empty())
+//   if ((lower_offset <= upper_offset) && (lower_value <= upper_value))
 //   {
-//     auto list {lists.back()}; lists.pop_back();
-//     if
-//     (
-//       (list.lower_run_bound <= list.upper_run_bound)
-//       &&
-//       (
-//         ((lower_value_bound <= list.lower_prefix_bound) && (list.lower_prefix_bound <= upper_value_bound))
-//         ||
-//         ((lower_value_bound <= list.upper_prefix_bound) && (list.upper_prefix_bound <= upper_value_bound))
-//       )
-//     )
+//     auto lower_run_offset {rlwt.first_length_bits_rank(lower_offset + 1) - 1};
+//     auto upper_run_offset {rlwt.first_length_bits_rank(upper_offset + 1) - 1};
+//     auto run {Access(rlwt, lower_run_offset)};
+//     if ((lower_value <= run) && (run <= upper_value))
 //     {
-//       if ((lower_value_bound <= list.lower_prefix_bound) && (list.upper_prefix_bound <= upper_value_bound))
+//       count += (lower_offset + 1 - rlwt.first_length_bits_select(lower_run_offset + 1));
+//     }
+//     if (lower_run_offset != upper_run_offset)
+//     {
+//       run = Access(rlwt, upper_run_offset);
+//       if ((lower_value <= run) && (run <= upper_value))
 //       {
-//         if (list.lower_prefix_bound == list.upper_prefix_bound)
+//         count += (upper_offset + 1 - rlwt.first_length_bits_select(upper_run_offset + 1));
+//       }
+//     }
+//     if (++lower_run_offset <= --upper_run_offset)
+//     {
+//       std::deque<std::tuple<uint8_t, uint64_t, uint64_t, uint64_t, uint64_t>> lists;
+//       lists.emplace_back(0, lower_run_offset, upper_run_offset, 0, rlwt.alphabet_size - 1);
+//       while (!lists.empty())
+//       {
+//         auto level {std::get<0>(lists.front())};
+//         auto lower_run_offset {std::get<1>(lists.front())};
+//         auto upper_run_offset {std::get<2>(lists.front())};
+//         auto lower_prefix {std::get<3>(lists.front())};
+//         auto upper_prefix {std::get<4>(lists.front())};
+//         lists.pop_front();
+//         if (!((upper_prefix < lower_value) || (upper_value < lower_prefix)))
 //         {
-//           count += list.first_run_length;
-//         }
-//         else if (list.lower_prefix_bound == (list.upper_prefix_bound - 1))
-//         {
-//           count += (list.first_run_length + list.last_run_length);
-//         }
-//         else
-//         {
-//           uint64_t middle_length {};
-//           if (list.level == 0)
+//           auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[lower_prefix]};
+//           if (lower_value <= lower_prefix && upper_prefix <= upper_value)
 //           {
-//             middle_length =
-//             (
-//               rlwt.first_length_bits_select(list.upper_run_bound + 1)
-//               - rlwt.first_length_bits_select(list.lower_bound + 2)
-//             );
-//           }
-//           else if (list.level < rlwt.level_size)
-//           {
-//             middle_length =
-//             (
-//               rlwt.middle_length_bits_select(offset + list.upper_bound + 1)
-//               - rlwt.first_length_bits_select(offset + list.lower_bound + 2)
-//             );
+//             if (level == 1)
+//             {
+//               count +=
+//               (
+//                 rlwt.first_length_bits_select(upper_run_offset + 2)
+//                 - rlwt.first_length_bits_select(lower_run_offset + 1)
+//               );
+//             }
+//             else if (level != rlwt.level_size)
+//             {
+//               count +=
+//               (
+//                 rlwt.middle_length_bits_select(begin_offset - rlwt.runs_size + upper_run_offset + 2)
+//                 - rlwt.middle_length_bits_select(begin_offset - rlwt.runs_size + lower_run_offset + 1)
+//               );
+//             }
+//             else
+//             {
+//               count += (upper_run_offset - lower_run_offset + 1);
+//             }
 //           }
 //           else
 //           {
-//             middle_length =
+//             auto ones_begin_offset {rlwt.all_run_bits_rank(begin_offset)};
+//             auto lower_ones_size {rlwt.all_run_bits_rank(begin_offset + lower_run_offset + 1) - ones_begin_offset};
+//             auto upper_ones_size {rlwt.all_run_bits_rank(begin_offset + upper_run_offset + 1) - ones_begin_offset};
+//             auto middle_prefix {lower_prefix | (1ULL << (rlwt.level_size - 1 - level))  };
+//             lists.emplace_back
 //             (
-//               rlwt.first_length_bits_select(list.upper_bound + 1)
-//               - rlwt.first_length_bits_select(list.lower_bound + 2)
+//               level + 1,
+//               lower_run_offset - lower_ones_size,
+//               upper_run_offset - upper_ones_size,
+//               lower_prefix,
+//               middle_prefix - 1
+//             );
+//             lists.emplace_back
+//             (
+//               level + 1,
+//               lower_ones_size - 1,
+//               upper_ones_size - 1,
+//               middle_prefix,
+//               upper_prefix
 //             );
 //           }
-//           count += (list.first_run_length + middle_length + list.last_run_length);
-//         }
-//       }
-//       else
-//       {
-//         auto begin_offset {(list.level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[list.lower_prefix_bound]};
-//         auto ones_begin_offset {rlwt.all_run_bits_rank(begin_offset)};
-//         auto ones_lower_bound_offset {rlwt.all_run_bits_rank(begin_offset + list.lower_bound) - ones_begin_offset}
-//         auto ones_upper_bound_offset {rlwt.all_run_bits_rank(begin_offset + list.upper_bound) - ones_begin_offset};
-//         mask >>= 1;
-//         if (character & mask)
-//         {
-//           prefix |= mask;
-//           run_rank = ones_offset;
-//         }
-//         else
-//         {
-//           run_rank -= ones_offset;
 //         }
 //       }
 //     }
@@ -1313,7 +1311,7 @@ uint64_t Rank
 template <typename File>
 void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
 {
-  auto length_width {sdsl::bits::hi(std::size(rlwt.first_length_bits)) + 1};
+  auto length_width {sdsl::bits::hi(std::size(rlwt.first_length_bits) - 1) + 1};
   sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
   sdsl::int_vector<> lengths(rlwt.runs_size, 0, length_width);
   file << static_cast<uint64_t>(rlwt.level_size) << "\n";
@@ -1862,7 +1860,7 @@ void ConstructIndex
     );
     // PrintDynamicGrammarTrie(std::cout, grammar_rules, lex_grammar_count_trie, false);
     CalculateCumulativeGrammarCount(lex_grammar_count_trie);
-    PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_count_trie, false);
+    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_count_trie, false);
     ConstructStaticGrammarTrie
     (
       lex_grammar_count_trie,
@@ -1884,7 +1882,7 @@ void ConstructIndex
     // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
     // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
     CalculateCumulativeLexRankRanges(lex_grammar_rank_trie);
-    PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
+    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
     ConstructStaticGrammarTrie
     (
       lex_grammar_rank_trie,
@@ -1896,7 +1894,7 @@ void ConstructIndex
     lex_to_colex[0] = 0;
     CalculateCumulativeColexRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
     // Print(std::cout, lex_to_colex);
-    PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
+    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
     ConstructStaticGrammarTrie
     (
       colex_grammar_rank_trie,
