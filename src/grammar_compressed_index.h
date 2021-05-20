@@ -1168,16 +1168,12 @@ uint64_t Rank
   uint64_t character
 )
 {
-  if (offset == 0 || character >= rlwt.alphabet_size)
+  if ((offset == 0) || (offset >= std::size(rlwt.first_length_bits)) || character >= rlwt.alphabet_size)
   {
     return 0;
   }
-  if (offset > std::size(rlwt.first_length_bits) - 1)
-  {
-    offset = std::size(rlwt.first_length_bits) - 1;
-  }
-  auto run_offset {rlwt.first_length_bits_rank(offset)};
-  auto run_rank {run_offset};
+  auto runs_offset {rlwt.first_length_bits_rank(offset)};
+  auto run_rank {runs_offset};
   uint64_t prefix {};
   uint64_t mask {1ULL << rlwt.level_size};
   for (uint8_t level {}; level != rlwt.level_size; ++level)
@@ -1209,104 +1205,111 @@ uint64_t Rank
   (
     rlwt.last_length_bits_select(run_bucket_offset + run_rank)
     - character_bucket_begin_offset
-    + (offset - rlwt.first_length_bits_select(run_offset))
+    + (offset - rlwt.first_length_bits_select(runs_offset))
   );
 }
 
-// uint64_t RangeCount
-// (
-//   RunLengthWaveletTree const &rlwt,
-//   uint64_t lower_offset,
-//   uint64_t upper_offset,
-//   uint64_t lower_value,
-//   uint64_t upper_value
-// )
-// {
-//   uint64_t count {};
-//   if ((lower_offset <= upper_offset) && (lower_value <= upper_value))
-//   {
-//     auto lower_run_offset {rlwt.first_length_bits_rank(lower_offset + 1) - 1};
-//     auto upper_run_offset {rlwt.first_length_bits_rank(upper_offset + 1) - 1};
-//     auto run {Access(rlwt, lower_run_offset)};
-//     if ((lower_value <= run) && (run <= upper_value))
-//     {
-//       count += (lower_offset + 1 - rlwt.first_length_bits_select(lower_run_offset + 1));
-//     }
-//     if (lower_run_offset != upper_run_offset)
-//     {
-//       run = Access(rlwt, upper_run_offset);
-//       if ((lower_value <= run) && (run <= upper_value))
-//       {
-//         count += (upper_offset + 1 - rlwt.first_length_bits_select(upper_run_offset + 1));
-//       }
-//     }
-//     if (++lower_run_offset <= --upper_run_offset)
-//     {
-//       std::deque<std::tuple<uint8_t, uint64_t, uint64_t, uint64_t, uint64_t>> lists;
-//       lists.emplace_back(0, lower_run_offset, upper_run_offset, 0, rlwt.alphabet_size - 1);
-//       while (!lists.empty())
-//       {
-//         auto level {std::get<0>(lists.front())};
-//         auto lower_run_offset {std::get<1>(lists.front())};
-//         auto upper_run_offset {std::get<2>(lists.front())};
-//         auto lower_prefix {std::get<3>(lists.front())};
-//         auto upper_prefix {std::get<4>(lists.front())};
-//         lists.pop_front();
-//         if (!((upper_prefix < lower_value) || (upper_value < lower_prefix)))
-//         {
-//           auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[lower_prefix]};
-//           if (lower_value <= lower_prefix && upper_prefix <= upper_value)
-//           {
-//             if (level == 1)
-//             {
-//               count +=
-//               (
-//                 rlwt.first_length_bits_select(upper_run_offset + 2)
-//                 - rlwt.first_length_bits_select(lower_run_offset + 1)
-//               );
-//             }
-//             else if (level != rlwt.level_size)
-//             {
-//               count +=
-//               (
-//                 rlwt.middle_length_bits_select(begin_offset - rlwt.runs_size + upper_run_offset + 2)
-//                 - rlwt.middle_length_bits_select(begin_offset - rlwt.runs_size + lower_run_offset + 1)
-//               );
-//             }
-//             else
-//             {
-//               count += (upper_run_offset - lower_run_offset + 1);
-//             }
-//           }
-//           else
-//           {
-//             auto ones_begin_offset {rlwt.all_run_bits_rank(begin_offset)};
-//             auto lower_ones_size {rlwt.all_run_bits_rank(begin_offset + lower_run_offset + 1) - ones_begin_offset};
-//             auto upper_ones_size {rlwt.all_run_bits_rank(begin_offset + upper_run_offset + 1) - ones_begin_offset};
-//             auto middle_prefix {lower_prefix | (1ULL << (rlwt.level_size - 1 - level))  };
-//             lists.emplace_back
-//             (
-//               level + 1,
-//               lower_run_offset - lower_ones_size,
-//               upper_run_offset - upper_ones_size,
-//               lower_prefix,
-//               middle_prefix - 1
-//             );
-//             lists.emplace_back
-//             (
-//               level + 1,
-//               lower_ones_size - 1,
-//               upper_ones_size - 1,
-//               middle_prefix,
-//               upper_prefix
-//             );
-//           }
-//         }
-//       }
-//     }
-//   }
-//   return count;
-// }
+uint64_t RangeCount
+(
+  RunLengthWaveletTree const &rlwt,
+  uint64_t lower_offset,
+  uint64_t upper_offset,
+  uint64_t lower_value,
+  uint64_t upper_value
+)
+{
+  uint64_t count {};
+  if
+  (
+    (lower_offset < std::size(rlwt.first_length_bits) - 1)
+    && (upper_offset < std::size(rlwt.first_length_bits) - 1)
+    && (lower_value < rlwt.alphabet_size)
+    && (upper_value < rlwt.alphabet_size)
+    && (lower_offset <= upper_offset)
+    && (lower_value <= upper_value)
+  )
+  {
+    auto lower_runs_offset {rlwt.first_length_bits_rank(++lower_offset)};
+    auto upper_runs_offset {rlwt.first_length_bits_rank(++upper_offset)};
+    auto run {Access(rlwt, lower_offset - 1)};
+    if (lower_runs_offset == upper_runs_offset)
+    {
+      if ((lower_value <= run) && (run <= upper_value))
+      {
+        count = (upper_offset - lower_offset + 1);
+      }
+    }
+    else
+    {
+      if ((lower_value <= run) && (run <= upper_value))
+      {
+        count += (rlwt.first_length_bits_select(lower_runs_offset + 1) - lower_offset + 1);
+      }
+      if (lower_runs_offset != upper_runs_offset)
+      {
+        run = Access(rlwt, upper_offset - 1);
+        if ((lower_value <= run) && (run <= upper_value))
+        {
+          count += (upper_offset - rlwt.first_length_bits_select(upper_runs_offset));
+        }
+      }
+      std::deque<std::tuple<uint8_t, uint64_t, uint64_t, uint64_t, uint64_t>> lists;
+      lists.emplace_back(0, lower_runs_offset + 1, upper_runs_offset - 1, 0, rlwt.alphabet_size - 1);
+      while (!lists.empty())
+      {
+        auto level {std::get<0>(lists.front())};
+        lower_runs_offset = std::get<1>(lists.front());
+        upper_runs_offset = std::get<2>(lists.front());
+        auto lower_prefix {std::get<3>(lists.front())};
+        auto upper_prefix {std::get<4>(lists.front())};
+        lists.pop_front();
+        if ((lower_runs_offset <= upper_runs_offset) && !((upper_prefix < lower_value) || (upper_value < lower_prefix)))
+        {
+          auto begin_offset {(level * rlwt.runs_size) + rlwt.run_bucket_begin_offsets[lower_prefix]};
+          if ((lower_value <= lower_prefix) && (upper_prefix <= upper_value))
+          {
+            auto *select {&rlwt.first_length_bits_select};
+            if (level == rlwt.level_size)
+            {
+              begin_offset = rlwt.run_bucket_begin_offsets[lower_prefix];
+              select = &rlwt.last_length_bits_select;
+            }
+            else if (level != 0)
+            {
+              begin_offset = begin_offset - rlwt.runs_size + (level - 1);
+              select = &rlwt.middle_length_bits_select;
+            }
+            count += (*select)(begin_offset + upper_runs_offset + 1) - (*select)(begin_offset + lower_runs_offset);
+          }
+          else
+          {
+            auto ones_begin_offset {rlwt.all_run_bits_rank(begin_offset)};
+            auto lower_ones_offset {rlwt.all_run_bits_rank(begin_offset + lower_runs_offset - 1) + 1 - ones_begin_offset};
+            auto upper_ones_offset {rlwt.all_run_bits_rank(begin_offset + upper_runs_offset) - ones_begin_offset};
+            uint64_t middle_prefix {lower_prefix | (1ULL << (rlwt.level_size - 1 - level))};
+            lists.emplace_back
+            (
+              level + 1,
+              lower_runs_offset - lower_ones_offset + 1,
+              upper_runs_offset - upper_ones_offset,
+              lower_prefix,
+              middle_prefix - 1
+            );
+            lists.emplace_back
+            (
+              level + 1,
+              lower_ones_offset,
+              upper_ones_offset,
+              middle_prefix,
+              upper_prefix
+            );
+          }
+        }
+      }
+    }
+  }
+  return count;
+}
 
 template <typename File>
 void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
@@ -1317,14 +1320,14 @@ void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
   file << static_cast<uint64_t>(rlwt.level_size) << "\n";
   file << rlwt.runs_size << "\n";
   file << rlwt.alphabet_size << "\n";
-  for (uint64_t run_offset {}; run_offset != rlwt.runs_size; ++run_offset)
+  for (uint64_t runs_offset {}; runs_offset != rlwt.runs_size; ++runs_offset)
   {
-    runs[run_offset] = Access(rlwt, rlwt.first_length_bits_select(run_offset + 1));
+    runs[runs_offset] = Access(rlwt, rlwt.first_length_bits_select(runs_offset + 1));
   }
   Print(file, runs);
-  for (uint64_t run_offset {}; run_offset != rlwt.runs_size; ++run_offset)
+  for (uint64_t runs_offset {}; runs_offset != rlwt.runs_size; ++runs_offset)
   {
-    lengths[run_offset] = rlwt.first_length_bits_select(run_offset + 2) - rlwt.first_length_bits_select(run_offset + 1);
+    lengths[runs_offset] = rlwt.first_length_bits_select(runs_offset + 2) - rlwt.first_length_bits_select(runs_offset + 1);
   }
   Print(file, lengths);
   {
