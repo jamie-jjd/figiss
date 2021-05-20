@@ -1711,7 +1711,6 @@ struct Index
   StaticGrammarTrie colex_grammar_rank_trie;
   sdsl::int_vector<> colex_to_lex;
   sdsl::int_vector<> lex_rank_bucket_begin_offsets;
-  sdsl::wt_int<> colex_bwt;
   RunLengthWaveletTree colex_bwt_rlwt;
 };
 
@@ -1728,7 +1727,6 @@ void PrintIndex
   PrintStaticGrammarTrie(file, index.grammar_rules, index.colex_grammar_rank_trie);
   Print(file, index.colex_to_lex);
   Print(file, index.lex_rank_bucket_begin_offsets);
-  Print(file, index.colex_bwt);
   PrintRunLengthWaveletTree(file, index.colex_bwt_rlwt);
   return;
 }
@@ -1924,7 +1922,6 @@ void ConstructIndex
     sdsl::int_vector<> colex_bwt;
     CalculateColexBwt(lex_text, lex_to_colex, colex_bwt);
     // Print(std::cout, colex_bwt);
-    sdsl::construct_im(index.colex_bwt, colex_bwt);
     ConstructRunLengthWaveletTree(colex_bwt, index.colex_bwt_rlwt);
     // PrintRunLengthWaveletTree(std::cout, index.colex_bwt_rlwt);
   }
@@ -1970,11 +1967,6 @@ uint64_t SerializeIndex
     // std::cout << "lex_rank_bucket_begin_offsets" << size << "\n";
   }
   {
-    auto size {sdsl::serialize(index.colex_bwt, index_file)};
-    total_size += size;
-    // std::cout << "colex_bwt" << size << "\n";
-  }
-  {
     auto size {SerializeRunLengthWaveletTree(index.colex_bwt_rlwt, index_file)};
     total_size += size;
     // std::cout << "colex_bwt_rlwt: " << size << "\n";
@@ -1995,7 +1987,6 @@ void LoadIndex
   LoadStaticGrammarTrie(index.colex_grammar_rank_trie, index_file);
   index.colex_to_lex.load(index_file);
   index.lex_rank_bucket_begin_offsets.load(index_file);
-  index.colex_bwt.load(index_file);
   LoadRunLengthWaveletTree(index.colex_bwt_rlwt, index_file);
   return;
 }
@@ -2202,16 +2193,13 @@ void BackwardSearchPatternPrefix
       pattern_range_l =
       {
         1,
-        std::get<0>
+        RangeCount
         (
-          index.colex_bwt.range_search_2d
-          (
-            std::get<0>(pattern_range_l),
-            std::get<1>(pattern_range_l),
-            std::get<0>(colex_rank_range),
-            std::get<1>(colex_rank_range),
-            false
-          )
+          index.colex_bwt_rlwt,
+          std::get<0>(pattern_range_l),
+          std::get<1>(pattern_range_l),
+          std::get<0>(colex_rank_range),
+          std::get<1>(colex_rank_range)
         )
       };
     }
@@ -2220,16 +2208,13 @@ void BackwardSearchPatternPrefix
       pattern_range_s =
       {
         1,
-        std::get<0>
+        RangeCount
         (
-          index.colex_bwt.range_search_2d
-          (
-            std::get<0>(pattern_range_s),
-            std::get<1>(pattern_range_s),
-            std::get<0>(colex_rank_range),
-            std::get<1>(colex_rank_range),
-            false
-          )
+          index.colex_bwt_rlwt,
+          std::get<0>(pattern_range_s),
+          std::get<1>(pattern_range_s),
+          std::get<0>(colex_rank_range),
+          std::get<1>(colex_rank_range)
         )
       };
     }
@@ -2276,16 +2261,16 @@ auto BackwardSearchPatternProperSubstring
     {
       pattern_range_l =
       {
-        begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range_l), colex_rank),
-        begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_l) + 1, colex_rank) - 1
+        begin_offset + Rank(index.colex_bwt_rlwt, std::get<0>(pattern_range_l), colex_rank),
+        begin_offset + Rank(index.colex_bwt_rlwt, std::get<1>(pattern_range_l) + 1, colex_rank) - 1
       };
     }
     if (!IsEmptyRange(pattern_range_s))
     {
       pattern_range_s =
       {
-        begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range_s), colex_rank),
-        begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_s) + 1, colex_rank) - 1
+        begin_offset + Rank(index.colex_bwt_rlwt, std::get<0>(pattern_range_s), colex_rank),
+        begin_offset + Rank(index.colex_bwt_rlwt, std::get<1>(pattern_range_s) + 1, colex_rank) - 1
       };
     }
   }
@@ -2399,16 +2384,13 @@ auto BackwardSearchPatternSuffix
             pattern_range_s =
             {
               1,
-              std::get<0>
+              RangeCount
               (
-                index.colex_bwt.range_search_2d
-                (
-                  std::get<0>(pattern_range_s),
-                  std::get<1>(pattern_range_s),
-                  std::get<0>(colex_rank_range),
-                  std::get<1>(colex_rank_range),
-                  false
-                )
+                index.colex_bwt_rlwt,
+                std::get<0>(pattern_range_s),
+                std::get<1>(pattern_range_s),
+                std::get<0>(colex_rank_range),
+                std::get<1>(colex_rank_range)
               )
             };
           }
@@ -2418,8 +2400,8 @@ auto BackwardSearchPatternSuffix
             auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
             pattern_range_s =
             {
-              begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range_s), colex_rank),
-              begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_s) + 1, colex_rank) - 1
+              begin_offset + Rank(index.colex_bwt_rlwt, std::get<0>(pattern_range_s), colex_rank),
+              begin_offset + Rank(index.colex_bwt_rlwt, std::get<1>(pattern_range_s) + 1, colex_rank) - 1
             };
           }
         }
