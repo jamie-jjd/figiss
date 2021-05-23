@@ -964,55 +964,78 @@ void PrintStaticGrammarTrie
   return;
 }
 
-template <typename File>
+template <typename File, typename Node = InformationNode<std::string, uint64_t>>
 uint64_t SerializeStaticGrammarTrie
 (
   StaticGrammarTrie const &trie,
-  File &file
+  File &file,
+  std::shared_ptr<Node> root = nullptr
 )
 {
-  uint64_t total_size {};
+  if (root == nullptr)
   {
-    auto size {sdsl::serialize(trie.level_order, file)};
-    total_size += size;
-    // std::cout << "level_order: " << size << "(bytes)\n";
+    sdsl::serialize(trie.level_order, file);
+    sdsl::serialize(trie.level_order_select, file);
+    sdsl::serialize(trie.edge_begin_offsets, file);
+    sdsl::serialize(trie.edge_prev_end_offsets, file);
+    sdsl::serialize(trie.leftmost_ranks, file);
+    sdsl::serialize(trie.rightmost_ranks, file);
+    sdsl::serialize(trie.counts, file);
+    sdsl::write_member(trie.step, file);
   }
+  else
   {
-    auto size {sdsl::serialize(trie.level_order_select, file)};
-    total_size += size;
-    // std::cout << "level_order_select: " << size << "(bytes)\n";
+    {
+      auto node {std::make_shared<Node>("level_order")};
+      node->value = sdsl::serialize(trie.level_order, file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("level_order_select")};
+      node->value = sdsl::serialize(trie.level_order_select, file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("edge_begin_offsets")};
+      node->value = sdsl::serialize(trie.edge_begin_offsets, file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("edge_prev_end_offsets")};
+      node->value = sdsl::serialize(trie.edge_prev_end_offsets, file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("leftmost_ranks")};
+      node->value = sdsl::serialize(trie.leftmost_ranks, file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("rightmost_ranks")};
+      node->value = sdsl::serialize(trie.rightmost_ranks, file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("counts")};
+      node->value = sdsl::serialize(trie.counts, file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("step")};
+      node->value = sdsl::write_member(trie.step, file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    return root->value;
   }
-  {
-    auto size {sdsl::serialize(trie.edge_begin_offsets, file)};
-    total_size += size;
-    // std::cout << "edge_begin_offsets: " << size << "(bytes)\n";
-  }
-  {
-    auto size {sdsl::serialize(trie.edge_prev_end_offsets, file)};
-    total_size += size;
-    // std::cout << "edge_prev_end_offsets: " << size << "(bytes)\n";
-  }
-  {
-    auto size {sdsl::serialize(trie.leftmost_ranks, file)};
-    total_size += size;
-    // std::cout << "leftmost_ranks: " << size << "(bytes)\n";
-  }
-  {
-    auto size {sdsl::serialize(trie.rightmost_ranks, file)};
-    total_size += size;
-    // std::cout << "rightmost_ranks: " << size << "(bytes)\n";
-  }
-  {
-    auto size {sdsl::serialize(trie.counts, file)};
-    total_size += size;
-    // std::cout << "counts: " << size << "(bytes)\n";
-  }
-  {
-    auto size {sdsl::write_member(trie.step, file)};
-    total_size += size;
-    // std::cout << "step: " << size << "(bytes)\n";
-  }
-  return total_size;
+  return 0;
 }
 
 template <typename File>
@@ -1121,7 +1144,6 @@ struct RunLengthWaveletTree
   uint64_t alphabet_size;
   sdsl::bit_vector all_run_bits;
   sdsl::bit_vector::rank_1_type all_run_bits_rank;
-  sdsl::bit_vector::select_1_type all_run_bits_select;
   sdsl::sd_vector<> first_length_bits;
   sdsl::sd_vector<>::rank_1_type first_length_bits_rank;
   sdsl::sd_vector<>::select_1_type first_length_bits_select;
@@ -1554,7 +1576,6 @@ void ConstructRunLengthWaveletTree
       mask >>= 1;
     }
     rlwt.all_run_bits_rank = decltype(rlwt.all_run_bits_rank)(&rlwt.all_run_bits);
-    rlwt.all_run_bits_select = decltype(rlwt.all_run_bits_select)(&rlwt.all_run_bits);
     rlwt.middle_length_bits = decltype(rlwt.middle_length_bits)(middle_length_bits);
     rlwt.middle_length_bits_select = decltype(rlwt.middle_length_bits_select)(&rlwt.middle_length_bits);
   }
@@ -1594,85 +1615,113 @@ void ConstructRunLengthWaveletTree
   return;
 }
 
-template <typename File>
+template <typename File, typename Node = InformationNode<std::string, uint64_t>>
 uint64_t SerializeRunLengthWaveletTree
 (
   RunLengthWaveletTree const &rlwt,
-  File &index_file
+  File &index_file,
+  std::shared_ptr<Node> root = nullptr
 )
 {
-  uint64_t total_size {};
+  if (root == nullptr)
   {
-    auto size {sdsl::write_member(rlwt.level_size, index_file)};
-    total_size += size;
-    // std::cout << "level_size: " << size << "\n";
+    sdsl::write_member(rlwt.level_size, index_file);
+    sdsl::write_member(rlwt.runs_size, index_file);
+    sdsl::write_member(rlwt.alphabet_size, index_file);
+    sdsl::serialize(rlwt.all_run_bits, index_file);
+    sdsl::serialize(rlwt.all_run_bits_rank, index_file);
+    sdsl::serialize(rlwt.first_length_bits, index_file);
+    sdsl::serialize(rlwt.first_length_bits_rank, index_file);
+    sdsl::serialize(rlwt.first_length_bits_select, index_file);
+    sdsl::serialize(rlwt.middle_length_bits, index_file);
+    sdsl::serialize(rlwt.middle_length_bits_select, index_file);
+    sdsl::serialize(rlwt.last_length_bits, index_file);
+    sdsl::serialize(rlwt.last_length_bits_select, index_file);
+    sdsl::serialize(rlwt.run_bucket_begin_offsets, index_file);
   }
+  else
   {
-    auto size {sdsl::write_member(rlwt.runs_size, index_file)};
-    total_size += size;
-    // std::cout << "runs_size: " << size << "\n";
+    {
+      auto node {std::make_shared<Node>("level_size")};
+      node->value = sdsl::write_member(rlwt.level_size, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("runs_size")};
+      node->value = sdsl::write_member(rlwt.runs_size, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("alphabet_size")};
+      node->value = sdsl::write_member(rlwt.alphabet_size, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("all_run_bits")};
+      node->value = sdsl::serialize(rlwt.all_run_bits, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("all_run_bits_rank")};
+      node->value = sdsl::serialize(rlwt.all_run_bits_rank, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("first_length_bits")};
+      node->value = sdsl::serialize(rlwt.first_length_bits, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("first_length_bits_rank")};
+      node->value = sdsl::serialize(rlwt.first_length_bits_rank, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("first_length_bits_select")};
+      node->value = sdsl::serialize(rlwt.first_length_bits_select, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("middle_length_bits")};
+      node->value = sdsl::serialize(rlwt.middle_length_bits, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("middle_length_bits_select")};
+      node->value = sdsl::serialize(rlwt.middle_length_bits_select, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("last_length_bits")};
+      node->value = sdsl::serialize(rlwt.last_length_bits, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("last_length_bits_select")};
+      node->value = sdsl::serialize(rlwt.last_length_bits_select, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("run_bucket_begin_offsets")};
+      node->value = sdsl::serialize(rlwt.run_bucket_begin_offsets, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    return root->value;
   }
-  {
-    auto size {sdsl::write_member(rlwt.alphabet_size, index_file)};
-    total_size += size;
-    // std::cout << "alphabet_size: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.all_run_bits, index_file)};
-    total_size += size;
-    // std::cout << "all_run_bits: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.all_run_bits_rank, index_file)};
-    total_size += size;
-    // std::cout << "all_run_bits_rank: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.all_run_bits_select, index_file)};
-    total_size += size;
-    // std::cout << "all_run_bits_select: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.first_length_bits, index_file)};
-    total_size += size;
-    // std::cout << "first_length_bits: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.first_length_bits_rank, index_file)};
-    total_size += size;
-    // std::cout << "first_length_bits_rank: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.first_length_bits_select, index_file)};
-    total_size += size;
-    // std::cout << "first_length_bits_select: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.middle_length_bits, index_file)};
-    total_size += size;
-    // std::cout << "middle_length_bits: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.middle_length_bits_select, index_file)};
-    total_size += size;
-    // std::cout << "middle_length_bits_select: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.last_length_bits, index_file)};
-    total_size += size;
-    // std::cout << "last_length_bits: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.last_length_bits_select, index_file)};
-    total_size += size;
-    // std::cout << "last_length_bits_select: " << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(rlwt.run_bucket_begin_offsets, index_file)};
-    total_size += size;
-    // std::cout << "run_bucket_begin_offsets: " << size << "\n";
-  }
-  return total_size;
+  return 0;
 }
 
 template <typename File>
@@ -1687,9 +1736,7 @@ void LoadRunLengthWaveletTree
   sdsl::read_member(rlwt.alphabet_size, index_file);
   sdsl::load(rlwt.all_run_bits, index_file);
   sdsl::load(rlwt.all_run_bits_rank, index_file);
-  sdsl::load(rlwt.all_run_bits_select, index_file);
   rlwt.all_run_bits_rank.set_vector(&rlwt.all_run_bits);
-  rlwt.all_run_bits_select.set_vector(&rlwt.all_run_bits);
   sdsl::load(rlwt.first_length_bits, index_file);
   sdsl::load(rlwt.first_length_bits_rank, index_file);
   sdsl::load(rlwt.first_length_bits_select, index_file);
@@ -1928,50 +1975,72 @@ void ConstructIndex
   return;
 }
 
+template <typename Node = InformationNode<std::string, uint64_t>>
 uint64_t SerializeIndex
 (
   Index const &index,
-  std::filesystem::path const &index_path
+  std::filesystem::path const &index_path,
+  std::shared_ptr<Node> root = nullptr
 )
 {
-  uint64_t total_size {};
   std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
+  if (root == nullptr)
   {
-    auto size {sdsl::serialize(index.grammar_rules, index_file)};
-    total_size += size;
-    // std::cout << "grammar_rules: " << size << "\n";
+    sdsl::serialize(index.grammar_rules, index_file);
+    SerializeStaticGrammarTrie(index.lex_grammar_count_trie, index_file);
+    SerializeStaticGrammarTrie(index.lex_grammar_rank_trie, index_file);
+    SerializeStaticGrammarTrie(index.colex_grammar_rank_trie, index_file);
+    sdsl::serialize(index.colex_to_lex, index_file);
+    sdsl::serialize(index.lex_rank_bucket_begin_offsets, index_file);
+    SerializeRunLengthWaveletTree(index.colex_bwt_rlwt, index_file);
   }
+  else
   {
-    auto size {SerializeStaticGrammarTrie(index.lex_grammar_count_trie, index_file)};
-    total_size += size;
-    // std::cout << "lex_grammar_count_trie" << size << "\n";
+    {
+      auto node {std::make_shared<Node>("grammar_rules")};
+      node->value = sdsl::serialize(index.grammar_rules, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("lex_grammar_count_trie")};
+      SerializeStaticGrammarTrie(index.lex_grammar_count_trie, index_file, node);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("lex_grammar_rank_trie")};
+      SerializeStaticGrammarTrie(index.lex_grammar_rank_trie, index_file, node);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("colex_grammar_rank_trie")};
+      SerializeStaticGrammarTrie(index.colex_grammar_rank_trie, index_file, node);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("colex_to_lex")};
+      node->value = sdsl::serialize(index.colex_to_lex, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("lex_rank_bucket_begin_offsets")};
+      node->value = sdsl::serialize(index.lex_rank_bucket_begin_offsets, index_file);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    {
+      auto node {std::make_shared<Node>("colex_bwt_rlwt")};
+      SerializeRunLengthWaveletTree(index.colex_bwt_rlwt, index_file, node);
+      root->value += node->value;
+      root->children.emplace_back(node);
+    }
+    return root->value;
   }
-  {
-    auto size {SerializeStaticGrammarTrie(index.lex_grammar_rank_trie, index_file)};
-    total_size += size;
-    // std::cout << "lex_grammar_rank_trie" << size << "\n";
-  }
-  {
-    auto size {SerializeStaticGrammarTrie(index.colex_grammar_rank_trie, index_file)};
-    total_size += size;
-    // std::cout << "colex_grammar_rank_trie" << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(index.colex_to_lex, index_file)};
-    total_size += size;
-    // std::cout << "colex_to_lex" << size << "\n";
-  }
-  {
-    auto size {sdsl::serialize(index.lex_rank_bucket_begin_offsets, index_file)};
-    total_size += size;
-    // std::cout << "lex_rank_bucket_begin_offsets" << size << "\n";
-  }
-  {
-    auto size {SerializeRunLengthWaveletTree(index.colex_bwt_rlwt, index_file)};
-    total_size += size;
-    // std::cout << "colex_bwt_rlwt: " << size << "\n";
-  }
-  return total_size;
+  return 0;
 }
 
 void LoadIndex
