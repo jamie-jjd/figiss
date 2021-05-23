@@ -432,4 +432,37 @@ std::string ProperSizeRepresentation (Size const size)
   }
   return "0";
 }
+
+template <typename Key, typename Value>
+struct InformationNode
+{
+  Key key;
+  Value value;
+  std::deque<std::shared_ptr<InformationNode<Key, Value>>> children;
+
+  InformationNode (Key const &key_): key{key_}, value{} {}
+};
+
+template <typename File, typename Node>
+void Print (File &file, std::shared_ptr<Node> root)
+{
+  std::deque<std::pair<std::shared_ptr<Node>, uint64_t>> nodes;
+  nodes.emplace_back(root, 0);
+  while (!nodes.empty())
+  {
+    auto node {std::get<0>(nodes.back())};
+    auto depth {std::get<1>(nodes.back())};
+    nodes.pop_back();
+    std::string whitespaces(depth * 2, ' ');
+    file << whitespaces << node->key << ": " << ProperSizeRepresentation(node->value) << "\n";
+    auto children_rit {std::rbegin(node->children)};
+    auto children_rend {std::rend(node->children)};
+    while (children_rit != children_rend)
+    {
+      nodes.emplace_back(*children_rit, depth + 1);
+      ++children_rit;
+    }
+  }
+  return;
+}
 }
