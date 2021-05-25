@@ -1137,24 +1137,25 @@ void ConstructStaticGrammarTrie
   return;
 }
 
+template <typename RunBitVector = sdsl::bit_vector, typename LengthBitVector = sdsl::sd_vector<>>
 struct RunLengthWaveletTree
 {
   uint8_t level_size;
   uint64_t runs_size;
   uint64_t alphabet_size;
-  sdsl::bit_vector all_run_bits;
-  sdsl::bit_vector::rank_1_type all_run_bits_rank;
-  sdsl::sd_vector<> first_length_bits;
-  sdsl::sd_vector<>::rank_1_type first_length_bits_rank;
-  sdsl::sd_vector<>::select_1_type first_length_bits_select;
-  sdsl::sd_vector<> middle_length_bits;
-  sdsl::sd_vector<>::select_1_type middle_length_bits_select;
-  sdsl::sd_vector<> last_length_bits;
-  sdsl::sd_vector<>::select_1_type last_length_bits_select;
+  RunBitVector all_run_bits;
+  typename RunBitVector::rank_1_type all_run_bits_rank;
+  LengthBitVector first_length_bits;
+  typename LengthBitVector::rank_1_type first_length_bits_rank;
+  typename LengthBitVector::select_1_type first_length_bits_select;
+  LengthBitVector middle_length_bits;
+  typename LengthBitVector::select_1_type middle_length_bits_select;
+  LengthBitVector last_length_bits;
+  typename LengthBitVector::select_1_type last_length_bits_select;
   sdsl::int_vector<> run_bucket_begin_offsets;
 };
 
-uint64_t Access (RunLengthWaveletTree const &rlwt, uint64_t offset)
+uint64_t Access (RunLengthWaveletTree<> const &rlwt, uint64_t offset)
 {
   uint64_t run {};
   if (offset < (std::size(rlwt.first_length_bits) - 1))
@@ -1185,7 +1186,7 @@ uint64_t Access (RunLengthWaveletTree const &rlwt, uint64_t offset)
 
 uint64_t Rank
 (
-  RunLengthWaveletTree const &rlwt,
+  RunLengthWaveletTree<> const &rlwt,
   uint64_t offset,
   uint64_t character
 )
@@ -1233,7 +1234,7 @@ uint64_t Rank
 
 uint64_t RangeCount
 (
-  RunLengthWaveletTree const &rlwt,
+  RunLengthWaveletTree<> const &rlwt,
   uint64_t lower_offset,
   uint64_t upper_offset,
   uint64_t lower_value,
@@ -1334,7 +1335,7 @@ uint64_t RangeCount
 }
 
 template <typename File>
-void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree const &rlwt)
+void PrintRunLengthWaveletTree (File &file, RunLengthWaveletTree<> const &rlwt)
 {
   auto length_width {sdsl::bits::hi(std::size(rlwt.first_length_bits) - 1) + 1};
   sdsl::int_vector<> runs(rlwt.runs_size, 0, rlwt.level_size);
@@ -1471,7 +1472,7 @@ void CalculateRunsAndLengths
 void ConstructRunLengthWaveletTree
 (
   sdsl::int_vector<> const &text,
-  RunLengthWaveletTree &rlwt
+  RunLengthWaveletTree<> &rlwt
 )
 {
   // Print(std::cout, text);
@@ -1618,7 +1619,7 @@ void ConstructRunLengthWaveletTree
 template <typename File, typename Node = InformationNode<std::string, uint64_t>>
 uint64_t SerializeRunLengthWaveletTree
 (
-  RunLengthWaveletTree const &rlwt,
+  RunLengthWaveletTree<> const &rlwt,
   File &index_file,
   std::shared_ptr<Node> root = nullptr
 )
@@ -1692,8 +1693,8 @@ uint64_t SerializeRunLengthWaveletTree
     {
       auto node {std::make_shared<Node>("middle_length_bits")};
       node->value = sdsl::serialize(rlwt.middle_length_bits, index_file);
-      root->value += node->value;
-      root->children.emplace_back(node);
+      // root->value += node->value;
+      // root->children.emplace_back(node);
     }
     {
       auto node {std::make_shared<Node>("middle_length_bits_select")};
@@ -1727,7 +1728,7 @@ uint64_t SerializeRunLengthWaveletTree
 template <typename File>
 void LoadRunLengthWaveletTree
 (
-  RunLengthWaveletTree &rlwt,
+  RunLengthWaveletTree<> &rlwt,
   File &index_file
 )
 {
@@ -1758,7 +1759,7 @@ struct Index
   StaticGrammarTrie colex_grammar_rank_trie;
   sdsl::int_vector<> colex_to_lex;
   sdsl::int_vector<> lex_rank_bucket_begin_offsets;
-  RunLengthWaveletTree colex_bwt_rlwt;
+  RunLengthWaveletTree<> colex_bwt_rlwt;
 };
 
 template <typename File>
