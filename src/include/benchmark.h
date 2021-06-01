@@ -1,5 +1,8 @@
 #pragma once
 
+#include <sdsl/csa_wt.hpp>
+#include <sdsl/suffix_array_algorithm.hpp>
+
 #include "grammar_compressed_index.h"
 #include "utility.h"
 
@@ -15,17 +18,17 @@ void LoadIndexAndFmindex
 {
   auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
   auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".index")};
-  if (!std::filesystem::exists(index_path))
-  {
+  // if (!std::filesystem::exists(index_path))
+  // {
     std::cout << "construct & serialize index ...\n";
     ConstructIndex(index, text_path);
     SerializeIndex(index, index_path);
-  }
-  else
-  {
-    std::cout << "load index ...\n";
-    LoadIndex(index, index_path);
-  }
+  // }
+  // else
+  // {
+  //   std::cout << "load index ...\n";
+  //   LoadIndex(index, index_path);
+  // }
   auto fm_index_path {CreatePath(parent_index_path, text_path.filename().string(), ".fm_index")};
   if (!std::filesystem::exists(fm_index_path))
   {
