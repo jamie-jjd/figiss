@@ -9,24 +9,18 @@
 #include <map>
 #include <memory>
 #include <random>
-#include <string>
 
-#include <sdsl/suffix_trees.hpp>
-#include <sdsl/wavelet_trees.hpp>
+#include <sdsl/int_vector.hpp>
 
 namespace project
 {
-template
-<
-  typename File,
-  typename Container
->
+template <typename File, typename Container>
 void Print
 (
   File &file,
   Container const &container,
   int8_t step = 1,
-  std::string const &delimiter = " ",
+  std::string const &separator = " ",
   std::string const &endmarker = "\n"
 )
 {
@@ -41,7 +35,7 @@ void Print
     }
     while (it != prev_end)
     {
-      file << *it << delimiter;
+      file << *it << separator;
       std::advance(it, step);
     }
     file << *prev_end << endmarker;
@@ -49,18 +43,14 @@ void Print
   return;
 }
 
-template
-<
-  typename File,
-  typename Iterator
->
+template <typename File, typename Iterator>
 void Print
 (
   File &file,
   Iterator first,
   Iterator last,
   int8_t const step = 1,
-  std::string const &delimiter = " ",
+  std::string const &separator = " ",
   std::string const &endmarker = "\n"
 )
 {
@@ -70,7 +60,7 @@ void Print
     auto prev_last {std::prev(last, step)};
     while (it != prev_last)
     {
-      file << *it << delimiter;
+      file << *it << separator;
       std::advance(it, step);
     }
     file << *prev_last << endmarker;
@@ -440,7 +430,7 @@ struct InformationNode
   Value value;
   std::deque<std::shared_ptr<InformationNode<Key, Value>>> children;
 
-  InformationNode (Key const &key_): key{key_}, value{} {}
+  InformationNode (Key const &key_): key {key_}, value {} {}
 };
 
 template <typename File, typename Node>

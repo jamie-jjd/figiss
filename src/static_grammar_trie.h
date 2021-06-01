@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sdsl/int_vector.hpp>
+#include <sdsl/bit_vectors.hpp>
 
 #include "utility.h"
 

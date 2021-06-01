@@ -1,10 +1,5 @@
 #pragma once
 
-#include <deque>
-#include <map>
-#include <memory>
-
-#include <sdsl/util.hpp>
 #include "utility.h"
 
 namespace project
