@@ -4,8 +4,7 @@
 #include <map>
 #include <memory>
 
-#include <sdsl/qsufsort.hpp>
-#include <sdsl/construct.hpp>
+#include <sdsl/wavelet_trees.hpp>
 
 #include "dynamic_grammar_trie.h"
 #include "static_grammar_trie.h"
