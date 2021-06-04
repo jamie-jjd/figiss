@@ -406,6 +406,7 @@ void CalculateColexBwt
       *it = lex_to_colex[lex_text[(*it - 1)]];
     }
   }
+  // Print(std::cout, buffer);
   sdsl::construct_im(colex_bwt, buffer);
   return;
 }
@@ -451,6 +452,7 @@ void ConstructIndex
   std::filesystem::path const &text_path
 )
 {
+  std::cout << "construct index of " << std::filesystem::canonical(text_path) << "\n";
   sdsl::int_vector<8> text;
   {
     std::ifstream text_file {text_path};
@@ -634,7 +636,6 @@ void ConstructIndex
   }
   {
     CalculateColexBwt(lex_text, lex_to_colex, index.colex_bwt);
-    // Print(std::cout, index.colex_bwt);
   }
   return;
 }
@@ -648,6 +649,7 @@ uint64_t SerializeIndex
 )
 {
   std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
+  std::cout << "serialize index to " << std::filesystem::canonical(index_path) << "\n";
   if (root == nullptr)
   {
     sdsl::serialize(index.grammar_rules, index_file);
@@ -714,6 +716,7 @@ void LoadIndex
 )
 {
   std::ifstream index_file {index_path};
+  std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
   index.grammar_rules.load(index_file);
   LoadStaticGrammarTrie(index.lex_grammar_count_trie, index_file);
   LoadStaticGrammarTrie(index.lex_grammar_rank_trie, index_file);
@@ -725,13 +728,13 @@ void LoadIndex
 }
 
 template <typename Range>
-constexpr bool IsEmptyRange (Range const &range)
+constexpr bool IsNotEmptyRange (Range const &range)
 {
-  return (std::get<0>(range) > std::get<1>(range));
+  return (std::get<0>(range) <= std::get<1>(range));
 }
 
 template <typename Range>
-uint64_t CalculateRangeSize (Range const &range)
+constexpr uint64_t CalculateRangeSize (Range const &range)
 {
   if (std::get<0>(range) <= std::get<1>(range))
   {
@@ -784,14 +787,17 @@ template
   typename Labels,
   typename SlFactorIterator
 >
-uint64_t LookUpSlFactorCountInStaticGrammarTrie
+std::pair<uint64_t, uint64_t> LookUpSlFactor
 (
   Labels const &labels,
   StaticGrammarTrie const &trie,
   SlFactorIterator it,
-  SlFactorIterator last
+  SlFactorIterator last,
+  bool const is_exact = true, // false: prefix
+  bool const is_rank = true // false: count
 )
 {
+  std::pair<uint64_t, uint64_t> pair {1, 0};
   uint64_t begin_offset {};
   uint64_t end_offset {trie.level_order_select(1)};
   uint64_t offset {};
@@ -837,80 +843,35 @@ uint64_t LookUpSlFactorCountInStaticGrammarTrie
       }
       else
       {
-        return trie.counts[offset];
-      }
-    }
-  }
-  return 0;
-}
-
-template
-<
-  typename Labels,
-  typename SlFactorIterator
->
-std::pair<uint64_t, uint64_t> LookUpSlFactorRankRangeInStaticGrammarTrie
-(
-  Labels const &labels,
-  StaticGrammarTrie const &trie,
-  SlFactorIterator it,
-  SlFactorIterator last
-)
-{
-  uint64_t begin_offset {};
-  uint64_t end_offset {trie.level_order_select(1)};
-  uint64_t offset {};
-  while (begin_offset != end_offset)
-  {
-    while (begin_offset != end_offset)
-    {
-      offset = begin_offset + (end_offset - begin_offset) / 2;
-      auto branch_character {labels[trie.edge_begin_offsets[offset]]};
-      if (*it == branch_character)
-      {
-        break;
-      }
-      else if (*it < branch_character)
-      {
-        end_offset = offset;
-      }
-      else
-      {
-        begin_offset = offset + 1;
-      }
-    }
-    if (begin_offset != end_offset)
-    {
-      auto edge_it {std::next(std::begin(labels), trie.edge_begin_offsets[offset])};
-      auto edge_end {std::next(std::begin(labels), trie.edge_prev_end_offsets[offset] + trie.step)};
-      while ((it != last) && (edge_it != edge_end) && (*it == *edge_it))
-      {
-        it += trie.step;
-        edge_it += trie.step;
-      }
-      if (it != last)
-      {
-        if (edge_it != edge_end)
+        if (is_rank)
         {
-          break;
+          if (is_exact)
+          {
+            if (edge_it == edge_end)
+            {
+              begin_offset = trie.level_order_select(offset + 1) + 1;
+              auto bit {trie.level_order[begin_offset]};
+              if ((bit == 1) || ((bit == 0) && trie.leftmost_ranks[offset] != trie.leftmost_ranks[begin_offset - (offset + 1)]))
+              {
+                std::get<1>(pair) = trie.leftmost_ranks[offset];
+              }
+            }
+          }
+          else
+          {
+            std::get<0>(pair) = trie.leftmost_ranks[offset];
+            std::get<1>(pair) = trie.rightmost_ranks[offset];
+          }
         }
         else
         {
-          begin_offset = trie.level_order_select(offset + 1) - (offset + 1) + 1;
-          end_offset = trie.level_order_select(offset + 2) - (offset + 2) + 1;
+          std::get<1>(pair) = trie.counts[offset];
         }
-      }
-      else
-      {
-        return
-        {
-          trie.leftmost_ranks[offset],
-          trie.rightmost_ranks[offset]
-        };
+        break;
       }
     }
   }
-  return {1, 0};
+  return pair;
 }
 
 template
@@ -929,17 +890,18 @@ void BackwardSearchPatternPrefix
 {
   auto colex_rank_range
   {
-    LookUpSlFactorRankRangeInStaticGrammarTrie
+    LookUpSlFactor
     (
       index.grammar_rules,
       index.colex_grammar_rank_trie,
       rfirst,
-      rlast
+      rlast,
+      false
     )
   };
-  if (!IsEmptyRange(colex_rank_range))
+  if (IsNotEmptyRange(colex_rank_range))
   {
-    if (!IsEmptyRange(pattern_range_l))
+    if (IsNotEmptyRange(pattern_range_l))
     {
       pattern_range_l =
       {
@@ -954,7 +916,7 @@ void BackwardSearchPatternPrefix
         )
       };
     }
-    if (!IsEmptyRange(pattern_range_s))
+    if (IsNotEmptyRange(pattern_range_s))
     {
       pattern_range_s =
       {
@@ -971,6 +933,14 @@ void BackwardSearchPatternPrefix
     }
   }
   // {
+  //   if (IsNotEmptyRange(pattern_range_l))
+  //   {
+  //     std::cout << "pattern-l prefix:\n";
+  //   }
+  //   if (IsNotEmptyRange(pattern_range_s))
+  //   {
+  //     std::cout << "pattern-s prefix:\n";
+  //   }
   //   Print(std::cout, rfirst, rlast, -1);
   //   std::cout
   //   << "->[" << std::get<0>(colex_rank_range) << "," << std::get<1>(colex_rank_range) << "]"
@@ -985,7 +955,7 @@ template
   typename PatternRange,
   typename PatternIterator
 >
-auto BackwardSearchPatternProperSubstring
+auto BackwardSearchPatternInfix
 (
   Index const &index,
   PatternRange &pattern_range_l,
@@ -994,21 +964,23 @@ auto BackwardSearchPatternProperSubstring
   PatternIterator rlast
 )
 {
-  auto colex_rank_range
+  auto colex_rank
   {
-    LookUpSlFactorRankRangeInStaticGrammarTrie
+    std::get<1>
     (
-      index.grammar_rules,
-      index.colex_grammar_rank_trie,
-      rfirst,
-      rlast
+      LookUpSlFactor
+      (
+        index.grammar_rules,
+        index.colex_grammar_rank_trie,
+        rfirst,
+        rlast
+      )
     )
   };
-  auto colex_rank {std::get<0>(colex_rank_range)};
-  if (!IsEmptyRange(colex_rank_range))
+  if (colex_rank != 0)
   {
     auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
-    if (!IsEmptyRange(pattern_range_l))
+    if (IsNotEmptyRange(pattern_range_l))
     {
       pattern_range_l =
       {
@@ -1016,7 +988,7 @@ auto BackwardSearchPatternProperSubstring
         begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_l) + 1, colex_rank) - 1
       };
     }
-    if (!IsEmptyRange(pattern_range_s))
+    if (IsNotEmptyRange(pattern_range_s))
     {
       pattern_range_s =
       {
@@ -1030,6 +1002,14 @@ auto BackwardSearchPatternProperSubstring
     pattern_range_l = pattern_range_s = {1, 0};
   }
   // {
+  //   if (IsNotEmptyRange(pattern_range_l))
+  //   {
+  //     std::cout << "pattern-l sl-factor\n";
+  //   }
+  //   if (IsNotEmptyRange(pattern_range_s))
+  //   {
+  //     std::cout << "pattern-s sl-factor\n";
+  //   }
   //   Print(std::cout, rfirst, rlast, -1);
   //   std::cout
   //   << "->[" << colex_rank << ":" << index.colex_to_lex[colex_rank] << "]"
@@ -1040,11 +1020,7 @@ auto BackwardSearchPatternProperSubstring
 }
 
 template <typename PatternIterator>
-auto CalculatePatternSuffixS
-(
-  PatternIterator rbegin,
-  PatternIterator rend
-)
+auto CalculatePatternSuffixS (PatternIterator rbegin, PatternIterator rend)
 {
   auto it {rbegin};
   while ((std::prev(it) != rend) && (*std::prev(it) == *it))
@@ -1076,14 +1052,20 @@ auto BackwardSearchPatternSuffix
   auto rlast {CalculatePatternSuffixS(rbegin, rend)};
   if (rlast == rend)
   {
-    std::get<1>(pattern_range_l) = LookUpSlFactorCountInStaticGrammarTrie
+    std::get<1>(pattern_range_l) = std::get<1>
     (
-      index.grammar_rules,
-      index.lex_grammar_count_trie,
-      std::next(rend),
-      std::next(rbegin)
+      LookUpSlFactor
+      (
+        index.grammar_rules,
+        index.lex_grammar_count_trie,
+        std::next(rend),
+        std::next(rbegin),
+        false,
+        false
+      )
     );
     // {
+    //   std::cout << "pattern of single-run:\n";
     //   Print(std::cout, std::next(rend), std::next(rbegin));
     //   std::cout << "->L:[" << std::get<0>(pattern_range_l) << "," << std::get<1>(pattern_range_l) << "]\n";
     // }
@@ -1094,60 +1076,84 @@ auto BackwardSearchPatternSuffix
     {
       auto lex_rank_range
       {
-        LookUpSlFactorRankRangeInStaticGrammarTrie
+        LookUpSlFactor
         (
           index.grammar_rules,
           index.lex_grammar_rank_trie,
           std::next(rlast),
-          std::next(rbegin)
+          std::next(rbegin),
+          false
         )
       };
-      if (!IsEmptyRange(lex_rank_range))
+      if (IsNotEmptyRange(lex_rank_range))
       {
         pattern_range_s =
         {
           index.lex_rank_bucket_begin_offsets[std::get<0>(lex_rank_range)],
-          (index.lex_rank_bucket_begin_offsets[std::get<1>(lex_rank_range) + 1] - 1)
+          index.lex_rank_bucket_begin_offsets[std::get<1>(lex_rank_range) + 1] - 1
         };
       }
       // {
+      //   std::cout << "pattern-s suffix:\n";
       //   Print(std::cout, std::next(rlast), std::next(rbegin));
       //   std::cout << "->[" << std::get<0>(lex_rank_range) << "," << std::get<1>(lex_rank_range) << "]";
       //   std::cout << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
       // }
       CalculateSlFactor(rend, rfirst, rlast);
-      if (!IsEmptyRange(pattern_range_s))
+      if (IsNotEmptyRange(pattern_range_s))
       {
-        auto colex_rank_range
+        if (rlast == rend)
         {
-          LookUpSlFactorRankRangeInStaticGrammarTrie
-          (
-            index.grammar_rules,
-            index.colex_grammar_rank_trie,
-            rfirst,
-            rlast
-          )
-        };
-        if (!IsEmptyRange(colex_rank_range))
-        {
-          if (rlast == rend)
+          auto colex_rank_range
           {
-            pattern_range_s =
-            {
-              1,
-              RangeCount
+            LookUpSlFactor
+            (
+              index.grammar_rules,
+              index.colex_grammar_rank_trie,
+              rfirst,
+              rlast,
+              false
+            )
+          };
+          pattern_range_s =
+          {
+            1,
+            RangeCount
+            (
+              index.colex_bwt,
+              std::get<0>(pattern_range_s),
+              std::get<1>(pattern_range_s) + 1,
+              std::get<0>(colex_rank_range),
+              std::get<1>(colex_rank_range) + 1
+            )
+          };
+          // {
+          //   std::cout << "pattern-s prefix:\n";
+          //   Print(std::cout, rfirst, rlast, -1);
+          //   std::cout
+          //   << "->[" << std::get<0>(colex_rank_range)
+          //   << ":" << index.colex_to_lex[std::get<0>(colex_rank_range)]
+          //   << "," << std::get<1>(colex_rank_range) << "]"
+          //   << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
+          // }
+        }
+        else
+        {
+          auto colex_rank
+          {
+            std::get<1>
+            (
+              LookUpSlFactor
               (
-                index.colex_bwt,
-                std::get<0>(pattern_range_s),
-                std::get<1>(pattern_range_s) + 1,
-                std::get<0>(colex_rank_range),
-                std::get<1>(colex_rank_range) + 1
+                index.grammar_rules,
+                index.colex_grammar_rank_trie,
+                rfirst,
+                rlast
               )
-            };
-          }
-          else
+            )
+          };
+          if (colex_rank != 0)
           {
-            auto colex_rank {std::get<0>(colex_rank_range)};
             auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
             pattern_range_s =
             {
@@ -1155,19 +1161,18 @@ auto BackwardSearchPatternSuffix
               begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_s) + 1, colex_rank) - 1
             };
           }
+          else
+          {
+            pattern_range_s = {1, 0};
+          }
+          // {
+          //   std::cout << "pattern-s exact-sl-factor:\n";
+          //   Print(std::cout, rfirst, rlast, -1);
+          //   std::cout
+          //   << "->(" << colex_rank << ":" << index.colex_to_lex[colex_rank] << ")"
+          //   << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
+          // }
         }
-        else
-        {
-          pattern_range_s = {1, 0};
-        }
-        // {
-        //   Print(std::cout, rfirst, rlast, -1);
-        //   std::cout
-        //   << "->[" << std::get<0>(colex_rank_range)
-        //   << ":" << index.colex_to_lex[std::get<0>(colex_rank_range)]
-        //   << "," << std::get<1>(colex_rank_range) << "]"
-        //   << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
-        // }
       }
     }
     else
@@ -1176,14 +1181,20 @@ auto BackwardSearchPatternSuffix
     }
     if (rlast == rend)
     {
-      std::get<1>(pattern_range_l) = LookUpSlFactorCountInStaticGrammarTrie
+      std::get<1>(pattern_range_l) = std::get<1>
       (
-        index.grammar_rules,
-        index.lex_grammar_count_trie,
-        std::next(rend),
-        std::next(rbegin)
+        LookUpSlFactor
+        (
+          index.grammar_rules,
+          index.lex_grammar_count_trie,
+          std::next(rend),
+          std::next(rbegin),
+          false,
+          false
+        )
       );
       // {
+      //   std::cout << "pattern-l sub-sl-factor:\n";
       //   Print(std::cout, std::next(rend), std::next(rbegin));
       //   std::cout << "->L:[" << std::get<0>(pattern_range_l) << "," << std::get<1>(pattern_range_l) << "]\n";
       // }
@@ -1192,15 +1203,16 @@ auto BackwardSearchPatternSuffix
     {
       auto lex_rank_range
       {
-        LookUpSlFactorRankRangeInStaticGrammarTrie
+        LookUpSlFactor
         (
           index.grammar_rules,
           index.lex_grammar_rank_trie,
           std::next(rlast),
-          std::next(rbegin)
+          std::next(rbegin),
+          false
         )
       };
-      if (!IsEmptyRange(lex_rank_range))
+      if (IsNotEmptyRange(lex_rank_range))
       {
         pattern_range_l =
         {
@@ -1209,6 +1221,7 @@ auto BackwardSearchPatternSuffix
         };
       }
       // {
+      //   std::cout << "pattern-l suffix:\n";
       //   Print(std::cout, std::next(rlast), std::next(rbegin));
       //   std::cout << "->[" << std::get<0>(lex_rank_range) << "," << std::get<1>(lex_rank_range) << "]";
       //   std::cout << "->L:[" << std::get<0>(pattern_range_l) << "," << std::get<1>(pattern_range_l) << "]\n";
@@ -1236,12 +1249,12 @@ uint64_t Count
   rlast = BackwardSearchPatternSuffix(index, pattern_range_l, pattern_range_s, rbegin, rend);
   if (rlast != rend)
   {
-    while (!IsEmptyRange(pattern_range_l) || !IsEmptyRange(pattern_range_s))
+    while (IsNotEmptyRange(pattern_range_l) || IsNotEmptyRange(pattern_range_s))
     {
       CalculateSlFactor(rend, rfirst, rlast);
       if (rlast != rend)
       {
-        rlast = BackwardSearchPatternProperSubstring(index, pattern_range_l, pattern_range_s, rfirst, rlast);
+        rlast = BackwardSearchPatternInfix(index, pattern_range_l, pattern_range_s, rfirst, rlast);
       }
       else
       {
