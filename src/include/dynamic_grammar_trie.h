@@ -4,6 +4,7 @@
 
 namespace project
 {
+template <typename Labels>
 struct DynamicGrammarTrie
 {
   using EdgeRange = std::pair<uint64_t, uint64_t>;
@@ -11,7 +12,7 @@ struct DynamicGrammarTrie
 
   struct Node
   {
-    std::map<uint64_t, std::shared_ptr<Node>> children;
+    std::map<typename Labels::value_type, std::shared_ptr<Node>> children;
     EdgeRange edge_range;
     RankRange rank_range;
     uint64_t count;
@@ -30,34 +31,43 @@ struct DynamicGrammarTrie
   };
 
   using NodePointer = std::shared_ptr<Node>;
+  using LabelsIterator = typename Labels::iterator;
+  using LabelsRange = std::pair<LabelsIterator, LabelsIterator>;
 
   NodePointer root;
+  LabelsRange labels_range;
   int8_t step;
 
-  DynamicGrammarTrie (int8_t const step_ = 1)
+  DynamicGrammarTrie
+  (
+    LabelsRange const labels_range_,
+    int8_t const step_ = 1
+  )
   : root {std::make_shared<Node>()},
+    labels_range {labels_range_},
     step {step_}
   {
   }
 };
 
-template <typename File, typename Labels>
+template <typename File, typename DynamicGrammarTrie>
 void PrintDynamicGrammarTrie
 (
   File &file,
-  Labels const &labels,
   DynamicGrammarTrie const &trie,
   bool const is_rank = true, // false: count
   bool const is_preorder = true // false: level order
 )
 {
-  for (uint64_t i {}; i != std::size(labels); ++i)
+  auto labels_begin {std::get<0>(trie.labels_range)};
+  auto labels_end {std::get<1>(trie.labels_range)};
+  for (auto it {labels_begin}; it != labels_end; ++it)
   {
-    file << (i % 10);
-    file << ((i != std::size(labels) - 1) ? " " : "\n");
+    file << std::distance(labels_begin, it) % 10;
+    file << (it != std::prev(labels_end) ? " " : "\n");
   }
-  Print(file, labels);
-  std::deque<std::pair<DynamicGrammarTrie::NodePointer, uint64_t>> nodes;
+  Print(file, labels_begin, labels_end);
+  std::deque<std::pair<typename DynamicGrammarTrie::NodePointer, uint64_t>> nodes;
   nodes.emplace_back(trie.root, 0);
   uint64_t size {};
   while (!nodes.empty())
@@ -77,7 +87,7 @@ void PrintDynamicGrammarTrie
     }
     if (depth != 0)
     {
-      file << depth << ":" << labels[std::get<0>(node->edge_range)];
+      file << depth << ":" << *std::next(labels_begin, std::get<0>(node->edge_range));
       file << "[" << std::get<0>(node->edge_range) << "," << std::get<1>(node->edge_range) << "]";
       if (is_rank)
       {
@@ -108,11 +118,10 @@ void PrintDynamicGrammarTrie
   return;
 }
 
-template <typename GrammarRulesIterator>
+template <typename DynamicGrammarTrie, typename GrammarRulesIterator>
 void InsertGrammarRuleInformation
 (
   DynamicGrammarTrie &trie,
-  GrammarRulesIterator rules_begin,
   GrammarRulesIterator first,
   GrammarRulesIterator last,
   uint64_t const value,
@@ -120,6 +129,7 @@ void InsertGrammarRuleInformation
 )
 {
   auto node {trie.root};
+  auto labels_begin {std::get<0>(trie.labels_range)};
   auto it {first};
   while (true)
   {
@@ -127,14 +137,14 @@ void InsertGrammarRuleInformation
     auto children_it {node->children.find(character)};
     if (children_it == std::end(node->children))
     {
-      node->children[character] = std::make_shared<DynamicGrammarTrie::Node>
+      node->children[character] = std::make_shared<typename DynamicGrammarTrie::Node>
       (
-        DynamicGrammarTrie::EdgeRange
+        typename DynamicGrammarTrie::EdgeRange
         {
-          std::distance(rules_begin, it),
-          (std::distance(rules_begin, last) - trie.step),
+          std::distance(labels_begin, it),
+          (std::distance(labels_begin, last) - trie.step),
         },
-        DynamicGrammarTrie::RankRange{value, value},
+        typename DynamicGrammarTrie::RankRange{value, value},
         value
       );
       return;
@@ -142,8 +152,8 @@ void InsertGrammarRuleInformation
     else
     {
       auto child {std::get<1>(*children_it)};
-      auto edge_it {std::next(rules_begin, std::get<0>(child->edge_range))};
-      auto edge_end {std::next(rules_begin, std::get<1>(child->edge_range) + trie.step)};
+      auto edge_it {std::next(labels_begin, std::get<0>(child->edge_range))};
+      auto edge_end {std::next(labels_begin, std::get<1>(child->edge_range) + trie.step)};
       while ((it != last) && (edge_it != edge_end) && (*it == *edge_it))
       {
         it += trie.step;
@@ -170,12 +180,12 @@ void InsertGrammarRuleInformation
       }
       else
       {
-        auto edge_it_offset {std::distance(rules_begin, edge_it)};
+        auto edge_it_offset {std::distance(labels_begin, edge_it)};
         auto internal_node
         {
-          std::make_shared<DynamicGrammarTrie::Node>
+          std::make_shared<typename DynamicGrammarTrie::Node>
           (
-            DynamicGrammarTrie::EdgeRange
+            typename DynamicGrammarTrie::EdgeRange
             {
               std::get<0>(child->edge_range),
               (edge_it_offset - trie.step)
@@ -210,18 +220,17 @@ void InsertGrammarRuleInformation
 template
 <
   typename GrammarRuleSizes,
-  typename GrammarRules,
-  typename GrammarRuleCounts
+  typename GrammarRuleCounts,
+  typename DynamicGrammarTrie
 >
 void InsertGrammarRuleSuffixesAndCounts
 (
   GrammarRuleSizes const &rule_sizes,
-  GrammarRules const &rules,
   GrammarRuleCounts const &rule_counts,
   DynamicGrammarTrie &lex_grammar_count_trie
 )
 {
-  auto rules_it {std::begin(rules)};
+  auto rules_it {std::get<0>(lex_grammar_count_trie.labels_range)};
   auto rule_counts_it {std::begin(rule_counts)};
   for (auto const &rule_size : rule_sizes)
   {
@@ -231,7 +240,6 @@ void InsertGrammarRuleSuffixesAndCounts
       InsertGrammarRuleInformation
       (
         lex_grammar_count_trie,
-        std::begin(rules),
         rules_it,
         rule_end,
         *rule_counts_it,
@@ -247,25 +255,23 @@ void InsertGrammarRuleSuffixesAndCounts
 template
 <
   typename GrammarRuleSizes,
-  typename GrammarRules
+  typename DynamicGrammarTrie
 >
 void InsertGrammarRules
 (
   GrammarRuleSizes const &rule_sizes,
-  GrammarRules const &rules,
   DynamicGrammarTrie &lex_grammar_rank_trie,
   DynamicGrammarTrie &colex_grammar_rank_trie
 )
 {
   uint64_t lex_rank {1};
-  auto rules_it {std::begin(rules)};
+  auto rules_it {std::get<0>(lex_grammar_rank_trie.labels_range)};
   for (auto const &rule_size : rule_sizes)
   {
     auto rule_end {std::next(rules_it, rule_size)};
     InsertGrammarRuleInformation
     (
       lex_grammar_rank_trie,
-      std::begin(rules),
       rules_it,
       rule_end,
       lex_rank
@@ -273,7 +279,6 @@ void InsertGrammarRules
     InsertGrammarRuleInformation
     (
       colex_grammar_rank_trie,
-      std::begin(rules),
       std::prev(rule_end),
       std::prev(rules_it),
       lex_rank
@@ -284,9 +289,10 @@ void InsertGrammarRules
   return;
 }
 
+template <typename DynamicGrammarTrie>
 void CalculateCumulativeGrammarCount (DynamicGrammarTrie &trie)
 {
-  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
+  std::deque<std::pair<typename DynamicGrammarTrie::NodePointer, bool>> nodes;
   nodes.emplace_back(trie.root, true);
   while (!nodes.empty())
   {
@@ -312,10 +318,11 @@ void CalculateCumulativeGrammarCount (DynamicGrammarTrie &trie)
   return;
 }
 
-void CalculateCumulativeLexRankRanges (DynamicGrammarTrie &lex_grammar_rank_trie)
+template <typename DynamicGrammarTrie>
+void CalculateCumulativeLexRankRanges (DynamicGrammarTrie &trie)
 {
-  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
-  nodes.emplace_back(lex_grammar_rank_trie.root, true);
+  std::deque<std::pair<typename DynamicGrammarTrie::NodePointer, bool>> nodes;
+  nodes.emplace_back(trie.root, true);
   while (!nodes.empty())
   {
     auto node {std::get<0>(nodes.back())};
@@ -346,16 +353,12 @@ void CalculateCumulativeLexRankRanges (DynamicGrammarTrie &lex_grammar_rank_trie
   return;
 }
 
-template <typename LexToColex>
-void CalculateCumulativeColexRankRangesAndLexToColex
-(
-  DynamicGrammarTrie colex_grammar_rank_trie,
-  LexToColex &lex_to_colex
-)
+template <typename DynamicGrammarTrie, typename LexToColex>
+void CalculateCumulativeColexRankRangesAndLexToColex (DynamicGrammarTrie trie, LexToColex &lex_to_colex)
 {
   uint64_t colex_rank {1};
-  std::deque<std::pair<DynamicGrammarTrie::NodePointer, bool>> nodes;
-  nodes.emplace_back(colex_grammar_rank_trie.root, true);
+  std::deque<std::pair<typename DynamicGrammarTrie::NodePointer, bool>> nodes;
+  nodes.emplace_back(trie.root, true);
   while (!nodes.empty())
   {
     auto node {std::get<0>(nodes.back())};
