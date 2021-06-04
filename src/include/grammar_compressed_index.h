@@ -411,12 +411,14 @@ void CalculateColexBwt
   return;
 }
 
+template <uint8_t Width = 8>
 struct Index
 {
-  sdsl::int_vector<8> grammar_rules;
-  StaticGrammarTrie lex_grammar_count_trie;
-  StaticGrammarTrie lex_grammar_rank_trie;
-  StaticGrammarTrie colex_grammar_rank_trie;
+  using Labels = typename sdsl::int_vector<Width>;
+  Labels grammar_rules;
+  StaticGrammarTrie<Labels> lex_grammar_count_trie;
+  StaticGrammarTrie<Labels> lex_grammar_rank_trie;
+  StaticGrammarTrie<Labels> colex_grammar_rank_trie;
   sdsl::int_vector<> colex_to_lex;
   sdsl::int_vector<> lex_rank_bucket_begin_offsets;
   sdsl::wt_rlmn
@@ -429,28 +431,21 @@ struct Index
   colex_bwt;
 };
 
-template <typename File>
-void PrintIndex
-(
-  File &file,
-  Index &index
-)
+template <typename File, typename Index>
+void PrintIndex (File &file, Index &index)
 {
   Print(file, index.grammar_rules);
-  PrintStaticGrammarTrie(file, index.grammar_rules, index.lex_grammar_count_trie, false);
-  PrintStaticGrammarTrie(file, index.grammar_rules, index.lex_grammar_rank_trie);
-  PrintStaticGrammarTrie(file, index.grammar_rules, index.colex_grammar_rank_trie);
+  PrintStaticGrammarTrie(file, index.lex_grammar_count_trie, false);
+  PrintStaticGrammarTrie(file, index.lex_grammar_rank_trie);
+  PrintStaticGrammarTrie(file, index.colex_grammar_rank_trie);
   Print(file, index.colex_to_lex);
   Print(file, index.lex_rank_bucket_begin_offsets);
   file << index.colex_bwt << "\n";
   return;
 }
 
-void ConstructIndex
-(
-  Index &index,
-  std::filesystem::path const &text_path
-)
+template <typename Index>
+void ConstructIndex (Index &index, std::filesystem::path const &text_path)
 {
   std::cout << "construct index of " << std::filesystem::canonical(text_path) << "\n";
   sdsl::int_vector<8> text;
@@ -567,57 +562,74 @@ void ConstructIndex
     sdsl::util::clear(text_offsets);
   }
   {
-    DynamicGrammarTrie lex_grammar_count_trie;
+    DynamicGrammarTrie<decltype(index.grammar_rules)> lex_grammar_count_trie
+    (
+      {
+        std::begin(index.grammar_rules),
+        std::end(index.grammar_rules)
+      }
+    );
     InsertGrammarRuleSuffixesAndCounts
     (
       grammar_rule_sizes,
-      index.grammar_rules,
       grammar_rule_counts,
       lex_grammar_count_trie
     );
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_count_trie, false);
+    // PrintDynamicGrammarTrie(std::cout, lex_grammar_count_trie, false);
     CalculateCumulativeGrammarCount(lex_grammar_count_trie);
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_count_trie, false);
+    // PrintDynamicGrammarTrie(std::cout, lex_grammar_count_trie, false);
     ConstructStaticGrammarTrie
     (
       lex_grammar_count_trie,
       index.lex_grammar_count_trie,
       false
     );
-    // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.lex_grammar_count_trie, false);
+    // PrintStaticGrammarTrie(std::cout, index.lex_grammar_count_trie, false);
   }
   {
-    DynamicGrammarTrie lex_grammar_rank_trie;
-    DynamicGrammarTrie colex_grammar_rank_trie(-1);
+    DynamicGrammarTrie<decltype(index.grammar_rules)> lex_grammar_rank_trie
+    (
+      {
+        std::begin(index.grammar_rules),
+        std::end(index.grammar_rules)
+      }
+    );
+    DynamicGrammarTrie<decltype(index.grammar_rules)> colex_grammar_rank_trie
+    (
+      {
+        std::begin(index.grammar_rules),
+        std::end(index.grammar_rules),
+      },
+      -1
+    );
     InsertGrammarRules
     (
       grammar_rule_sizes,
-      index.grammar_rules,
       lex_grammar_rank_trie,
       colex_grammar_rank_trie
     );
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
+    // PrintDynamicGrammarTrie(std::cout, lex_grammar_rank_trie);
+    // PrintDynamicGrammarTrie(std::cout, colex_grammar_rank_trie);
     CalculateCumulativeLexRankRanges(lex_grammar_rank_trie);
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, lex_grammar_rank_trie);
+    // PrintDynamicGrammarTrie(std::cout, lex_grammar_rank_trie);
     ConstructStaticGrammarTrie
     (
       lex_grammar_rank_trie,
       index.lex_grammar_rank_trie
     );
-    // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.lex_grammar_rank_trie);
+    // PrintStaticGrammarTrie(std::cout, index.lex_grammar_rank_trie);
     lex_to_colex.width(lex_text_width);
     lex_to_colex.resize(grammar_ranks_size);
     lex_to_colex[0] = 0;
     CalculateCumulativeColexRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
     // Print(std::cout, lex_to_colex);
-    // PrintDynamicGrammarTrie(std::cout, index.grammar_rules, colex_grammar_rank_trie);
+    // PrintDynamicGrammarTrie(std::cout, colex_grammar_rank_trie);
     ConstructStaticGrammarTrie
     (
       colex_grammar_rank_trie,
       index.colex_grammar_rank_trie
     );
-    // PrintStaticGrammarTrie(std::cout, index.grammar_rules, index.colex_grammar_rank_trie);
+    // PrintStaticGrammarTrie(std::cout, index.colex_grammar_rank_trie);
   }
   {
     index.colex_to_lex.width(lex_text_width);
@@ -640,7 +652,7 @@ void ConstructIndex
   return;
 }
 
-template <typename Node = InformationNode<std::string, uint64_t>>
+template <typename Index, typename Node = InformationNode<std::string, uint64_t>>
 uint64_t SerializeIndex
 (
   Index const &index,
@@ -709,18 +721,18 @@ uint64_t SerializeIndex
   return 0;
 }
 
-void LoadIndex
-(
-  Index &index,
-  std::filesystem::path const &index_path
-)
+template <typename Index>
+void LoadIndex (Index &index, std::filesystem::path const &index_path)
 {
   std::ifstream index_file {index_path};
   std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
   index.grammar_rules.load(index_file);
   LoadStaticGrammarTrie(index.lex_grammar_count_trie, index_file);
+  SetLabels(index.grammar_rules, index.lex_grammar_count_trie);
   LoadStaticGrammarTrie(index.lex_grammar_rank_trie, index_file);
+  SetLabels(index.grammar_rules, index.lex_grammar_rank_trie);
   LoadStaticGrammarTrie(index.colex_grammar_rank_trie, index_file);
+  SetLabels(index.grammar_rules, index.colex_grammar_rank_trie);
   index.colex_to_lex.load(index_file);
   index.lex_rank_bucket_begin_offsets.load(index_file);
   index.colex_bwt.load(index_file);
@@ -782,14 +794,9 @@ void CalculateSlFactor
   return;
 }
 
-template
-<
-  typename Labels,
-  typename SlFactorIterator
->
+template <typename StaticGrammarTrie, typename SlFactorIterator>
 std::pair<uint64_t, uint64_t> LookUpSlFactor
 (
-  Labels const &labels,
   StaticGrammarTrie const &trie,
   SlFactorIterator it,
   SlFactorIterator last,
@@ -797,6 +804,7 @@ std::pair<uint64_t, uint64_t> LookUpSlFactor
   bool const is_rank = true // false: count
 )
 {
+  auto labels_begin {std::get<0>(trie.labels_range)};
   std::pair<uint64_t, uint64_t> pair {1, 0};
   uint64_t begin_offset {};
   uint64_t end_offset {trie.level_order_select(1)};
@@ -806,7 +814,7 @@ std::pair<uint64_t, uint64_t> LookUpSlFactor
     while (begin_offset != end_offset)
     {
       offset = begin_offset + (end_offset - begin_offset) / 2;
-      auto branch_character {labels[trie.edge_begin_offsets[offset]]};
+      auto branch_character {*std::next(labels_begin, trie.edge_begin_offsets[offset])};
       if (*it == branch_character)
       {
         break;
@@ -822,8 +830,8 @@ std::pair<uint64_t, uint64_t> LookUpSlFactor
     }
     if (begin_offset != end_offset)
     {
-      auto edge_it {std::next(std::begin(labels), trie.edge_begin_offsets[offset])};
-      auto edge_end {std::next(std::begin(labels), trie.edge_prev_end_offsets[offset] + trie.step)};
+      auto edge_it {std::next(labels_begin, trie.edge_begin_offsets[offset])};
+      auto edge_end {std::next(labels_begin, trie.edge_prev_end_offsets[offset] + trie.step)};
       while ((it != last) && (edge_it != edge_end) && (*it == *edge_it))
       {
         it += trie.step;
@@ -876,6 +884,7 @@ std::pair<uint64_t, uint64_t> LookUpSlFactor
 
 template
 <
+  typename Index,
   typename PatternRange,
   typename PatternIterator
 >
@@ -888,17 +897,7 @@ void BackwardSearchPatternPrefix
   PatternIterator rlast
 )
 {
-  auto colex_rank_range
-  {
-    LookUpSlFactor
-    (
-      index.grammar_rules,
-      index.colex_grammar_rank_trie,
-      rfirst,
-      rlast,
-      false
-    )
-  };
+  auto colex_rank_range {LookUpSlFactor(index.colex_grammar_rank_trie, rfirst, rlast, false)};
   if (IsNotEmptyRange(colex_rank_range))
   {
     if (IsNotEmptyRange(pattern_range_l))
@@ -952,6 +951,7 @@ void BackwardSearchPatternPrefix
 
 template
 <
+  typename Index,
   typename PatternRange,
   typename PatternIterator
 >
@@ -964,19 +964,7 @@ auto BackwardSearchPatternInfix
   PatternIterator rlast
 )
 {
-  auto colex_rank
-  {
-    std::get<1>
-    (
-      LookUpSlFactor
-      (
-        index.grammar_rules,
-        index.colex_grammar_rank_trie,
-        rfirst,
-        rlast
-      )
-    )
-  };
+  auto colex_rank {std::get<1>(LookUpSlFactor(index.colex_grammar_rank_trie, rfirst, rlast))};
   if (colex_rank != 0)
   {
     auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
@@ -1036,6 +1024,7 @@ auto CalculatePatternSuffixS (PatternIterator rbegin, PatternIterator rend)
 
 template
 <
+  typename Index,
   typename PatternRange,
   typename PatternIterator
 >
@@ -1056,7 +1045,6 @@ auto BackwardSearchPatternSuffix
     (
       LookUpSlFactor
       (
-        index.grammar_rules,
         index.lex_grammar_count_trie,
         std::next(rend),
         std::next(rbegin),
@@ -1074,17 +1062,7 @@ auto BackwardSearchPatternSuffix
   {
     if (rlast != rbegin)
     {
-      auto lex_rank_range
-      {
-        LookUpSlFactor
-        (
-          index.grammar_rules,
-          index.lex_grammar_rank_trie,
-          std::next(rlast),
-          std::next(rbegin),
-          false
-        )
-      };
+      auto lex_rank_range {LookUpSlFactor(index.lex_grammar_rank_trie, std::next(rlast), std::next(rbegin), false)};
       if (IsNotEmptyRange(lex_rank_range))
       {
         pattern_range_s =
@@ -1104,17 +1082,7 @@ auto BackwardSearchPatternSuffix
       {
         if (rlast == rend)
         {
-          auto colex_rank_range
-          {
-            LookUpSlFactor
-            (
-              index.grammar_rules,
-              index.colex_grammar_rank_trie,
-              rfirst,
-              rlast,
-              false
-            )
-          };
+          auto colex_rank_range {LookUpSlFactor(index.colex_grammar_rank_trie, rfirst, rlast, false)};
           pattern_range_s =
           {
             1,
@@ -1139,19 +1107,7 @@ auto BackwardSearchPatternSuffix
         }
         else
         {
-          auto colex_rank
-          {
-            std::get<1>
-            (
-              LookUpSlFactor
-              (
-                index.grammar_rules,
-                index.colex_grammar_rank_trie,
-                rfirst,
-                rlast
-              )
-            )
-          };
+          auto colex_rank {std::get<1>(LookUpSlFactor(index.colex_grammar_rank_trie, rfirst, rlast))};
           if (colex_rank != 0)
           {
             auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
@@ -1185,7 +1141,6 @@ auto BackwardSearchPatternSuffix
       (
         LookUpSlFactor
         (
-          index.grammar_rules,
           index.lex_grammar_count_trie,
           std::next(rend),
           std::next(rbegin),
@@ -1201,17 +1156,7 @@ auto BackwardSearchPatternSuffix
     }
     else
     {
-      auto lex_rank_range
-      {
-        LookUpSlFactor
-        (
-          index.grammar_rules,
-          index.lex_grammar_rank_trie,
-          std::next(rlast),
-          std::next(rbegin),
-          false
-        )
-      };
+      auto lex_rank_range {LookUpSlFactor(index.lex_grammar_rank_trie, std::next(rlast), std::next(rbegin), false)};
       if (IsNotEmptyRange(lex_rank_range))
       {
         pattern_range_l =
@@ -1231,7 +1176,7 @@ auto BackwardSearchPatternSuffix
   return rlast;
 }
 
-template <typename PatternIterator>
+template <typename Index, typename PatternIterator>
 uint64_t Count
 (
   Index const &index,
