@@ -10,6 +10,7 @@
 #include <memory>
 #include <random>
 
+#include <sdsl/csa_wt.hpp>
 #include <sdsl/int_vector.hpp>
 
 namespace project
