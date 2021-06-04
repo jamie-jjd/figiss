@@ -3,7 +3,6 @@
 #include <sdsl/csa_wt.hpp>
 #include <sdsl/suffix_array_algorithm.hpp>
 
-#include "grammar_compressed_index.h"
 #include "utility.h"
 
 namespace project
@@ -85,10 +84,10 @@ namespace project
 //   return;
 // }
 
-void TestCount (std::filesystem::path const &text_path)
+template <typename Index>
+void TestCount (Index &index, std::filesystem::path const &text_path)
 {
   auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
-  Index index;
   {
     auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".index")};
     // if (!std::filesystem::exists(index_path))

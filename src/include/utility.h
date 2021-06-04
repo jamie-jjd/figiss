@@ -19,7 +19,7 @@ void Print
 (
   File &file,
   Container const &container,
-  int8_t step = 1,
+  int8_t const step = 1,
   std::string const &separator = " ",
   std::string const &endmarker = "\n"
 )
@@ -452,6 +452,45 @@ void Print (File &file, std::shared_ptr<Node> root)
       nodes.emplace_back(*children_rit, depth + 1);
       ++children_rit;
     }
+  }
+  return;
+}
+
+template <typename Index>
+void PrintSpace (Index &index, std::filesystem::path const &text_path)
+{
+  auto parent_space_path {CreateParentDirectoryByCategory("space", text_path)};
+  auto space_path {CreatePath(parent_space_path, text_path.filename().string())};
+  std::fstream space_file {space_path, std::ios_base::out | std::ios_base::trunc};
+  std::cout << "write space information to " << std::filesystem::canonical(space_path) << "\n";
+  {
+    auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
+    auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".index")};
+    ConstructIndex(index, text_path);
+    auto root {std::make_shared<InformationNode<std::string, uint64_t>>("index")};
+    SerializeIndex(index, index_path, root);
+    Print(space_file, root);
+    for (auto it {std::begin(root->children)}; it != std::end(root->children); ++it)
+    {
+      space_file << ProperSizeRepresentation((*it)->value) << " & ";
+    }
+    space_file << ProperSizeRepresentation(root->value) << " & ";
+  }
+  {
+    auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
+    auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".rlfm")};
+    sdsl::int_vector<8> text;
+    sdsl::load_vector_from_file(text, text_path);
+    sdsl::csa_wt
+    <
+      sdsl::wt_rlmn<>,
+      std::numeric_limits<int32_t>::max(),
+      std::numeric_limits<int32_t>::max()
+    >
+    rlfm;
+    sdsl::construct_im(rlfm, text);
+    std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
+    space_file << ProperSizeRepresentation(sdsl::serialize(rlfm, index_file)) << " \\\\\n";
   }
   return;
 }
