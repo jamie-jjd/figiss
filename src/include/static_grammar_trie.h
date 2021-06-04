@@ -6,8 +6,11 @@
 
 namespace project
 {
+template <typename Labels>
 struct StaticGrammarTrie
 {
+  using LabelsRange = std::pair<typename Labels::iterator, typename Labels::iterator>;
+  LabelsRange labels_range;
   sdsl::bit_vector level_order;
   sdsl::bit_vector::select_1_type level_order_select;
   sdsl::int_vector<> edge_begin_offsets;
@@ -18,22 +21,23 @@ struct StaticGrammarTrie
   int8_t step;
 };
 
-template <typename File, typename Labels>
+template <typename File, typename StaticGrammarTrie>
 void PrintStaticGrammarTrie
 (
   File &file,
-  Labels const &labels,
   StaticGrammarTrie const &trie,
   bool const is_rank = true, // false: count
   bool const is_preorder = true // false: level order
 )
 {
-  for (uint64_t i {}; i != std::size(labels); ++i)
+  auto labels_begin {std::get<0>(trie.labels_range)};
+  auto labels_end {std::get<1>(trie.labels_range)};
+  for (auto it {labels_begin}; it != labels_end; ++it)
   {
-    file << (i % 10);
-    file << ((i != std::size(labels) - 1) ? " " : "\n");
+    file << std::distance(labels_begin, it) % 10;
+    file << (it != std::prev(labels_end) ? " " : "\n");
   }
-  Print(file, labels);
+  Print(file, labels_begin, labels_end);
   std::deque<std::pair<uint64_t, uint64_t>> offsets;
   uint64_t begin_offset {};
   uint64_t end_offset {trie.level_order_select(1)};
@@ -67,7 +71,7 @@ void PrintStaticGrammarTrie
       depth = std::get<1>(offsets.front());
       offsets.pop_front();
     }
-    file << depth << ":" << labels[trie.edge_begin_offsets[offset]];
+    file << depth << ":" << *std::next(labels_begin, trie.edge_begin_offsets[offset]);
     file << "[" << trie.edge_begin_offsets[offset] << "," << trie.edge_prev_end_offsets[offset] << "]";
     if (is_rank)
     {
@@ -108,7 +112,7 @@ void ResizeAndCopy (FromVector const &from, ToVector &to)
   return;
 }
 
-template <typename DynamicGrammarTrie>
+template <typename DynamicGrammarTrie, typename StaticGrammarTrie>
 void ConstructStaticGrammarTrie
 (
   DynamicGrammarTrie const &dynamic_trie,
@@ -116,6 +120,7 @@ void ConstructStaticGrammarTrie
   bool const is_rank = true // false: count
 )
 {
+  static_trie.labels_range = dynamic_trie.labels_range;
   std::deque<uint8_t> level_order;
   std::deque<uint64_t> edge_begin_offsets;
   std::deque<uint64_t> edge_prev_end_offsets;
@@ -166,7 +171,12 @@ void ConstructStaticGrammarTrie
   return;
 }
 
-template <typename File, typename Node = InformationNode<std::string, uint64_t>>
+template
+<
+  typename StaticGrammarTrie,
+  typename File,
+  typename Node = InformationNode<std::string, uint64_t>
+>
 uint64_t SerializeStaticGrammarTrie
 (
   StaticGrammarTrie const &trie,
@@ -240,12 +250,8 @@ uint64_t SerializeStaticGrammarTrie
   return 0;
 }
 
-template <typename File>
-void LoadStaticGrammarTrie
-(
-  StaticGrammarTrie &trie,
-  File &file
-)
+template <typename StaticGrammarTrie, typename File>
+void LoadStaticGrammarTrie (StaticGrammarTrie &trie, File &file)
 {
   trie.level_order.load(file);
   trie.level_order_select.load(file);
@@ -256,6 +262,13 @@ void LoadStaticGrammarTrie
   trie.rightmost_ranks.load(file);
   trie.counts.load(file);
   sdsl::read_member(trie.step, file);
+  return;
+}
+
+template <typename Labels, typename StaticGrammarTrie>
+void SetLabels (Labels &labels, StaticGrammarTrie &trie)
+{
+  trie.labels_range = {std::begin(labels), std::end(labels)};
   return;
 }
 }
