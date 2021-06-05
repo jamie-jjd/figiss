@@ -406,22 +406,27 @@ std::string ProperSizeRepresentation (Size const size)
 {
   std::stringstream stringstream;
   stringstream << std::fixed << std::setprecision(2);
-  if (size > (1024 * 1024))
+  if (size >= (1ULL << 30))
   {
-    stringstream << (size / (1024.0 * 1024.0));
+    stringstream << (static_cast<double>(size) / (1ULL << 30));
+    return (stringstream.str() + "G");
+  }
+  else if (size >= (1ULL << 20))
+  {
+    stringstream << (static_cast<double>(size) / (1ULL << 20));
     return (stringstream.str() + "M");
   }
-  else if (size > 1024)
+  else if (size >= (1ULL << 10))
   {
-    stringstream << (size / 1024.0);
+    stringstream << (static_cast<double>(size) / (1ULL << 10));
     return (stringstream.str() + "K");
   }
   else
   {
-    stringstream << (size * 1.0);
-    return (stringstream.str());
+    stringstream << static_cast<double>(size);
+    return stringstream.str();
   }
-  return "0";
+  return "0.00";
 }
 
 template <typename Key, typename Value>
@@ -491,8 +496,9 @@ void PrintSpace (Index &index, std::filesystem::path const &text_path)
     rlfm;
     sdsl::construct_im(rlfm, text);
     std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
-    space_file << ProperSizeRepresentation(sdsl::serialize(rlfm, index_file)) << " \\\\\n";
+    space_file << ProperSizeRepresentation(sdsl::serialize(rlfm, index_file)) << " & ";
   }
+  space_file << ProperSizeRepresentation(std::filesystem::file_size(text_path)) << " \\\\\n";
   return;
 }
 }
