@@ -7,98 +7,21 @@
 
 namespace project
 {
-// template
-// <
-//   typename PatternAmount,
-//   typename PatternSize,
-//   typename Patterns
-// >
-// void BenchmarkIndexCount
-// (
-//   Index const &index,
-//   PatternAmount const pattern_amount,
-//   PatternSize const unit_size,
-//   Patterns &patterns
-// )
-// {
-//   auto begin {std::begin(patterns)};
-//   auto end {begin};
-//   for (uint64_t i {0}; i != pattern_amount; ++i)
-//   {
-//     begin = end;
-//     end = std::next(begin, unit_size);
-//     Count(index, begin, end);
-//   }
-//   return;
-// }
-//
-// template
-// <
-//   typename Fmindex,
-//   typename PatternAmount,
-//   typename PatternSize,
-//   typename Patterns
-// >
-// void BenchmarkFmindexCount
-// (
-//   Fmindex const &rlfm,
-//   PatternAmount const pattern_amount,
-//   PatternSize const unit_size,
-//   Patterns &patterns
-// )
-// {
-//   auto begin {std::begin(patterns)};
-//   auto end {begin};
-//   for (uint64_t i {0}; i != pattern_amount; ++i)
-//   {
-//     begin = end;
-//     end = std::next(begin, unit_size);
-//     sdsl::count(rlfm, begin, end);
-//   }
-//   return;
-// }
-//
-// void BenchmarkCount
-// (
-//   std::filesystem::path const &text_path,
-//   uint64_t const pattern_amount,
-//   uint64_t const unit_size
-// )
-// {
-//   if (unit_size < min_unit_size)
-//   {
-//     throw std::runtime_error
-//     (
-//       std::string{"pattern size should be at least "}
-//       + std::to_string(min_unit_size)
-//       + " (characters) for this text"
-//     );
-//   }
-//   Index index;
-//   sdsl::csa_wt<> rlfm;
-//   LoadIndexAndFmindex(index, rlfm, text_path);
-//   sdsl::int_vector<8> patterns;
-//   GeneratePatterns(text_path, pattern_amount, unit_size, patterns);
-//   BenchmarkIndexCount(index, pattern_amount, unit_size, patterns);
-//   BenchmarkFmindexCount(rlfm, pattern_amount, unit_size, patterns);
-//   return;
-// }
-
 template <typename Index>
 void TestCount (Index &index, std::filesystem::path const &text_path)
 {
   auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
   {
     auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".index")};
-    // if (!std::filesystem::exists(index_path))
+    if (!std::filesystem::exists(index_path))
     {
       ConstructIndex(index, text_path);
       SerializeIndex(index, index_path);
     }
-    // else
-    // {
-    //   LoadIndex(index, index_path);
-    // }
+    else
+    {
+      LoadIndex(index, index_path);
+    }
   }
   sdsl::csa_wt
   <
@@ -109,7 +32,7 @@ void TestCount (Index &index, std::filesystem::path const &text_path)
   rlfm;
   {
     auto rlfm_path {CreatePath(parent_index_path, text_path.filename().string(), ".rlfm")};
-    // if (!std::filesystem::exists(rlfm_path))
+    if (!std::filesystem::exists(rlfm_path))
     {
       sdsl::int_vector<8> text;
       sdsl::load_vector_from_file(text, text_path);
@@ -119,12 +42,12 @@ void TestCount (Index &index, std::filesystem::path const &text_path)
       std::cout << "serialize rlfm to " << std::filesystem::canonical(rlfm_path) << "\n";
       sdsl::serialize(rlfm, rlfm_file);
     }
-    // else
-    // {
-    //   std::ifstream rlfm_file {rlfm_path};
-    //   std::cout << "load rlfm from " << std::filesystem::canonical(rlfm_path) << "\n";
-    //   sdsl::load(rlfm, rlfm_file);
-    // }
+    else
+    {
+      std::ifstream rlfm_file {rlfm_path};
+      std::cout << "load rlfm from " << std::filesystem::canonical(rlfm_path) << "\n";
+      sdsl::load(rlfm, rlfm_file);
+    }
   }
   {
     sdsl::int_vector<8> text;
