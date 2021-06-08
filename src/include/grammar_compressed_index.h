@@ -426,7 +426,7 @@ struct Index
     sdsl::sd_vector<>,
     typename sdsl::sd_vector<>::rank_1_type,
     typename sdsl::sd_vector<>::select_1_type,
-    sdsl::wm_int<>
+    sdsl::wt_ap<>
   >
   colex_bwt;
 };
