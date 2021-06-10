@@ -138,12 +138,10 @@ struct ConcatenatedPatterns
   uint64_t unit_size;
   sdsl::int_vector<8> labels;
 
-  ConcatenatedPatterns () = default;
-
   ConcatenatedPatterns
   (
-    uint64_t const amount_,
-    uint64_t const unit_size_
+    uint64_t const amount_ = 0,
+    uint64_t const unit_size_ = 0
   )
   : amount {amount_},
     unit_size {unit_size_}
@@ -151,7 +149,7 @@ struct ConcatenatedPatterns
   }
 };
 
-void GenerateConcatnatedPatterns
+void GenerateConcatenatedPatterns
 (
   std::filesystem::path const &text_path,
   ConcatenatedPatterns &patterns
@@ -159,31 +157,39 @@ void GenerateConcatnatedPatterns
 {
   sdsl::int_vector<8> text;
   sdsl::load_vector_from_file(text, text_path);
-  if (patterns.unit_size <= std::size(text))
+  if (patterns.unit_size > std::size(text))
   {
-    std::mt19937 engine {std::random_device{}()};
-    std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - patterns.unit_size);
-    auto random_begin_offset {std::bind(distribution, engine)};
-    patterns.labels.resize(patterns.amount * patterns.unit_size);
-    auto patterns_it {std::begin(patterns.labels)};
-    for (uint64_t i {}; i != patterns.amount; ++i)
+    std::cout << "warning: pattern size is replaced with text size\n";
+    patterns.unit_size = std::size(text);
+  }
+  std::cout
+  << "generate " << patterns.amount << " random patterns of size " << patterns.unit_size
+  << " from " << std::filesystem::canonical(text_path) << "\n" ;
+  std::mt19937 engine {std::random_device{}()};
+  std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - patterns.unit_size);
+  auto random_begin_offset {std::bind(distribution, engine)};
+  patterns.labels.resize(patterns.amount * patterns.unit_size);
+  auto patterns_it {std::begin(patterns.labels)};
+  for (uint64_t i {}; i != patterns.amount; ++i)
+  {
+    auto text_it {std::next(std::begin(text), random_begin_offset())};
+    for (uint64_t j {}; j != patterns.unit_size; ++j)
     {
-      auto text_it {std::next(std::begin(text), random_begin_offset())};
-      for (uint64_t j {}; j != patterns.unit_size; ++j)
-      {
-        *patterns_it = *text_it;
-        ++patterns_it;
-        ++text_it;
-      }
+      *patterns_it = *text_it;
+      ++patterns_it;
+      ++text_it;
     }
   }
   return;
 }
 
-auto GenerateAndSerializeConcatenatedPatterns (std::filesystem::path const &text_path)
+auto GenerateAndSerializeConcatenatedPatterns
+(
+  std::filesystem::path const &text_path,
+  ConcatenatedPatterns & patterns
+)
 {
-  ConcatenatedPatterns patterns;
-  GenerateConcatnatedPatterns(text_path, patterns);
+  GenerateConcatenatedPatterns(text_path, patterns);
   auto parent_patterns_path {CreateParentDirectoryByCategory("patterns", text_path)};
   auto patterns_path
   {
@@ -191,12 +197,13 @@ auto GenerateAndSerializeConcatenatedPatterns (std::filesystem::path const &text
     (
       parent_patterns_path,
       text_path.filename().string(),
-      std::string{"."} + std::to_string(patterns.amount) + "." + std::to_string(patterns.unit_size)
+      "." + std::to_string(patterns.amount) + "." + std::to_string(patterns.unit_size)
     )
   };
   if (std::size(patterns.labels) != 0)
   {
-    std::fstream patterns_file(patterns_path, std::ios_base::out | std::ios_base::trunc);
+    std::fstream patterns_file {patterns_path, std::ios_base::out | std::ios_base::trunc};
+    std::cout << "serialize patterns into " << std::filesystem::canonical(patterns_path) << "\n";
     sdsl::write_member(patterns.amount, patterns_file);
     sdsl::write_member(patterns.unit_size, patterns_file);
     sdsl::serialize(patterns.labels, patterns_file);
@@ -211,7 +218,8 @@ void LoadConcatenatedPatterns
   Patterns &patterns
 )
 {
-  std::ifstream patterns_file {patterns_file};
+  std::ifstream patterns_file {patterns_path};
+  std::cout << "load patterns from " << std::filesystem::canonical(patterns_path) << "\n";
   sdsl::read_member(patterns.amount, patterns_file);
   sdsl::read_member(patterns.unit_size, patterns_file);
   patterns.labels.load(patterns_file);
@@ -429,6 +437,33 @@ std::string ProperSizeRepresentation (Size const size)
   return "0.00";
 }
 
+std::string ProperTimeRepresentation (double const nanoseconds)
+{
+  std::stringstream stringstream;
+  stringstream << std::fixed << std::setprecision(2);
+  if (nanoseconds >= 1'000'000'000.0)
+  {
+    stringstream << (nanoseconds / 1'000'000'000.0);
+    return (stringstream.str() + "s");
+  }
+  else if (nanoseconds >= 1'000'000.0)
+  {
+    stringstream << (nanoseconds / 1'000'000.0);
+    return (stringstream.str() + "ms");
+  }
+  else if (nanoseconds >= 1'000.0)
+  {
+    stringstream << (nanoseconds / 1'000.0);
+    return (stringstream.str() + "us");
+  }
+  else
+  {
+    stringstream << nanoseconds;
+    return (stringstream.str() + "ns");
+  }
+  return "0.00";
+}
+
 template <typename Key, typename Value>
 struct InformationNode
 {
@@ -499,6 +534,28 @@ void PrintSpace (Index &index, std::filesystem::path const &text_path)
     space_file << ProperSizeRepresentation(sdsl::serialize(rlfm, index_file)) << " & ";
   }
   space_file << ProperSizeRepresentation(std::filesystem::file_size(text_path)) << " \\\\\n";
+  return;
+}
+
+template <typename Times>
+void PrintTime
+(
+  std::string const &category,
+  std::filesystem::path const &text_path,
+  Times const &times
+)
+{
+  auto parent_path {CreateParentDirectoryByCategory(category, text_path)};
+  auto path {CreatePath(parent_path, text_path.filename().string())};
+  std::fstream file {path, std::ios_base::out | std::ios_base::trunc};
+  file << std::fixed << std::setprecision(2);
+  for (auto pair : times)
+  {
+    file
+    << std::get<0>(pair) << ","
+    << ProperTimeRepresentation(std::get<1>(pair)) << "/char"
+    << "\n";
+  }
   return;
 }
 }
