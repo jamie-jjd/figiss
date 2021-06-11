@@ -450,7 +450,6 @@ void ConstructIndex (Index &index, std::filesystem::path const &text_path)
   std::cout << "construct index of " << std::filesystem::canonical(text_path) << "\n";
   sdsl::int_vector<8> text;
   {
-    std::ifstream text_file {text_path};
     sdsl::load_vector_from_file(text, text_path);
     if (*std::prev(std::end(text)) != 0)
     {
