@@ -18,8 +18,8 @@ namespace project
 template <typename File, typename Container>
 void Print
 (
-  File &file,
   Container const &container,
+  File &file,
   int8_t const step = 1,
   std::string const &separator = " ",
   std::string const &endmarker = "\n"
@@ -36,10 +36,10 @@ void Print
     }
     while (it != prev_end)
     {
-      file << *it << separator;
+      file << static_cast<uint64_t>(*it) << separator;
       std::advance(it, step);
     }
-    file << *prev_end << endmarker;
+    file << static_cast<uint64_t>(*prev_end) << endmarker;
   }
   return;
 }
@@ -47,9 +47,9 @@ void Print
 template <typename File, typename Iterator>
 void Print
 (
-  File &file,
   Iterator first,
   Iterator last,
+  File &file,
   int8_t const step = 1,
   std::string const &separator = " ",
   std::string const &endmarker = "\n"
@@ -61,10 +61,10 @@ void Print
     auto prev_last {std::prev(last, step)};
     while (it != prev_last)
     {
-      file << *it << separator;
+      file << static_cast<uint64_t>(*it) << separator;
       std::advance(it, step);
     }
-    file << *prev_last << endmarker;
+    file << static_cast<uint64_t>(*prev_last) << endmarker;
   }
   return;
 }
