@@ -525,12 +525,91 @@ struct ByteAlphabet
   }
 };
 
+struct TinyPatterns
+{
+  sdsl::sd_vector<> bits;
+  sdsl::sd_vector<>::rank_1_type rank_1;
+  sdsl::int_vector<> counts;
+
+  template <typename File>
+  void Print (File &file)
+  {
+    file << "|tiny patterns|: " << rank_1(std::size(bits)) << "\n";
+    file << "space:\n";
+    file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
+    file << "counts: " << ProperSizeRepresentation(sdsl::size_in_bytes(counts)) << "B\n";
+    return;
+  }
+};
+
+template <typename Text>
+void CalculateTinyPatternCounts (Text const &text, TinyPatterns &tiny_patterns)
+{
+  std::map<uint64_t, uint64_t> pattern_counts;
+  auto text_end {std::end(text)};
+  for (auto text_it {std::begin(text)}; text_it != text_end; ++text_it)
+  {
+    uint64_t pattern {};
+    auto it {text_it};
+    for (uint64_t i {7}; (it != text_end) && (i != 0); ++it, --i)
+    {
+      pattern += *it * (1ULL << (text.width() * (i - 1)));
+      auto pattern_counts_it {pattern_counts.find(pattern)};
+      if (pattern_counts_it != std::end(pattern_counts))
+      {
+        ++std::get<1>(*pattern_counts_it);
+      }
+      else
+      {
+        pattern_counts[pattern] = 1;
+      }
+    }
+  }
+  {
+    std::vector<uint64_t> patterns;
+    uint64_t max_count {};
+    for (auto const &pair : pattern_counts)
+    {
+      patterns.emplace_back(std::get<0>(pair));
+      if (std::get<1>(pair) > max_count)
+      {
+        max_count = std::get<1>(pair);
+      }
+    }
+    tiny_patterns.bits = decltype(tiny_patterns.bits)(std::begin(patterns), std::end(patterns));
+    tiny_patterns.rank_1.set_vector(&(tiny_patterns.bits));
+    tiny_patterns.counts.width(sdsl::bits::hi(max_count) + 1);
+    tiny_patterns.counts.resize(std::size(pattern_counts));
+    auto counts_it {std::begin(tiny_patterns.counts)};
+    for (auto const &pair : pattern_counts)
+    {
+      *counts_it++ = std::get<1>(pair);
+    }
+  }
+  return;
+}
+
+template <typename StringIterator>
+uint64_t SymbolsToInteger
+(
+  StringIterator it,
+  StringIterator end,
+  uint8_t const width,
+  int8_t const step = 1
+)
+{
+  uint64_t result {};
+  for (uint64_t i {}; (it != end) && (i != 8); it += step, ++i)
+  {
+    result |= (static_cast<uint64_t>(*it) << (8 * i));
+  }
+  return result;
+}
+
 struct Index
 {
   ByteAlphabet byte_alphabet;
-  sdsl::sd_vector<> tiny_pattern_indicators;
-  sdsl::sd_vector<>::rank_1_type tiny_pattern_ranks;
-  sdsl::int_vector<> tiny_pattern_counts;
+  TinyPatterns tiny_patterns;
   sdsl::sd_vector<> lex_grammar_table;
   sdsl::sd_vector<> colex_grammar_table;
   sdsl::int_vector<> colex_to_lex;
@@ -544,100 +623,6 @@ struct Index
   >
   bwt;
 };
-
-// template <typename File, typename Index>
-// void PrintIndex (File &file, Index &index)
-// {
-//   Print(file, index.grammar_rules);
-//   PrintStaticGrammarTrie(file, index.lex_grammar_count_trie, false);
-//   PrintStaticGrammarTrie(file, index.lex_grammar_rank_trie);
-//   PrintStaticGrammarTrie(file, index.colex_grammar_rank_trie);
-//   Print(file, index.colex_to_lex);
-//   Print(file, index.lex_rank_bucket_begin_offsets);
-//   file << index.colex_bwt << "\n";
-//   return;
-// }
-
-template <typename StringIterator>
-uint64_t Convert8ByteTo64Bit
-(
-  StringIterator it,
-  StringIterator end,
-  int8_t const step = 1
-)
-{
-  uint64_t result {};
-  for (uint64_t i {}; (it != end) && (i != 8); it += step, ++i)
-  {
-    result |= (static_cast<uint64_t>(*it) << (8 * i));
-  }
-  return result;
-}
-
-template
-<
-  typename Text,
-  typename TinyPatternIndicators,
-  typename TinyPatternRanks,
-  typename TinyPatternCounts
->
-void CalculateTinyPatternCounts
-(
-  Text const &text,
-  TinyPatternIndicators &indicators,
-  TinyPatternRanks &ranks,
-  TinyPatternCounts &counts
-)
-{
-  uint64_t unit {1ULL << (text.width() - 1)};
-  std::map<uint64_t, uint64_t> pattern_counts;
-  auto text_end {std::end(text)};
-  for (auto text_it {std::begin(text)}; text_it != text_end; ++text_it)
-  {
-    uint64_t pattern {};
-    auto it {text_it};
-    for (uint64_t i {}; (it != text_end) && (i != 7); ++it, ++i)
-    {
-      pattern = (pattern * unit) + *it;
-      auto pattern_counts_it {pattern_counts.find(pattern)};
-      if (pattern_counts_it != std::end(pattern_counts))
-      {
-        ++std::get<1>(*pattern_counts_it);
-      }
-      else
-      {
-        pattern_counts[pattern] = 1;
-      }
-    }
-  }
-  std::cout << std::size(pattern_counts) << "\n";
-  {
-    std::vector<uint64_t> patterns;
-    uint64_t max_count {};
-    for (auto const &pair : pattern_counts)
-    {
-      patterns.emplace_back(std::get<0>(pair));
-      if (std::get<1>(pair) > max_count)
-      {
-        max_count = std::get<1>(pair);
-      }
-    }
-    indicators = TinyPatternIndicators(std::begin(patterns), std::end(patterns));
-    ranks.set_vector(&indicators);
-    counts.width(sdsl::bits::hi(max_count) + 1);
-    counts.resize(std::size(pattern_counts));
-    auto counts_it {std::begin(counts)};
-    for (auto const &pair : pattern_counts)
-    {
-      *counts_it++ = std::get<1>(pair);
-    }
-    // std::partial_sum(std::begin(counts), std::end(counts), std::begin(counts));
-    // counts = TinyPatternCounts(std::begin(counts), std::end(counts));
-    std::cout << sdsl::size_in_mega_bytes(indicators) << "\n";
-    std::cout << sdsl::size_in_mega_bytes(counts) << "\n";
-  }
-  return;
-}
 
 template <typename Index>
 void ConstructIndex (std::filesystem::path const &text_path, Index &index)
@@ -659,13 +644,8 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
     // Print(text, std::cout);
   }
   {
-    CalculateTinyPatternCounts
-    (
-      text,
-      index.tiny_pattern_indicators,
-      index.tiny_pattern_ranks,
-      index.tiny_pattern_counts
-    );
+    CalculateTinyPatternCounts(text, index.tiny_patterns);
+    // index.tiny_patterns.Print(std::cout);
   }
   return;
   // sdsl::bit_vector sl_types;
