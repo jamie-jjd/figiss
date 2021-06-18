@@ -10,49 +10,6 @@
 
 namespace project
 {
-constexpr uint64_t S {1};
-constexpr uint64_t L {0};
-
-template <typename SlTypesIterator>
-constexpr bool IsRightmostLType (SlTypesIterator it)
-{
-  return ((*it == L) && (*std::next(it) == S));
-}
-
-template <typename SlTypesIterator>
-constexpr bool IsLeftmostSType (SlTypesIterator it)
-{
-  return ((*it == S) && (*std::prev(it) == L));
-}
-
-template
-<
-  typename Text,
-  typename SlTypes
->
-void CalculateSlTypes
-(
-  Text const &text,
-  SlTypes &sl_types
-)
-{
-  sl_types.resize(std::size(text));
-  sdsl::util::set_to_value(sl_types, S);
-  auto text_it {std::prev(std::end(text))};
-  auto text_last_it {std::begin(text)};
-  auto sl_types_it {std::prev(std::end(sl_types))};
-  while (text_it != text_last_it)
-  {
-    if ((*std::prev(text_it) > *text_it) || ((*std::prev(text_it) == *text_it) && (*sl_types_it == L)))
-    {
-      *std::prev(sl_types_it) = L;
-    }
-    --sl_types_it;
-    --text_it;
-  }
-  return;
-}
-
 template
 <
   typename Text,
@@ -97,291 +54,6 @@ void CalculateCharacterBucketBeginOffsets
   return;
 }
 
-// template
-// <
-//   typename Text,
-//   typename SlTypes,
-//   typename CharacterBucketOffsets,
-//   typename TextOffsets
-// >
-// void BucketSortRightmostLTypeCharacters
-// (
-//   Text const &text,
-//   SlTypes const &sl_types,
-//   CharacterBucketOffsets &character_bucket_offsets,
-//   TextOffsets &text_offsets
-// )
-// {
-//   auto text_it {std::begin(text)};
-//   auto text_end {std::end(text)};
-//   while (text_it != text_end)
-//   {
-//     auto text_offset {std::distance(std::begin(text), text_it)};
-//     if (IsRightmostLType(std::next(std::begin(sl_types), text_offset)))
-//     {
-//       text_offsets[character_bucket_offsets[*text_it]++] = text_offset;
-//     }
-//     ++text_it;
-//   }
-//   return;
-// }
-//
-// template
-// <
-//   typename Text,
-//   typename SlTypes,
-//   typename CharacterBucketOffsets,
-//   typename TextOffsets
-// >
-// void InduceSortLTypeCharacters
-// (
-//   Text const &text,
-//   SlTypes const &sl_types,
-//   CharacterBucketOffsets &character_bucket_offsets,
-//   TextOffsets &text_offsets
-// )
-// {
-//   auto text_offsets_it {std::next(std::begin(text_offsets))};
-//   auto text_offsets_last_it {std::end(text_offsets)};
-//   auto invalid_text_offset {std::size(text)};
-//   while (text_offsets_it != text_offsets_last_it)
-//   {
-//     auto text_offset {*text_offsets_it};
-//     if((text_offset != invalid_text_offset) && (text_offset != 0) && (sl_types[text_offset - 1] == L))
-//     {
-//       text_offsets[character_bucket_offsets[text[text_offset - 1]]++] = (text_offset - 1);
-//       *text_offsets_it = invalid_text_offset;
-//     }
-//     ++text_offsets_it;
-//   }
-//   return;
-// }
-//
-// template
-// <
-//   typename Text,
-//   typename SlTypes,
-//   typename CharacterBucketOffsets,
-//   typename TextOffsets
-// >
-// void InduceSortSTypeCharacters
-// (
-//   Text const &text,
-//   SlTypes const &sl_types,
-//   CharacterBucketOffsets &character_bucket_offsets,
-//   TextOffsets &text_offsets
-// )
-// {
-//   auto text_offsets_it {std::prev(std::end(text_offsets))};
-//   auto text_offsets_last_it {std::begin(text_offsets)};
-//   auto invalid_text_offset {std::size(text)};
-//   while (text_offsets_it != text_offsets_last_it)
-//   {
-//     auto text_offset {*text_offsets_it};
-//     if ((text_offset != invalid_text_offset) && (text_offset != 0) && (sl_types[text_offset - 1] == S))
-//     {
-//       text_offsets[--character_bucket_offsets[text[text_offset - 1]]] = (text_offset - 1);
-//       *text_offsets_it = invalid_text_offset;
-//     }
-//     --text_offsets_it;
-//   }
-//   return;
-// }
-//
-// template <typename Iterator>
-// auto MoveVaildEntriesToFront
-// (
-//   Iterator begin,
-//   Iterator end,
-//   uint64_t const invalid_value
-// )
-// {
-//   auto it {begin};
-//   auto last {begin};
-//   while (it != end)
-//   {
-//     if (*it != invalid_value)
-//     {
-//       uint64_t value {*it}; *it = *last; *last = value;
-//       ++last;
-//     }
-//     ++it;
-//   }
-//   return last;
-// }
-//
-// template
-// <
-//   typename Text,
-//   typename SlTypes,
-//   typename GrammarRuleBeginOffsetsIterator,
-//   typename TemporaryLexTextIterator,
-//   typename GrammarRuleCounts
-// >
-// void CalculateGrammarRuleCountsBeginOffsetsAndTemporaryLexText
-// (
-//   Text const &text,
-//   SlTypes const &sl_types,
-//   GrammarRuleCounts &rule_counts,
-//   GrammarRuleBeginOffsetsIterator begin_offsets_begin,
-//   GrammarRuleBeginOffsetsIterator begin_offsets_end,
-//   TemporaryLexTextIterator temporary_compressed_text_begin
-// )
-// {
-//   std::deque<uint64_t> counts;
-//   auto invalid_text_offset {std::size(text)};
-//   uint64_t lex_rank {};
-//   auto prev_rule_it {std::prev(std::end(text))};
-//   auto prev_sl_types_it {std::prev(std::end(sl_types))};
-//   auto begin_offsets_it {begin_offsets_begin};
-//   while (begin_offsets_it != begin_offsets_end)
-//   {
-//     uint64_t begin_offset {*begin_offsets_it};
-//     auto rule_it {std::next(std::begin(text), begin_offset)};
-//     auto sl_types_it {std::next(std::begin(sl_types), begin_offset)};
-//     if ((*prev_rule_it == *rule_it) && (*prev_sl_types_it == *sl_types_it))
-//     {
-//       do
-//       {
-//         ++prev_rule_it;
-//         ++rule_it;
-//         ++prev_sl_types_it;
-//         ++sl_types_it;
-//       }
-//       while
-//       (
-//         !IsLeftmostSType(prev_sl_types_it)
-//         &&
-//         !IsLeftmostSType(sl_types_it)
-//         &&
-//         (*prev_rule_it == *rule_it)
-//         &&
-//         (*prev_sl_types_it == *sl_types_it)
-//       );
-//       if (IsLeftmostSType(prev_sl_types_it) && IsLeftmostSType(sl_types_it))
-//       {
-//         --lex_rank;
-//         *begin_offsets_it = invalid_text_offset;
-//         ++counts.back();
-//       }
-//       else
-//       {
-//         counts.emplace_back(1);
-//       }
-//     }
-//     else
-//     {
-//       counts.emplace_back(1);
-//     }
-//     *std::next(temporary_compressed_text_begin, (begin_offset + 1) / 2) = ++lex_rank;
-//     prev_rule_it = std::next(std::begin(text), begin_offset);
-//     prev_sl_types_it = std::next(std::begin(sl_types), begin_offset);
-//     ++begin_offsets_it;
-//   }
-//   rule_counts.resize(std::size(counts));
-//   auto rule_counts_it {std::begin(rule_counts)};
-//   for (auto const &count : counts)
-//   {
-//     *rule_counts_it++ = count;
-//   }
-//   return;
-// }
-//
-// template
-// <
-//   typename GrammarRuleSizes,
-//   typename SlTypes,
-//   typename GrammarRuleBeginOffsetsIterator
-// >
-// void CalculateGrammarRuleSizes
-// (
-//   GrammarRuleSizes &sizes,
-//   SlTypes const &sl_types,
-//   GrammarRuleBeginOffsetsIterator begin_offsets_begin,
-//   GrammarRuleBeginOffsetsIterator begin_offsets_end,
-//   uint64_t const invalid_value
-// )
-// {
-//   begin_offsets_end = MoveVaildEntriesToFront(begin_offsets_begin, begin_offsets_end, invalid_value);
-//   sizes.resize(std::distance(begin_offsets_begin, begin_offsets_end));
-//   auto sizes_it {std::begin(sizes)};
-//   auto begin_offsets_it {begin_offsets_begin};
-//   while (begin_offsets_it != begin_offsets_end)
-//   {
-//     auto sl_types_first_it {std::next(std::begin(sl_types), *begin_offsets_it)};
-//     auto sl_types_last_it {std::next(sl_types_first_it)};
-//     while (!IsLeftmostSType(sl_types_last_it))
-//     {
-//       ++sl_types_last_it;
-//     }
-//     *sizes_it = std::distance(sl_types_first_it, sl_types_last_it);
-//     ++sizes_it;
-//     ++begin_offsets_it;
-//   }
-//   return;
-// }
-//
-// template
-// <
-//   typename Text,
-//   typename GrammarRuleSizes,
-//   typename GrammarRules,
-//   typename GrammarRuleBeginOffsetsIterator
-// >
-// void CalculateGrammarRules
-// (
-//   Text const &text,
-//   GrammarRuleSizes const &sizes,
-//   GrammarRules &rules,
-//   GrammarRuleBeginOffsetsIterator begin_offsets_begin
-// )
-// {
-//   rules.resize(std::accumulate(std::begin(sizes), std::end(sizes), 0));
-//   auto rules_it {std::begin(rules)};
-//   auto begin_offsets_it {begin_offsets_begin};
-//   auto sizes_it {std::begin(sizes)};
-//   auto sizes_end {std::end(sizes)};
-//   while (sizes_it != sizes_end)
-//   {
-//     auto rule_it {std::next(std::begin(text), *begin_offsets_it)};
-//     auto rule_end {std::next(std::begin(text), *begin_offsets_it + *sizes_it)};
-//     while (rule_it != rule_end)
-//     {
-//       *rules_it = *rule_it;
-//       ++rules_it;
-//       ++rule_it;
-//     }
-//     ++begin_offsets_it;
-//     ++sizes_it;
-//   }
-//   return;
-// }
-
-template
-<
-  typename LexText,
-  typename TemporaryLexTextIterator
->
-void CalculateLexText
-(
-  LexText &text,
-  uint64_t const width,
-  TemporaryLexTextIterator begin,
-  TemporaryLexTextIterator end,
-  uint64_t const invalid_value
-)
-{
-  end = MoveVaildEntriesToFront(begin, end, invalid_value);
-  auto size {std::distance(begin, end) + 1};
-  {
-    text.width(width);
-    text.resize(size);
-    std::copy(begin, end, std::begin(text));
-    *std::prev(std::end(text)) = 0;
-  }
-  return;
-}
-
 template
 <
   typename LexText,
@@ -408,52 +80,6 @@ void CalculateColexBwt
   sdsl::construct_im(colex_bwt, buffer);
   return;
 }
-
-// {
-//   std::map<std::string, uint64_t> factors;
-//   {
-//     auto text_rbegin {std::prev(std::end(text))};
-//     auto text_rit {text_rbegin};
-//     auto rbegin {std::prev(std::end(sl_types))};
-//     auto rit {rbegin};
-//     while (rit != std::begin(sl_types))
-//     {
-//       if (project::IsLeftmostSType(rit))
-//       {
-//         std::string factor(text_rit, std::next(text_rbegin));
-//         if (factors.find(factor) != factors.end())
-//         {
-//           ++factors[factor];
-//         }
-//         else
-//         {
-//           factors[factor] = 1;
-//         }
-//         text_rbegin = std::prev(text_rit);
-//       }
-//       --rit;
-//       --text_rit;
-//     }
-//     std::string factor(text_rit, std::next(text_rbegin));
-//     if (factors.find(factor) != factors.end())
-//     {
-//       ++factors[factor];
-//     }
-//     else
-//     {
-//       factors[factor] = 1;
-//     }
-//   }
-//   std::fstream fout
-//   {
-//     "../data/others/" + text_path.filename().string(),
-//     std::ios_base::out | std::ios_base::trunc
-//   };
-//   for (auto const &pair : factors)
-//   {
-//     fout << std::size(std::get<0>(pair)) << " " << std::get<1>(pair) << "\n";
-//   }
-// }
 
 struct ByteAlphabet
 {
@@ -589,6 +215,28 @@ void CalculateTinyPatternCounts (Text const &text, TinyPatterns &tiny_patterns)
   return;
 }
 
+struct FactorTable
+{
+  sdsl::sd_vector<> bits;
+  sdsl::sd_vector<>::rank_1_type rank_1;
+
+  template <typename Factors>
+  void SetUp (Factors const &factors)
+  {
+    std::vector<uint64_t> sorted_factors(std::begin(factors), std::end(factors));
+    bits = sdsl::sd_vector(std::begin(sorted_factors), std::end(sorted_factors));
+    rank_1.set_vector(&bits);
+  }
+
+  template <typename File>
+  void Print (File &file)
+  {
+    file << "|factors|: " << rank_1(std::size(bits)) << "\n";
+    file << "space:\n";
+    file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
+  }
+};
+
 template <typename StringIterator>
 uint64_t SymbolsToInteger
 (
@@ -599,19 +247,76 @@ uint64_t SymbolsToInteger
 )
 {
   uint64_t result {};
-  for (uint64_t i {}; (it != end) && (i != 8); it += step, ++i)
+  for (uint64_t i {8}; (it != end) && (i != 0); it += step, --i)
   {
-    result |= (static_cast<uint64_t>(*it) << (8 * i));
+    result += *it * (1ULL << (width * (i - 1)));
   }
   return result;
+}
+
+template <typename Text, typename Factors>
+void CalculateFactors
+(
+  Text const &text,
+  Factors &lex_factors,
+  Factors &colex_factors
+)
+{
+  constexpr uint8_t S {1};
+  constexpr uint8_t L {0};
+  lex_factors.insert(0);
+  colex_factors.insert(0);
+  auto text_begin {std::begin(text)};
+  auto text_it {std::prev(std::end(text), 2)};
+  auto next_symbol {*std::prev(std::end(text))};
+  uint8_t sl_type {};
+  uint8_t next_sl_type {L};
+  auto sl_factor_end {std::end(text)};
+  while (text_it != text_begin)
+  {
+    if (*text_it == next_symbol)
+    {
+      sl_type = next_sl_type;
+    }
+    else if (*text_it < next_symbol)
+    {
+      sl_type = S;
+    }
+    else
+    {
+      sl_type = L;
+    }
+    if ((sl_type == L) && (next_sl_type == S))
+    {
+      auto factor_it {std::next(text_it)};
+      while (std::distance(factor_it, sl_factor_end) > 7)
+      {
+        auto factor_end {std::next(factor_it, 8)};
+        lex_factors.insert(SymbolsToInteger(factor_it, factor_end, text.width()));
+        colex_factors.insert(SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), text.width(), -1));
+        factor_it = factor_end;
+      }
+      if (std::distance(factor_it, sl_factor_end) != 0)
+      {
+        lex_factors.insert(SymbolsToInteger(factor_it, sl_factor_end, text.width()));
+        colex_factors.insert(SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), text.width(), -1));
+      }
+      sl_factor_end = std::next(text_it);
+    }
+    next_symbol = *text_it--;
+    next_sl_type = sl_type;
+  }
+  lex_factors.insert(SymbolsToInteger(text_begin, sl_factor_end, text.width()));
+  colex_factors.insert(SymbolsToInteger(std::prev(sl_factor_end), std::prev(text_begin), text.width(), -1));
+  return;
 }
 
 struct Index
 {
   ByteAlphabet byte_alphabet;
   TinyPatterns tiny_patterns;
-  sdsl::sd_vector<> lex_grammar_table;
-  sdsl::sd_vector<> colex_grammar_table;
+  FactorTable lex_factor_table;
+  FactorTable colex_factor_table;
   sdsl::int_vector<> colex_to_lex;
   sdsl::int_vector<> bucket_begin_offsets;
   sdsl::wt_rlmn
@@ -647,205 +352,15 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
     CalculateTinyPatternCounts(text, index.tiny_patterns);
     // index.tiny_patterns.Print(std::cout);
   }
-  return;
-  // sdsl::bit_vector sl_types;
-  // {
-  //   CalculateSlTypes(text, sl_types);
-  //   // Print(std::cout, sl_types);
-  // }
-  // {
-  //   if (*std::prev(std::end(text)) != 0)
-  //   {
-  //     sdsl::append_zero_symbol(text);
-  //     // std::cout << "zero symbol appended\n";
-  //   }
-  //   // Print(std::cout, text);
-  // }
-  // auto invalid_text_offset {std::size(text)};
-  // auto text_size_width {sdsl::bits::hi(std::size(text)) + 1};
-  // sdsl::int_vector<> text_offsets;
-  // {
-  //   text_offsets.width(text_size_width);
-  //   text_offsets.resize(std::size(text));
-  //   sdsl::util::set_to_value(text_offsets, invalid_text_offset);
-  //   // Print(std::cout, text_offsets);
-  // }
-  // sdsl::int_vector<> character_bucket_offsets;
-  // {
-  //   character_bucket_offsets.width(text_size_width);
-  //   character_bucket_offsets.resize(256);
-  // }
-  // {
-  //   CalculateCharacterBucketBeginOffsets(text, character_bucket_offsets);
-  //   // Print(std::cout, character_bucket_offsets);
-  //   BucketSortRightmostLTypeCharacters(text, sl_types, character_bucket_offsets, text_offsets);
-  //   // Print(std::cout, text_offsets);
-  //   InduceSortLTypeCharacters(text, sl_types, character_bucket_offsets, text_offsets);
-  //   // Print(std::cout, text_offsets);
-  //   CalculateCharacterBucketEndOffsets(text, character_bucket_offsets);
-  //   // Print(std::cout, character_bucket_offsets);
-  //   InduceSortSTypeCharacters(text, sl_types, character_bucket_offsets, text_offsets);
-  //   // Print(std::cout, text_offsets);
-  // }
-  // auto text_offsets_boundary {std::begin(text_offsets)};
-  // {
-  //   text_offsets_boundary = MoveVaildEntriesToFront
-  //   (
-  //     std::begin(text_offsets),
-  //     std::end(text_offsets),
-  //     invalid_text_offset
-  //   );
-  //   // Print(std::cout, text_offsets);
-  // }
-  // auto grammar_rule_begin_offsets_begin {std::begin(text_offsets)};
-  // auto grammar_rule_begin_offsets_end {text_offsets_boundary};
-  // auto temporary_lex_text_begin {text_offsets_boundary};
-  // auto temporary_lex_text_end {std::end(text_offsets)};
-  // sdsl::int_vector<> grammar_rule_counts;
-  // {
-  //   CalculateGrammarRuleCountsBeginOffsetsAndTemporaryLexText
-  //   (
-  //     text,
-  //     sl_types,
-  //     grammar_rule_counts,
-  //     grammar_rule_begin_offsets_begin,
-  //     grammar_rule_begin_offsets_end,
-  //     temporary_lex_text_begin
-  //   );
-  //   // Print(std::cout, grammar_rule_counts);
-  //   // Print(std::cout, grammar_rule_begin_offsets_begin, grammar_rule_begin_offsets_end);
-  //   // Print(std::cout, temporary_lex_text_begin, temporary_lex_text_end);
-  // }
-  // sdsl::int_vector<> grammar_rule_sizes;
-  // {
-  //   CalculateGrammarRuleSizes
-  //   (
-  //     grammar_rule_sizes,
-  //     sl_types,
-  //     grammar_rule_begin_offsets_begin,
-  //     grammar_rule_begin_offsets_end,
-  //     invalid_text_offset
-  //   );
-  //   // Print(std::cout, grammar_rule_sizes);
-  // }
-  // {
-  //   CalculateGrammarRules
-  //   (
-  //     text,
-  //     grammar_rule_sizes,
-  //     index.grammar_rules,
-  //     grammar_rule_begin_offsets_begin
-  //   );
-  //   // Print(std::cout, index.grammar_rules);
-  // }
-  // sdsl::int_vector<> lex_text;
-  // sdsl::int_vector<> lex_to_colex;
-  // auto grammar_ranks_size {std::size(grammar_rule_sizes) + 1};
-  // auto lex_text_width {sdsl::bits::hi(std::size(grammar_rule_sizes)) + 1};
-  // {
-  //   CalculateLexText
-  //   (
-  //     lex_text,
-  //     lex_text_width,
-  //     temporary_lex_text_begin,
-  //     temporary_lex_text_end,
-  //     invalid_text_offset
-  //   );
-  //   // Print(std::cout, lex_text);
-  // }
-  // {
-  //   sdsl::util::clear(sl_types);
-  //   sdsl::util::clear(text);
-  //   sdsl::util::clear(text_offsets);
-  // }
-  // {
-  //   DynamicGrammarTrie<decltype(index.grammar_rules)> lex_grammar_count_trie
-  //   (
-  //     {
-  //       std::begin(index.grammar_rules),
-  //       std::end(index.grammar_rules)
-  //     }
-  //   );
-  //   InsertGrammarRuleSuffixesAndCounts
-  //   (
-  //     grammar_rule_sizes,
-  //     grammar_rule_counts,
-  //     lex_grammar_count_trie
-  //   );
-  //   // PrintDynamicGrammarTrie(std::cout, lex_grammar_count_trie, false);
-  //   CalculateCumulativeGrammarCount(lex_grammar_count_trie);
-  //   // PrintDynamicGrammarTrie(std::cout, lex_grammar_count_trie, false);
-  //   ConstructStaticGrammarTrie
-  //   (
-  //     lex_grammar_count_trie,
-  //     index.lex_grammar_count_trie,
-  //     false
-  //   );
-  //   // PrintStaticGrammarTrie(std::cout, index.lex_grammar_count_trie, false);
-  // }
-  // {
-  //   DynamicGrammarTrie<decltype(index.grammar_rules)> lex_grammar_rank_trie
-  //   (
-  //     {
-  //       std::begin(index.grammar_rules),
-  //       std::end(index.grammar_rules)
-  //     }
-  //   );
-  //   DynamicGrammarTrie<decltype(index.grammar_rules)> colex_grammar_rank_trie
-  //   (
-  //     {
-  //       std::begin(index.grammar_rules),
-  //       std::end(index.grammar_rules),
-  //     },
-  //     -1
-  //   );
-  //   InsertGrammarRules
-  //   (
-  //     grammar_rule_sizes,
-  //     lex_grammar_rank_trie,
-  //     colex_grammar_rank_trie
-  //   );
-  //   // PrintDynamicGrammarTrie(std::cout, lex_grammar_rank_trie);
-  //   // PrintDynamicGrammarTrie(std::cout, colex_grammar_rank_trie);
-  //   CalculateCumulativeLexRankRanges(lex_grammar_rank_trie);
-  //   // PrintDynamicGrammarTrie(std::cout, lex_grammar_rank_trie);
-  //   ConstructStaticGrammarTrie
-  //   (
-  //     lex_grammar_rank_trie,
-  //     index.lex_grammar_rank_trie
-  //   );
-  //   // PrintStaticGrammarTrie(std::cout, index.lex_grammar_rank_trie);
-  //   lex_to_colex.width(lex_text_width);
-  //   lex_to_colex.resize(grammar_ranks_size);
-  //   lex_to_colex[0] = 0;
-  //   CalculateCumulativeColexRankRangesAndLexToColex(colex_grammar_rank_trie, lex_to_colex);
-  //   // Print(std::cout, lex_to_colex);
-  //   // PrintDynamicGrammarTrie(std::cout, colex_grammar_rank_trie);
-  //   ConstructStaticGrammarTrie
-  //   (
-  //     colex_grammar_rank_trie,
-  //     index.colex_grammar_rank_trie
-  //   );
-  //   // PrintStaticGrammarTrie(std::cout, index.colex_grammar_rank_trie);
-  // }
-  // {
-  //   index.colex_to_lex.width(lex_text_width);
-  //   index.colex_to_lex.resize(grammar_ranks_size);
-  //   for (uint64_t rank {}; rank != std::size(lex_to_colex); ++rank)
-  //   {
-  //     index.colex_to_lex[lex_to_colex[rank]] = rank;
-  //   }
-  //   // Print(std::cout, index.colex_to_lex);
-  // }
-  // {
-  //   index.lex_rank_bucket_begin_offsets.width(sdsl::bits::hi(std::size(lex_text)) + 1);
-  //   index.lex_rank_bucket_begin_offsets.resize(grammar_ranks_size + 1);
-  //   CalculateCharacterBucketBeginOffsets(lex_text, index.lex_rank_bucket_begin_offsets);
-  //   // Print(std::cout, index.lex_rank_bucket_begin_offsets);
-  // }
-  // {
-  //   CalculateColexBwt(lex_text, lex_to_colex, index.colex_bwt);
-  // }
+  {
+    std::set<uint64_t> lex_factors;
+    std::set<uint64_t> colex_factors;
+    CalculateFactors(text, lex_factors, colex_factors);
+    index.lex_factor_table.SetUp(lex_factors);
+    index.colex_factor_table.SetUp(colex_factors);
+    // index.lex_factor_table.Print(std::cout);
+    // index.colex_factor_table.Print(std::cout);
+  }
   return;
 }
 
