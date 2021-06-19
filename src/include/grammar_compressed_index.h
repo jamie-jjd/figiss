@@ -10,6 +10,9 @@
 
 namespace project
 {
+constexpr uint8_t S {1};
+constexpr uint8_t L {0};
+
 template
 <
   typename Text,
@@ -95,6 +98,7 @@ struct ByteAlphabet
   {
     size = *std::max_element(std::begin(byte_text), std::end(byte_text)) + 1;
     bits.resize(size);
+    sdsl::util::set_to_value(bits, 0);
     bits[0] = 1;
     for (auto const byte : byte_text)
     {
@@ -220,14 +224,6 @@ struct FactorTable
   sdsl::sd_vector<> bits;
   sdsl::sd_vector<>::rank_1_type rank_1;
 
-  template <typename Factors>
-  void SetUp (Factors const &factors)
-  {
-    std::vector<uint64_t> sorted_factors(std::begin(factors), std::end(factors));
-    bits = sdsl::sd_vector(std::begin(sorted_factors), std::end(sorted_factors));
-    rank_1.set_vector(&bits);
-  }
-
   template <typename File>
   void Print (File &file)
   {
@@ -254,25 +250,107 @@ uint64_t SymbolsToInteger
   return result;
 }
 
-template <typename Text, typename Factors>
-void CalculateFactors
+template
+<
+  typename Text,
+  typename LexFactorCounts,
+  typename ColexToLexFactor
+>
+void CalculateFactorInformation
 (
   Text const &text,
-  Factors &lex_factors,
-  Factors &colex_factors
+  LexFactorCounts &lex_factor_counts,
+  ColexToLexFactor &colex_to_lex_factor
 )
 {
-  constexpr uint8_t S {1};
-  constexpr uint8_t L {0};
-  lex_factors.insert(0);
-  colex_factors.insert(0);
-  auto text_begin {std::begin(text)};
+  auto text_prev_begin {std::prev(std::begin(text))};
   auto text_it {std::prev(std::end(text), 2)};
   auto next_symbol {*std::prev(std::end(text))};
   uint8_t sl_type {};
   uint8_t next_sl_type {L};
   auto sl_factor_end {std::end(text)};
-  while (text_it != text_begin)
+  uint64_t lex_factor;
+  uint64_t colex_factor;
+  while (text_it != text_prev_begin)
+  {
+    if (*text_it == next_symbol)
+    {
+      sl_type = next_sl_type;
+    }
+    else if (*text_it < next_symbol)
+    {
+      sl_type = S;
+    }
+    else
+    {
+      sl_type = L;
+    }
+    if ((sl_type == L) && (next_sl_type == S))
+    {
+      auto factor_it {std::next(text_it)};
+      uint64_t lex_factor {};
+      uint64_t colex_factor {};
+      while (std::distance(factor_it, sl_factor_end) > 7)
+      {
+        auto factor_end {std::next(factor_it, 8)};
+        lex_factor = SymbolsToInteger(factor_it, factor_end, text.width());
+        colex_factor = SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), text.width(), -1);
+        if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
+        {
+          lex_factor_counts[lex_factor] = 0;
+        }
+        ++lex_factor_counts[lex_factor];
+        colex_to_lex_factor[colex_factor] = lex_factor;
+        factor_it = factor_end;
+      }
+      if (std::distance(factor_it, sl_factor_end) != 0)
+      {
+        lex_factor = SymbolsToInteger(factor_it, sl_factor_end, text.width());
+        colex_factor = SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), text.width(), -1);
+        if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
+        {
+          lex_factor_counts[lex_factor] = 0;
+        }
+        ++lex_factor_counts[lex_factor];
+        colex_to_lex_factor[colex_factor] = lex_factor;
+      }
+      sl_factor_end = std::next(text_it);
+    }
+    next_symbol = *text_it--;
+    next_sl_type = sl_type;
+  }
+  lex_factor = SymbolsToInteger(std::next(text_prev_begin), sl_factor_end, text.width());
+  colex_factor = SymbolsToInteger(std::prev(sl_factor_end), text_prev_begin, text.width(), -1);
+  if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
+  {
+    lex_factor_counts[lex_factor] = 0;
+  }
+  ++lex_factor_counts[lex_factor];
+  colex_to_lex_factor[colex_factor] = lex_factor;
+  return;
+}
+
+template
+<
+  typename Text,
+  typename LexFactorTable,
+  typename LexText
+>
+void CalculateLexText
+(
+  Text const &text,
+  LexFactorTable const &lex_factor_table,
+  LexText &lex_text
+)
+{
+  auto text_prev_begin {std::prev(std::begin(text))};
+  auto text_it {std::prev(std::end(text), 2)};
+  auto next_symbol {*std::prev(std::end(text))};
+  uint8_t sl_type {};
+  uint8_t next_sl_type {L};
+  auto sl_factor_end {std::end(text)};
+  auto lex_text_it {std::prev(std::end(lex_text), 2)};
+  while (text_it != text_prev_begin)
   {
     if (*text_it == next_symbol)
     {
@@ -292,22 +370,19 @@ void CalculateFactors
       while (std::distance(factor_it, sl_factor_end) > 7)
       {
         auto factor_end {std::next(factor_it, 8)};
-        lex_factors.insert(SymbolsToInteger(factor_it, factor_end, text.width()));
-        colex_factors.insert(SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), text.width(), -1));
+        *lex_text_it-- = lex_factor_table.rank_1(SymbolsToInteger(factor_it, factor_end, text.width()));
         factor_it = factor_end;
       }
       if (std::distance(factor_it, sl_factor_end) != 0)
       {
-        lex_factors.insert(SymbolsToInteger(factor_it, sl_factor_end, text.width()));
-        colex_factors.insert(SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), text.width(), -1));
+        *lex_text_it-- = lex_factor_table.rank_1(SymbolsToInteger(factor_it, sl_factor_end, text.width()));
       }
       sl_factor_end = std::next(text_it);
     }
     next_symbol = *text_it--;
     next_sl_type = sl_type;
   }
-  lex_factors.insert(SymbolsToInteger(text_begin, sl_factor_end, text.width()));
-  colex_factors.insert(SymbolsToInteger(std::prev(sl_factor_end), std::prev(text_begin), text.width(), -1));
+  *lex_text_it = lex_factor_table.rank_1(SymbolsToInteger(std::next(text_prev_begin), sl_factor_end, text.width()));
   return;
 }
 
@@ -353,13 +428,44 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
     // index.tiny_patterns.Print(std::cout);
   }
   {
-    std::set<uint64_t> lex_factors;
-    std::set<uint64_t> colex_factors;
-    CalculateFactors(text, lex_factors, colex_factors);
-    index.lex_factor_table.SetUp(lex_factors);
-    index.colex_factor_table.SetUp(colex_factors);
-    // index.lex_factor_table.Print(std::cout);
-    // index.colex_factor_table.Print(std::cout);
+    std::map<uint64_t, uint64_t> lex_factor_counts;
+    std::map<uint64_t, uint64_t> colex_to_lex_factor;
+    {
+      lex_factor_counts[0] = 1;
+      colex_to_lex_factor[0] = 0;
+      CalculateFactorInformation(text, lex_factor_counts, colex_to_lex_factor);
+    }
+    std::vector<uint64_t> factors;
+    sdsl::int_vector<> lex_text;
+    uint64_t lex_text_size {};
+    for (auto const &pair : lex_factor_counts)
+    {
+      factors.emplace_back(std::get<0>(pair));
+      lex_text_size += std::get<1>(pair);
+    }
+    {
+      index.lex_factor_table.bits = decltype(index.lex_factor_table.bits)(std::begin(factors), std::end(factors));
+      index.lex_factor_table.rank_1.set_vector(&(index.lex_factor_table.bits));
+      // index.lex_factor_table.Print(std::cout);
+    }
+    {
+      lex_text.width(sdsl::bits::hi(std::size(factors) - 1) + 1);
+      lex_text.resize(lex_text_size);
+      CalculateLexText(text, index.lex_factor_table, lex_text);
+      *std::prev(std::end(lex_text)) = 0;
+      // Print(lex_text, std::cout);
+    }
+    {
+      factors.clear();
+      for (auto const &pair : colex_to_lex_factor)
+      {
+        factors.emplace_back(std::get<0>(pair));
+      }
+      index.colex_factor_table.bits = decltype(index.colex_factor_table.bits)(std::begin(factors), std::end(factors));
+      index.colex_factor_table.rank_1.set_vector(&(index.colex_factor_table.bits));
+      // index.colex_factor_table.Print(std::cout);
+    }
+    // CalculateColexToLex(colex_to_lex_factor, index.colex_to_lex);
   }
   return;
 }
