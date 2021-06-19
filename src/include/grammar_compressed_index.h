@@ -15,50 +15,6 @@ constexpr uint8_t L {0};
 
 template
 <
-  typename Text,
-  typename CharacterBucketOffsets
->
-void CalculateCharacterBucketEndOffsets
-(
-  Text const &text,
-  CharacterBucketOffsets &character_bucket_offsets
-)
-{
-  auto begin {std::begin(character_bucket_offsets)};
-  auto end {std::end(character_bucket_offsets)};
-  sdsl::util::set_to_value(character_bucket_offsets, 0);
-  for (auto const &character : text)
-  {
-    ++character_bucket_offsets[character];
-  }
-  std::partial_sum(begin, end, begin);
-  return;
-}
-
-template
-<
-  typename Text,
-  typename CharacterBucketOffsets
->
-void CalculateCharacterBucketBeginOffsets
-(
-  Text const &text,
-  CharacterBucketOffsets &character_bucket_offsets
-)
-{
-  CalculateCharacterBucketEndOffsets(text, character_bucket_offsets);
-  auto it {std::prev(std::end(character_bucket_offsets))};
-  auto last_it {std::begin(character_bucket_offsets)};
-  while (it != last_it)
-  {
-    *it-- = *std::prev(it);
-  }
-  *last_it = 0;
-  return;
-}
-
-template
-<
   typename LexText,
   typename LexToColex,
   typename ColexBwt
@@ -427,45 +383,81 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
     CalculateTinyPatternCounts(text, index.tiny_patterns);
     // index.tiny_patterns.Print(std::cout);
   }
+  std::map<uint64_t, uint64_t> lex_factor_counts;
+  std::map<uint64_t, uint64_t> colex_to_lex_factor;
   {
-    std::map<uint64_t, uint64_t> lex_factor_counts;
-    std::map<uint64_t, uint64_t> colex_to_lex_factor;
-    {
-      lex_factor_counts[0] = 1;
-      colex_to_lex_factor[0] = 0;
-      CalculateFactorInformation(text, lex_factor_counts, colex_to_lex_factor);
-    }
-    std::vector<uint64_t> factors;
-    sdsl::int_vector<> lex_text;
-    uint64_t lex_text_size {};
+    lex_factor_counts[0] = 1;
+    colex_to_lex_factor[0] = 0;
+    CalculateFactorInformation(text, lex_factor_counts, colex_to_lex_factor);
+  }
+  sdsl::int_vector<> lex_text;
+  uint64_t lex_text_size {};
+  uint64_t lex_alphabet_size {};
+  uint64_t lex_text_width {};
+  {
+    std::vector<uint64_t> lex_factors;
     for (auto const &pair : lex_factor_counts)
     {
-      factors.emplace_back(std::get<0>(pair));
+      lex_factors.emplace_back(std::get<0>(pair));
       lex_text_size += std::get<1>(pair);
     }
     {
-      index.lex_factor_table.bits = decltype(index.lex_factor_table.bits)(std::begin(factors), std::end(factors));
+      lex_alphabet_size = std::size(lex_factors);
+      lex_text_width = sdsl::bits::hi(lex_alphabet_size - 1) + 1;
+      index.lex_factor_table.bits = decltype(index.lex_factor_table.bits)(std::begin(lex_factors), std::end(lex_factors));
       index.lex_factor_table.rank_1.set_vector(&(index.lex_factor_table.bits));
       // index.lex_factor_table.Print(std::cout);
     }
     {
-      lex_text.width(sdsl::bits::hi(std::size(factors) - 1) + 1);
+      lex_text.width(sdsl::bits::hi(std::size(lex_factors) - 1) + 1);
       lex_text.resize(lex_text_size);
       CalculateLexText(text, index.lex_factor_table, lex_text);
       *std::prev(std::end(lex_text)) = 0;
       // Print(lex_text, std::cout);
     }
+  }
+  {
+    std::vector<uint64_t> colex_factors;
+    for (auto const &pair : colex_to_lex_factor)
     {
-      factors.clear();
-      for (auto const &pair : colex_to_lex_factor)
-      {
-        factors.emplace_back(std::get<0>(pair));
-      }
-      index.colex_factor_table.bits = decltype(index.colex_factor_table.bits)(std::begin(factors), std::end(factors));
-      index.colex_factor_table.rank_1.set_vector(&(index.colex_factor_table.bits));
-      // index.colex_factor_table.Print(std::cout);
+      colex_factors.emplace_back(std::get<0>(pair));
     }
-    // CalculateColexToLex(colex_to_lex_factor, index.colex_to_lex);
+    index.colex_factor_table.bits = decltype(index.colex_factor_table.bits)(std::begin(colex_factors), std::end(colex_factors));
+    index.colex_factor_table.rank_1.set_vector(&(index.colex_factor_table.bits));
+    // index.colex_factor_table.Print(std::cout);
+  }
+  {
+    index.colex_to_lex.width(lex_text_width);
+    index.colex_to_lex.resize(lex_alphabet_size);
+    auto it {std::begin(index.colex_to_lex)};
+    for (auto const &pair : colex_to_lex_factor)
+    {
+      *it++ = index.lex_factor_table.rank_1(std::get<1>(pair));
+    }
+    // Print(index.colex_to_lex, std::cout);
+  }
+  {
+    index.bucket_begin_offsets.width(sdsl::bits::hi(lex_text_size) + 1);
+    index.bucket_begin_offsets.resize(lex_alphabet_size + 1);
+    sdsl::util::set_to_value(index.bucket_begin_offsets, 0);
+    for (auto const lex_symbol : lex_text)
+    {
+      ++(index.bucket_begin_offsets[lex_symbol]);
+    }
+    std::partial_sum
+    (
+      std::begin(index.bucket_begin_offsets),
+      std::end(index.bucket_begin_offsets),
+      std::begin(index.bucket_begin_offsets)
+    );
+    auto it {std::prev(std::end(index.bucket_begin_offsets))};
+    auto begin {std::begin(index.bucket_begin_offsets)};
+    while (it != begin)
+    {
+      *it-- = *std::prev(it);
+    }
+    *begin = 0;
+    // Print(index.bucket_begin_offsets, std::cout);
   }
   return;
 }
