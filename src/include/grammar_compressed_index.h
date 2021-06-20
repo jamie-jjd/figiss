@@ -13,33 +13,6 @@ namespace project
 constexpr uint8_t S {1};
 constexpr uint8_t L {0};
 
-template
-<
-  typename LexText,
-  typename LexToColex,
-  typename ColexBwt
->
-void CalculateColexBwt
-(
-  LexText const &lex_text,
-  LexToColex const &lex_to_colex,
-  ColexBwt &colex_bwt
-)
-{
-  sdsl::int_vector<> buffer;
-  sdsl::qsufsort::construct_sa(buffer, lex_text);
-  for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
-  {
-    if (*it != 0)
-    {
-      *it = lex_to_colex[lex_text[(*it - 1)]];
-    }
-  }
-  // Print(std::cout, buffer);
-  sdsl::construct_im(colex_bwt, buffer);
-  return;
-}
-
 struct ByteAlphabet
 {
   uint16_t size;
@@ -107,6 +80,41 @@ struct ByteAlphabet
     file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
     file << "rank_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(rank_1)) << "B\n";
     file << "select_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(select_1)) << "B\n";
+    return;
+  }
+};
+
+struct Trie
+{
+  struct Node
+  {
+    uint64_t count;
+    std::map<uint8_t, std::shared_ptr<Node>> children;
+  };
+
+  std::shared_ptr<Node> root;
+
+  Trie (): root {std::make_shared<Node>()} {}
+
+  template <typename Iterator>
+  void Insert
+  (
+    Iterator it,
+    Iterator end,
+    int8_t const step = 1
+  )
+  {
+    auto node {root};
+    while (it != end)
+    {
+      if (node->children.find(*it) == node->children.end())
+      {
+        node->children[*it] = std::make_shared<Node>();
+      }
+      node = node->children[*it];
+      ++(node->count);
+      it += step;
+    }
     return;
   }
 };
@@ -458,6 +466,19 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
     }
     *begin = 0;
     // Print(index.bucket_begin_offsets, std::cout);
+  }
+  {
+    sdsl::int_vector<> buffer;
+    sdsl::qsufsort::construct_sa(buffer, lex_text);
+    for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
+    {
+      if (*it != 0)
+      {
+        *it = lex_text[(*it - 1)];
+      }
+    }
+    sdsl::construct_im(index.bwt, buffer);
+    // Print(index.bwt, std::cout);
   }
   return;
 }
