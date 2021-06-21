@@ -23,7 +23,7 @@ struct ByteAlphabet
   sdsl::bit_vector::select_1_type select_1;
 
   template <typename ByteText>
-  void SetUp (ByteText const &byte_text)
+  void Construct (ByteText const &byte_text)
   {
     size = *std::max_element(std::begin(byte_text), std::end(byte_text)) + 1;
     bits.resize(size);
@@ -119,69 +119,93 @@ struct Trie
   }
 };
 
-struct TinyPatterns
+template <typename Text>
+void CalculateTemporaryTinyPatternTrie (Text const &text, Trie &trie)
 {
-  sdsl::sd_vector<> bits;
-  sdsl::sd_vector<>::rank_1_type rank_1;
+  auto text_it {std::begin(text)};
+  while (std::distance(text_it, std::end(text)) > 6)
+  {
+    auto it {text_it};
+    auto end {std::next(it, 7)};
+    while (it != end)
+    {
+      trie.Insert(it, end);
+      ++it;
+    }
+    ++text_it;
+  }
+  while (text_it != std::end(text))
+  {
+    trie.Insert(text_it, std::end(text));
+    ++text_it;
+  }
+  return;
+}
+
+struct TinyPatternTrie
+{
+  sdsl::bit_vector level_order;
+  sdsl::bit_vector::select_1_type select_1;
+  sdsl::int_vector<> labels;
   sdsl::int_vector<> counts;
+
+  void Construct (Trie const &trie)
+  {
+    std::deque<uint8_t> level_order_;
+    std::deque<uint8_t> labels_;
+    std::deque<uint64_t> counts_;
+    std::deque<std::shared_ptr<Trie::Node>> nodes;
+    nodes.emplace_back(trie.root);
+    while (!nodes.empty())
+    {
+      auto node {nodes.front()};
+      nodes.pop_front();
+      for (auto const &pair : node->children)
+      {
+        auto label {std::get<0>(pair)};
+        auto child {std::get<1>(pair)};
+        nodes.emplace_back(child);
+        level_order_.emplace_back(0);
+        labels_.emplace_back(label);
+        counts_.emplace_back(child->count);
+      }
+      level_order_.emplace_back(1);
+    }
+    {
+      level_order.resize(std::size(level_order_));
+      auto it {std::begin(level_order)};
+      for (auto const bit : level_order_)
+      {
+        *it++ = bit;
+      }
+      select_1 = decltype(select_1)(&level_order);
+    }
+    {
+      labels.width(8);
+      labels.resize(std::size(labels_));
+      std::copy(std::begin(labels_), std::end(labels_), std::begin(labels));
+      sdsl::util::bit_compress(labels);
+    }
+    {
+      counts.width(8);
+      counts.resize(std::size(counts_));
+      std::copy(std::begin(counts_), std::end(counts_), std::begin(counts));
+      sdsl::util::bit_compress(counts);
+    }
+    return;
+  }
 
   template <typename File>
   void Print (File &file)
   {
-    file << "|tiny patterns|: " << rank_1(std::size(bits)) << "\n";
     file << "space:\n";
-    file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
+    file << "level_order: " << ProperSizeRepresentation(sdsl::size_in_bytes(level_order)) << "B\n";
+    file << "select_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(select_1)) << "B\n";
+    file << "labels: " << ProperSizeRepresentation(sdsl::size_in_bytes(labels)) << "B\n";
     file << "counts: " << ProperSizeRepresentation(sdsl::size_in_bytes(counts)) << "B\n";
     return;
   }
 };
-
-template <typename Text>
-void CalculateTinyPatternCounts (Text const &text, TinyPatterns &tiny_patterns)
-{
-  std::map<uint64_t, uint64_t> pattern_counts;
-  auto text_end {std::end(text)};
-  for (auto text_it {std::begin(text)}; text_it != text_end; ++text_it)
-  {
-    uint64_t pattern {};
-    auto it {text_it};
-    for (uint64_t i {7}; (it != text_end) && (i != 0); ++it, --i)
-    {
-      pattern += *it * (1ULL << (text.width() * (i - 1)));
-      auto pattern_counts_it {pattern_counts.find(pattern)};
-      if (pattern_counts_it != std::end(pattern_counts))
-      {
-        ++std::get<1>(*pattern_counts_it);
-      }
-      else
-      {
-        pattern_counts[pattern] = 1;
-      }
-    }
-  }
-  {
-    std::vector<uint64_t> patterns;
-    uint64_t max_count {};
-    for (auto const &pair : pattern_counts)
-    {
-      patterns.emplace_back(std::get<0>(pair));
-      if (std::get<1>(pair) > max_count)
-      {
-        max_count = std::get<1>(pair);
-      }
-    }
-    tiny_patterns.bits = decltype(tiny_patterns.bits)(std::begin(patterns), std::end(patterns));
-    tiny_patterns.rank_1.set_vector(&(tiny_patterns.bits));
-    tiny_patterns.counts.width(sdsl::bits::hi(max_count) + 1);
-    tiny_patterns.counts.resize(std::size(pattern_counts));
-    auto counts_it {std::begin(tiny_patterns.counts)};
-    for (auto const &pair : pattern_counts)
-    {
-      *counts_it++ = std::get<1>(pair);
-    }
-  }
-  return;
-}
 
 struct FactorTable
 {
@@ -353,7 +377,7 @@ void CalculateLexText
 struct Index
 {
   ByteAlphabet byte_alphabet;
-  TinyPatterns tiny_patterns;
+  TinyPatternTrie tiny_pattern_trie;
   FactorTable lex_factor_table;
   FactorTable colex_factor_table;
   sdsl::int_vector<> colex_to_lex;
@@ -376,7 +400,7 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
   {
     sdsl::int_vector<8> byte_text;
     sdsl::load_vector_from_file(byte_text, text_path);
-    index.byte_alphabet.SetUp(byte_text);
+    index.byte_alphabet.Construct(byte_text);
     // index.byte_alphabet.Print(std::cout);
     text.width(index.byte_alphabet.symbol_width);
     text.resize(std::size(byte_text));
@@ -388,8 +412,10 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
     // Print(text, std::cout);
   }
   {
-    CalculateTinyPatternCounts(text, index.tiny_patterns);
-    // index.tiny_patterns.Print(std::cout);
+    Trie trie;
+    CalculateTemporaryTinyPatternTrie(text, trie);
+    index.tiny_pattern_trie.Construct(trie);
+    // index.tiny_pattern_trie.Print(std::cout);
   }
   std::map<uint64_t, uint64_t> lex_factor_counts;
   std::map<uint64_t, uint64_t> colex_to_lex_factor;
