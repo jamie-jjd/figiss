@@ -120,13 +120,18 @@ struct Trie
 };
 
 template <typename Text>
-void CalculateTemporaryTinyPatternTrie (Text const &text, Trie &trie)
+void CalculateTemporaryTinyPatternTrie
+(
+  Text const &text,
+  uint8_t const max_factor_size,
+  Trie &trie
+)
 {
   auto text_it {std::begin(text)};
-  while (std::distance(text_it, std::end(text)) > 6)
+  while (std::distance(text_it, std::end(text)) >= max_factor_size)
   {
     auto it {text_it};
-    auto end {std::next(it, 7)};
+    auto end {std::next(it, max_factor_size - 1)};
     while (it != end)
     {
       trie.Insert(it, end);
@@ -149,12 +154,13 @@ struct TinyPatternTrie
   sdsl::int_vector<> labels;
   sdsl::int_vector<> counts;
 
+  template <typename Trie>
   void Construct (Trie const &trie)
   {
     std::deque<uint8_t> level_order_;
     std::deque<uint8_t> labels_;
     std::deque<uint64_t> counts_;
-    std::deque<std::shared_ptr<Trie::Node>> nodes;
+    std::deque<std::shared_ptr<typename Trie::Node>> nodes;
     nodes.emplace_back(trie.root);
     while (!nodes.empty())
     {
@@ -247,6 +253,7 @@ template
 void CalculateFactorInformation
 (
   Text const &text,
+  uint8_t const max_factor_size,
   LexFactorCounts &lex_factor_counts,
   ColexToLexFactor &colex_to_lex_factor
 )
@@ -278,9 +285,9 @@ void CalculateFactorInformation
       auto factor_it {std::next(text_it)};
       uint64_t lex_factor {};
       uint64_t colex_factor {};
-      while (std::distance(factor_it, sl_factor_end) > 7)
+      while (std::distance(factor_it, sl_factor_end) >= max_factor_size)
       {
-        auto factor_end {std::next(factor_it, 8)};
+        auto factor_end {std::next(factor_it, max_factor_size)};
         lex_factor = SymbolsToInteger(factor_it, factor_end, text.width());
         colex_factor = SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), text.width(), -1);
         if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
@@ -328,6 +335,7 @@ void CalculateLexText
 (
   Text const &text,
   LexFactorTable const &lex_factor_table,
+  uint8_t const max_factor_size,
   LexText &lex_text
 )
 {
@@ -355,9 +363,9 @@ void CalculateLexText
     if ((sl_type == L) && (next_sl_type == S))
     {
       auto factor_it {std::next(text_it)};
-      while (std::distance(factor_it, sl_factor_end) > 7)
+      while (std::distance(factor_it, sl_factor_end) >= max_factor_size)
       {
-        auto factor_end {std::next(factor_it, 8)};
+        auto factor_end {std::next(factor_it, max_factor_size)};
         *lex_text_it-- = lex_factor_table.rank_1(SymbolsToInteger(factor_it, factor_end, text.width()));
         factor_it = factor_end;
       }
@@ -374,8 +382,10 @@ void CalculateLexText
   return;
 }
 
+template <uint8_t MaxFactorSize = 4>
 struct Index
 {
+  static constexpr uint8_t max_factor_size {MaxFactorSize};
   ByteAlphabet byte_alphabet;
   TinyPatternTrie tiny_pattern_trie;
   FactorTable lex_factor_table;
@@ -409,20 +419,22 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
     {
       *text_it++ = index.byte_alphabet.GetSymbol(byte);
     }
-    // Print(text, std::cout);
+    Print(text, std::cout, 1, "");
   }
+  return;
   {
     Trie trie;
-    CalculateTemporaryTinyPatternTrie(text, trie);
+    CalculateTemporaryTinyPatternTrie(text, Index::max_factor_size, trie);
     index.tiny_pattern_trie.Construct(trie);
-    // index.tiny_pattern_trie.Print(std::cout);
+    index.tiny_pattern_trie.Print(std::cout);
   }
+  return;
   std::map<uint64_t, uint64_t> lex_factor_counts;
   std::map<uint64_t, uint64_t> colex_to_lex_factor;
   {
     lex_factor_counts[0] = 1;
     colex_to_lex_factor[0] = 0;
-    CalculateFactorInformation(text, lex_factor_counts, colex_to_lex_factor);
+    CalculateFactorInformation(text, Index::max_factor_size, lex_factor_counts, colex_to_lex_factor);
   }
   sdsl::int_vector<> lex_text;
   uint64_t lex_text_size {};
@@ -445,7 +457,7 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
     {
       lex_text.width(sdsl::bits::hi(std::size(lex_factors) - 1) + 1);
       lex_text.resize(lex_text_size);
-      CalculateLexText(text, index.lex_factor_table, lex_text);
+      CalculateLexText(text, index.lex_factor_table, Index::max_factor_size, lex_text);
       *std::prev(std::end(lex_text)) = 0;
       // Print(lex_text, std::cout);
     }
