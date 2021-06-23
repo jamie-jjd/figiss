@@ -21,13 +21,20 @@ class ByteAlphabet
 public:
 
   ByteAlphabet () = default;
-  ByteAlphabet (ByteAlphabet const &) = default;
-  ByteAlphabet (ByteAlphabet &&) = default;
-  ByteAlphabet (sdsl::int_vector<8> const &byte_text);
-  ByteAlphabet& operator= (ByteAlphabet const &) = default;
+  ByteAlphabet (sdsl::int_vector<8> const &byte_text) noexcept;
   ByteAlphabet& operator= (ByteAlphabet &&) noexcept;
 
-  inline uint64_t ToSymbol (uint64_t const byte) const
+  inline uint16_t GetEffectiveAlphabetSize () const noexcept
+  {
+    return effective_alphabet_size_;
+  }
+
+  inline uint16_t GetEffectiveAlphabetWidth () const noexcept
+  {
+    return effective_alphabet_width_;
+  }
+
+  inline uint64_t ToSymbol (uint64_t const byte) const noexcept
   {
     if ((byte < std::size(alphabet_bits_)) && alphabet_bits_[byte])
     {
@@ -36,7 +43,7 @@ public:
     return 0;
   }
 
-  inline uint64_t ToByte (uint64_t const symbol) const
+  inline uint64_t ToByte (uint64_t const symbol) const noexcept
   {
     if (symbol < effective_alphabet_size_)
     {
@@ -45,31 +52,7 @@ public:
     return 0;
   }
 
-  friend std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet)
-  {
-    {
-      out << "value:\n";
-      out << "effective_alphabet_size_:\n";
-      out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_size_) << "\n";
-      out << "effective_alphabet_width_:\n";
-      out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_width_) << "\n";
-      out << "byte alphabet:\n";
-      for (uint16_t symbol {}; symbol != byte_alphabet.effective_alphabet_size_; ++symbol)
-      {
-        out << byte_alphabet.ToByte(symbol);
-        out << ((symbol != (byte_alphabet.effective_alphabet_size_ - 1)) ? " " : "\n");
-      }
-    }
-    {
-      out << "space:\n";
-      out << "effective_alphabet_size_: " << sizeof(byte_alphabet.effective_alphabet_size_) << "B\n";
-      out << "effective_alphabet_width_: " << sizeof(byte_alphabet.effective_alphabet_width_) << "B\n";
-      out << "alphabet_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.alphabet_bits_)) << "B\n";
-      out << "byte_to_symbol_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.byte_to_symbol_)) << "B\n";
-      out << "symbol_to_byte_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.symbol_to_byte_)) << "B\n";
-    }
-    return out;
-  }
+  friend std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet);
 
 private:
 
@@ -81,7 +64,7 @@ private:
 
 };
 
-ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const &byte_text)
+ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const &byte_text) noexcept
 {
   alphabet_bits_.resize(*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1);
   sdsl::util::set_to_value(alphabet_bits_, 0);
@@ -110,246 +93,271 @@ ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet &&byte_alphabet) noexcept
   return *this;
 }
 
-// class CompactTrie
-// {
-// public:
-//
-//   class Node
-//   {
-//   public:
-//     std::deque<uint8_t> edge_labels;
-//     std::map<uint8_t, std::shared_ptr<Node>> children;
-//     uint64_t count;
-//   };
-//
-//   std::shared_ptr<Node> root;
-//
-//   CompactTrie (): root {std::make_shared<Node>()} {}
-//
-//   template <typename Iterator>
-//   void Insert (Iterator it, Iterator last)
-//   {
-//     auto node {root};
-//     while (true)
-//     {
-//       auto symbol {*it++};
-//       auto children_it {node->children.find(symbol)};
-//       if (children_it == std::end(node->children))
-//       {
-//         node = node->children[symbol] = std::make_shared<Node>();
-//         while (it != last)
-//         {
-//           node->edge_labels.emplace_back(*it);
-//           ++it;
-//         }
-//         node->count = 1;
-//         return;
-//       }
-//       else
-//       {
-//         auto child {std::get<1>(*children_it)};
-//         auto labels_it {std::begin(child->edge_labels)};
-//         auto labels_end {std::end(child->edge_labels)};
-//         while ((it != last) && (labels_it != labels_end) && (*it == *labels_it))
-//         {
-//           ++it;
-//           ++labels_it;
-//         }
-//         if (labels_it == labels_end)
-//         {
-//           if (it != last)
-//           {
-//             node = child;
-//           }
-//           else
-//           {
-//             ++(child->count);
-//             return;
-//           }
-//         }
-//         else
-//         {
-//           auto internal_node {std::make_shared<Node>()};
-//           {
-//             auto length {std::distance(std::begin(child->edge_labels), labels_it)};
-//             while (length--)
-//             {
-//               internal_node->edge_labels.emplace_back(child->edge_labels.front());
-//               child->edge_labels.pop_front();
-//             }
-//             internal_node->count = child->count;
-//           }
-//           std::get<1>(*children_it) = internal_node;
-//           internal_node->children[*labels_it] = child;
-//           if (it != last)
-//           {
-//             node = internal_node;
-//           }
-//           else
-//           {
-//             ++(internal_node->count);
-//             return;
-//           }
-//         }
-//       }
-//     }
-//     return;
-//   }
-//
-//   friend std::ostream& operator<< (std::ostream &out, std::pair<CompactTrie, bool> const &pair)
-//   {
-//     auto &trie {std::get<0>(pair)};
-//     auto is_preorder {std::get<1>(pair)};
-//     std::deque<std::pair<std::shared_ptr<Node>, uint64_t>> nodes;
-//     nodes.emplace_back(trie.root, 0);
-//     while (!nodes.empty())
-//     {
-//       auto node {std::get<0>(nodes.back())};
-//       auto depth {std::get<1>(nodes.back())};
-//       if (is_preorder)
-//       {
-//         nodes.pop_back();
-//       }
-//       else
-//       {
-//         node = std::get<0>(nodes.front());
-//         depth = std::get<1>(nodes.front());
-//         nodes.pop_front();
-//       }
-//       if (depth != 0)
-//       {
-//
-//       }
-//     }
-//     return out;
-//   }
-// };
-//
-// template <typename Text>
-// void CalculateTemporaryTinyPatternTrie
-// (
-//   Text const &text,
-//   CompactTrie &trie
-// )
-// {
-//   auto text_it {std::begin(text)};
-//   while (std::distance(text_it, std::end(text)) >= Index::max_factor_size)
-//   {
-//     auto it {text_it};
-//     auto end {std::next(it, Index::max_factor_size - 1)};
-//     while (it != end)
-//     {
-//       trie.Insert(it, end);
-//       ++it;
-//     }
-//     ++text_it;
-//   }
-//   while (text_it != std::end(text))
-//   {
-//     trie.Insert(text_it, std::end(text));
-//     ++text_it;
-//   }
-//   return;
-// }
-//
-// struct TinyPatternTrie
-// {
-//   sdsl::bit_vector branch_bits;
-//   sdsl::bit_vector::select_1_type branches_select_1;
-//   sdsl::int_vector<> branch_labels;
-//   sdsl::bit_vector edge_bits;
-//   sdsl::bit_vector::select_1_type edge_select_1;
-//   sdsl::int_vector<> edge_labels;
-//   sdsl::int_vector<> counts;
-//
-//   void Construct (CompactTrie const &trie)
-//   {
-//     std::deque<uint8_t> branch_bits_;
-//     std::deque<uint8_t> branch_labels_;
-//     std::deque<uint8_t> edge_bits_;
-//     std::deque<uint8_t> edge_labels_;
-//     std::deque<uint64_t> counts_;
-//     std::deque<std::shared_ptr<CompactTrie::Node>> nodes;
-//     nodes.emplace_back(trie.root);
-//     while (!nodes.empty())
-//     {
-//       auto node {nodes.front()};
-//       nodes.pop_front();
-//       for (auto const &pair : node->children)
-//       {
-//         auto label {std::get<0>(pair)};
-//         auto child {std::get<1>(pair)};
-//         nodes.emplace_back(child);
-//         branch_bits_.emplace_back(0);
-//         branch_labels_.emplace_back(label);
-//         {
-//           auto it {std::begin(child->edge_labels)};
-//           auto prev_end {std::prev(std::end(child->edge_labels))};
-//           edge_bits_.emplace_back(1);
-//           while (it != prev_end)
-//           {
-//             edge_bits_.emplace_back(0);
-//             edge_labels_.emplace_back(*it);
-//           }
-//           edge_labels_.emplace_back(*prev_end);
-//         }
-//         counts_.emplace_back(child->count);
-//       }
-//       branch_bits_.emplace_back(1);
-//     }
-//     {
-//       branch_bits.resize(std::size(branch_bits_));
-//       auto it {std::begin(branch_bits)};
-//       for (auto const bit : branch_bits_)
-//       {
-//         *it++ = bit;
-//       }
-//       branches_select_1 = decltype(branches_select_1)(&branch_bits);
-//     }
-//     {
-//       branch_labels.width(8);
-//       branch_labels.resize(std::size(branch_labels_));
-//       std::copy(std::begin(branch_labels_), std::end(branch_labels_), std::begin(branch_labels));
-//       sdsl::util::bit_compress(branch_labels);
-//     }
-//     {
-//       edge_bits.resize(std::size(edge_bits_));
-//       auto it {std::begin(edge_bits)};
-//       for (auto const bit : edge_bits_)
-//       {
-//         *it++ = bit;
-//       }
-//       edge_select_1 = decltype(edge_select_1)(&edge_bits);
-//     }
-//     {
-//       edge_labels.width(8);
-//       edge_labels.resize(std::size(edge_labels_));
-//       std::copy(std::begin(edge_labels_), std::end(edge_labels_), std::begin(edge_labels));
-//       sdsl::util::bit_compress(edge_labels);
-//     }
-//     {
-//       counts.resize(std::size(counts_));
-//       std::copy(std::begin(counts_), std::end(counts_), std::begin(counts));
-//       sdsl::util::bit_compress(counts);
-//     }
-//     return;
-//   }
-//
-//   template <typename File>
-//   void Print (File &file)
-//   {
-//     file << "space:\n";
-//     file << "branch_bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(branch_bits)) << "B\n";
-//     file << "select_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(branches_select_1)) << "B\n";
-//     file << "branch_labels: " << ProperSizeRepresentation(sdsl::size_in_bytes(branch_labels)) << "B\n";
-//     file << "edge_bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(edge_bits)) << "B\n";
-//     file << "edge_select_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(edge_select_1)) << "B\n";
-//     file << "edge_labels: " << ProperSizeRepresentation(sdsl::size_in_bytes(edge_labels)) << "B\n";
-//     file << "counts: " << ProperSizeRepresentation(sdsl::size_in_bytes(counts)) << "B\n";
-//     return;
-//   }
-// };
-//
+std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet)
+{
+  {
+    out << "value:\n";
+    out << "effective_alphabet_size_:\n";
+    out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_size_) << "\n";
+    out << "effective_alphabet_width_:\n";
+    out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_width_) << "\n";
+    out << "byte alphabet:\n";
+    for (uint16_t symbol {}; symbol != byte_alphabet.effective_alphabet_size_; ++symbol)
+    {
+      out << byte_alphabet.ToByte(symbol);
+      out << ((symbol != (byte_alphabet.effective_alphabet_size_ - 1)) ? " " : "\n");
+    }
+  }
+  {
+    out << "space:\n";
+    out << "effective_alphabet_size_: " << sizeof(byte_alphabet.effective_alphabet_size_) << "B\n";
+    out << "effective_alphabet_width_: " << sizeof(byte_alphabet.effective_alphabet_width_) << "B\n";
+    out << "alphabet_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.alphabet_bits_)) << "B\n";
+    out << "byte_to_symbol_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.byte_to_symbol_)) << "B\n";
+    out << "symbol_to_byte_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.symbol_to_byte_)) << "B\n";
+  }
+  return out;
+}
+
+class Trie
+{
+public:
+
+  class Node
+  {
+  public:
+    std::map<uint8_t, std::shared_ptr<Node>> children;
+    uint64_t count;
+  };
+
+  Trie (): root_ {std::make_shared<Node>()} {}
+
+  template <typename Iterator>
+  void Insert (Iterator it, Iterator last);
+
+  inline auto GetRoot () const noexcept
+  {
+    return root_;
+  }
+
+  friend std::ostream& operator<< (std::ostream &out, std::pair<Trie, bool> const &pair);
+
+private:
+
+  std::shared_ptr<Node> root_;
+
+};
+
+template <typename Iterator>
+void Trie::Insert (Iterator it, Iterator end)
+{
+  auto node {root_};
+  while (it != end)
+  {
+    if (node->children.find(*it) == node->children.end())
+    {
+      node->children[*it] = std::make_shared<Node>();
+    }
+    node = node->children[*it];
+    ++it;
+  }
+  ++(node->count);
+  return;
+}
+
+std::ostream& operator<< (std::ostream &out, std::pair<Trie, bool> const &pair)
+{
+  auto const &trie {std::get<0>(pair)};
+  auto const is_level_order {std::get<1>(pair)};
+  std::deque<std::tuple<std::shared_ptr<Trie::Node>, uint64_t, uint64_t>> nodes;
+  nodes.emplace_back(trie.root_, 0, 0);
+  uint64_t size {};
+  while (!nodes.empty())
+  {
+    ++size;
+    auto node {std::get<0>(nodes.front())};
+    auto label {std::get<1>(nodes.front())};
+    auto depth {std::get<2>(nodes.front())};
+    if (is_level_order)
+    {
+      nodes.pop_front();
+    }
+    else
+    {
+      node = std::get<0>(nodes.back());
+      label = std::get<1>(nodes.back());
+      depth = std::get<2>(nodes.back());
+      nodes.pop_back();
+    }
+    if (depth != 0)
+    {
+      out << depth << ":" << label << "(" << node->count << ")\n";
+    }
+    if (is_level_order)
+    {
+      for (auto it {std::begin(node->children)}; it != std::end(node->children); ++it)
+      {
+        nodes.emplace_back(std::get<1>(*it), std::get<0>(*it), depth + 1);
+      }
+    }
+    else
+    {
+      for (auto it {std::rbegin(node->children)}; it != std::rend(node->children); ++it)
+      {
+        nodes.emplace_back(std::get<1>(*it), std::get<0>(*it), depth + 1);
+      }
+    }
+  }
+  out << (size - 1) << "\n";
+  return out;
+}
+
+class TinyPatternTrie
+{
+public:
+
+  TinyPatternTrie () = default;
+  TinyPatternTrie (Trie const &trie) noexcept;
+  TinyPatternTrie (TinyPatternTrie const &) = default;
+  TinyPatternTrie& operator= (TinyPatternTrie &&) noexcept;
+
+  inline auto GetOffsetRange (uint64_t const level_order) const noexcept
+  {
+    return std::make_pair
+    (
+      level_order_select_1_(level_order + 1) - (level_order + 1) + 1,
+      level_order_select_1_(level_order + 2) - (level_order + 2) + 1
+    );
+  }
+
+  inline auto GetLabel (uint64_t const offset) const noexcept
+  {
+    return labels_[offset];
+  }
+
+  inline auto GetCount (uint64_t const offset) const noexcept
+  {
+    return counts_[offset];
+  }
+
+  friend std::ostream& operator<< (std::ostream &out, std::pair<TinyPatternTrie, bool> const &pair);
+
+private:
+
+  sdsl::bit_vector level_order_bits_;
+  sdsl::bit_vector::select_1_type level_order_select_1_;
+  sdsl::int_vector<> labels_;
+  sdsl::int_vector<> counts_;
+
+};
+
+TinyPatternTrie::TinyPatternTrie (Trie const &trie) noexcept
+{
+  std::vector<bool> level_order_bits;
+  std::vector<uint8_t> labels;
+  std::vector<uint64_t> counts;
+  std::deque<std::shared_ptr<Trie::Node>> nodes;
+  nodes.emplace_back(trie.GetRoot());
+  while (!nodes.empty())
+  {
+    auto node {nodes.front()};
+    nodes.pop_front();
+    for (auto const &pair : node->children)
+    {
+      auto label {std::get<0>(pair)};
+      auto child {std::get<1>(pair)};
+      nodes.emplace_back(child);
+      level_order_bits.emplace_back(0);
+      labels.emplace_back(label);
+      counts.emplace_back(child->count);
+    }
+    level_order_bits.emplace_back(1);
+  }
+  {
+    level_order_bits_.resize(std::size(level_order_bits));
+    std::copy(std::begin(level_order_bits), std::end(level_order_bits), std::begin(level_order_bits_));
+    level_order_select_1_ = decltype(level_order_select_1_)(&level_order_bits_);
+  }
+  {
+    labels_.resize(std::size(labels));
+    std::copy(std::begin(labels), std::end(labels), std::begin(labels_));
+    sdsl::util::bit_compress(labels_);
+  }
+  {
+    counts_.resize(std::size(counts));
+    std::copy(std::begin(counts), std::end(counts), std::begin(counts_));
+    sdsl::util::bit_compress(counts_);
+  }
+  return;
+}
+
+TinyPatternTrie& TinyPatternTrie::operator= (TinyPatternTrie &&tiny_pattern_trie) noexcept
+{
+  if (this != &tiny_pattern_trie)
+  {
+    level_order_bits_ = std::move(tiny_pattern_trie.level_order_bits_);
+    level_order_select_1_ = std::move(tiny_pattern_trie.level_order_select_1_);
+    level_order_select_1_.set_vector(&level_order_bits_);
+    labels_ = std::move(tiny_pattern_trie.labels_);
+    counts_ = std::move(tiny_pattern_trie.counts_);
+  }
+  return *this;
+}
+
+std::ostream& operator<< (std::ostream &out, std::pair<TinyPatternTrie, bool> const &pair)
+{
+  auto const &trie {std::get<0>(pair)};
+  auto const is_level_order {std::get<1>(pair)};
+  std::deque<std::pair<uint64_t, uint64_t>> offsets;
+  offsets.emplace_back(0, 0);
+  while (!offsets.empty())
+  {
+    auto offset {std::get<0>(offsets.front())};
+    auto depth {std::get<1>(offsets.front())};
+    if (is_level_order)
+    {
+      offsets.pop_front();
+    }
+    else
+    {
+      offset = std::get<0>(offsets.back());
+      depth = std::get<1>(offsets.back());
+      offsets.pop_back();
+    }
+    auto offset_range {trie.GetOffsetRange(offset)};
+    if (depth != 0)
+    {
+      out << depth << ":" << trie.GetLabel(offset) << "(" << trie.GetCount(offset) << ")\n";
+    }
+    else
+    {
+      std::get<1>(offset_range) = std::get<0>(offset_range);
+      std::get<0>(offset_range) = 0;
+    }
+    if (is_level_order)
+    {
+      for (auto offset {std::get<0>(offset_range)}; offset != std::get<1>(offset_range); ++offset)
+      {
+        offsets.emplace_back(offset, depth + 1);
+      }
+    }
+    else
+    {
+      for (auto offset {std::get<1>(offset_range) - 1}; offset != (std::get<0>(offset_range) - 1); --offset)
+      {
+        offsets.emplace_back(offset, depth + 1);
+      }
+    }
+  }
+  out << std::size(trie.labels_) << "\n";
+  out << "space:\n";
+  out << "level_order_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(trie.level_order_bits_)) << "B\n";
+  out << "level_order_select_1_: " << ProperSizeRepresentation(sdsl::size_in_bytes(trie.level_order_select_1_)) << "B\n";
+  out << "labels_: " << ProperSizeRepresentation(sdsl::size_in_bytes(trie.labels_)) << "B\n";
+  out << "counts_: " << ProperSizeRepresentation(sdsl::size_in_bytes(trie.counts_)) << "B\n";
+  return out;
+}
+
 // struct FactorTable
 // {
 //   sdsl::sd_vector<> bits;
@@ -363,7 +371,7 @@ ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet &&byte_alphabet) noexcept
 //     file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
 //   }
 // };
-//
+
 // template <typename StringIterator>
 // uint64_t SymbolsToInteger
 // (
@@ -443,7 +451,7 @@ class Index
 {
 public:
 
-  static constexpr uint8_t kMaxFactorSize {Index::max_factor_size};
+  static constexpr uint8_t kMaxFactorSize {max_factor_size};
   static constexpr uint8_t kS {1};
   static constexpr uint8_t kL {0};
 
@@ -456,7 +464,7 @@ public:
 private:
 
   ByteAlphabet byte_alphabet;
-  // TinyPatternTrie tiny_pattern_trie;
+  TinyPatternTrie tiny_pattern_trie;
   // FactorTable lex_factor_table;
   // FactorTable colex_factor_table;
   sdsl::int_vector<> colex_to_lex;
@@ -470,7 +478,7 @@ private:
   >
   bwt;
 
-  // CalculateFactorInformation()
+  void CalculateTemporaryTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie);
 
 };
 
@@ -494,22 +502,27 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     }
     byte_alphabet = decltype(byte_alphabet)(byte_text);
     // std::cout << byte_alphabet;
-    return;
-    // text.width(index.byte_alphabet.symbol_width);
-    // text.resize(std::size(byte_text));
-    // auto text_it {std::begin(text)};
-    // for (auto const &byte : byte_text)
-    // {
-    //   *text_it++ = index.byte_alphabet.GetSymbol(byte);
-    // }
-    // Print(text, std::cout, 1, "");
+    text.width(byte_alphabet.GetEffectiveAlphabetWidth());
+    text.resize(std::size(byte_text));
+    std::transform
+    (
+      std::begin(byte_text),
+      std::end(byte_text),
+      std::begin(text),
+      [&] (auto const byte)
+      {
+        return byte_alphabet.ToSymbol(byte);
+      }
+    );
+    // Print(text, std::cout);
   }
-  // {
-  //   CompactTrie trie;
-  //   CalculateTemporaryTinyPatternTrie(text, Index::max_factor_size, trie);
-  //   // index.tiny_pattern_trie.Construct(trie);
-  //   // index.tiny_pattern_trie.Print(std::cout);
-  // }
+  {
+    Trie trie;
+    CalculateTemporaryTinyPatternTrie(text, trie);
+    // std::cout << std::make_pair(trie, /*is_level_order=*/false);
+    tiny_pattern_trie = decltype(tiny_pattern_trie)(trie);
+    // std::cout << std::make_pair(tiny_pattern_trie, /*is_level_order=*/false);
+  }
   // return;
   // std::map<uint64_t, uint64_t> lex_factor_counts;
   // std::map<uint64_t, uint64_t> colex_to_lex_factor;
@@ -600,6 +613,30 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
   //   sdsl::construct_im(index.bwt, buffer);
   //   // Print(index.bwt, std::cout);
   // }
+}
+
+template <uint8_t max_factor_size>
+void Index<max_factor_size>::CalculateTemporaryTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie)
+{
+  auto text_it {std::begin(text)};
+  auto text_last {std::prev(std::end(text))};
+  while (std::distance(text_it, text_last) >= (Index::kMaxFactorSize - 1))
+  {
+    auto it {text_it};
+    auto end {std::next(it, Index::kMaxFactorSize - 1)};
+    while (it != end)
+    {
+      trie.Insert(it, end);
+      ++it;
+    }
+    ++text_it;
+  }
+  while (text_it != text_last)
+  {
+    trie.Insert(text_it, text_last);
+    ++text_it;
+  }
+  return;
 }
 
 // template
