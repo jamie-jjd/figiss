@@ -10,386 +10,455 @@
 
 namespace project
 {
-constexpr uint8_t S {1};
-constexpr uint8_t L {0};
-
-struct ByteAlphabet
+template <typename T>
+void f (T)
 {
-  uint16_t size;
-  uint16_t symbol_size;
-  uint8_t symbol_width;
-  sdsl::bit_vector bits;
-  sdsl::bit_vector::rank_1_type rank_1;
-  sdsl::bit_vector::select_1_type select_1;
+  std::cout << __PRETTY_FUNCTION__ << "\n";
+  return;
+}
+class ByteAlphabet
+{
+public:
 
-  template <typename ByteText>
-  void Construct (ByteText const &byte_text)
-  {
-    size = *std::max_element(std::begin(byte_text), std::end(byte_text)) + 1;
-    bits.resize(size);
-    sdsl::util::set_to_value(bits, 0);
-    bits[0] = 1;
-    for (auto const byte : byte_text)
-    {
-      bits[byte] = 1;
-    }
-    rank_1 = decltype(rank_1)(&bits);
-    symbol_size = rank_1(size);
-    symbol_width = sdsl::bits::hi(symbol_size - 1) + 1;
-    select_1 = decltype(select_1)(&bits);
-    return;
-  }
+  ByteAlphabet () = default;
+  ByteAlphabet (ByteAlphabet const &) = default;
+  ByteAlphabet (ByteAlphabet &&) = default;
+  ByteAlphabet (sdsl::int_vector<8> const &byte_text);
+  ByteAlphabet& operator= (ByteAlphabet const &) = default;
+  ByteAlphabet& operator= (ByteAlphabet &&) noexcept;
 
-  uint64_t GetSymbol (uint64_t const byte)
+  inline uint64_t ToSymbol (uint64_t const byte) const
   {
-    if ((byte < size) && bits[byte])
+    if ((byte < std::size(alphabet_bits_)) && alphabet_bits_[byte])
     {
-      return rank_1(byte);
+      return byte_to_symbol_(byte);
     }
     return 0;
   }
 
-  uint64_t GetByte (uint64_t const symbol)
+  inline uint64_t ToByte (uint64_t const symbol) const
   {
-    if (symbol < symbol_size)
+    if (symbol < effective_alphabet_size_)
     {
-      return select_1(symbol + 1);
+      return symbol_to_byte_(symbol + 1);
     }
     return 0;
   }
 
-  template <typename File>
-  void Print (File &file)
+  friend std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet)
   {
-    file << "size:\n";
-    file << static_cast<uint64_t>(size) << "\n";
-    file << "symbol_size:\n";
-    file << static_cast<uint64_t>(symbol_size) << "\n";
-    file << "symbol_width:\n";
-    file << static_cast<uint64_t>(symbol_width) << "\n";
-    file << "ascii:\n";
-    for (uint16_t i {}; i != symbol_size; ++i)
     {
-      file << select_1(i + 1);
-      file << ((i != (symbol_size - 1)) ? " " : "\n");
+      out << "value:\n";
+      out << "effective_alphabet_size_:\n";
+      out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_size_) << "\n";
+      out << "effective_alphabet_width_:\n";
+      out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_width_) << "\n";
+      out << "byte alphabet:\n";
+      for (uint16_t symbol {}; symbol != byte_alphabet.effective_alphabet_size_; ++symbol)
+      {
+        out << byte_alphabet.ToByte(symbol);
+        out << ((symbol != (byte_alphabet.effective_alphabet_size_ - 1)) ? " " : "\n");
+      }
     }
-    file << "space:\n";
-    file << "size: " << 2 << "B\n";
-    file << "symbol_size: " << 2 << "B\n";
-    file << "symbol_width: " << 1 << "B\n";
-    file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
-    file << "rank_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(rank_1)) << "B\n";
-    file << "select_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(select_1)) << "B\n";
-    return;
+    {
+      out << "space:\n";
+      out << "effective_alphabet_size_: " << sizeof(byte_alphabet.effective_alphabet_size_) << "B\n";
+      out << "effective_alphabet_width_: " << sizeof(byte_alphabet.effective_alphabet_width_) << "B\n";
+      out << "alphabet_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.alphabet_bits_)) << "B\n";
+      out << "byte_to_symbol_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.byte_to_symbol_)) << "B\n";
+      out << "symbol_to_byte_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.symbol_to_byte_)) << "B\n";
+    }
+    return out;
   }
+
+private:
+
+  uint16_t effective_alphabet_size_;
+  uint8_t effective_alphabet_width_;
+  sdsl::bit_vector alphabet_bits_;
+  sdsl::bit_vector::rank_1_type byte_to_symbol_;
+  sdsl::bit_vector::select_1_type symbol_to_byte_;
+
 };
 
-struct Trie
+ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const &byte_text)
 {
-  struct Node
+  alphabet_bits_.resize(*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1);
+  sdsl::util::set_to_value(alphabet_bits_, 0);
+  for (auto const byte : byte_text)
   {
-    uint64_t count;
-    std::map<uint8_t, std::shared_ptr<Node>> children;
-  };
-
-  std::shared_ptr<Node> root;
-
-  Trie (): root {std::make_shared<Node>()} {}
-
-  template <typename Iterator>
-  void Insert
-  (
-    Iterator it,
-    Iterator end,
-    int8_t const step = 1
-  )
-  {
-    auto node {root};
-    while (it != end)
-    {
-      if (node->children.find(*it) == node->children.end())
-      {
-        node->children[*it] = std::make_shared<Node>();
-      }
-      node = node->children[*it];
-      ++(node->count);
-      it += step;
-    }
-    return;
+    alphabet_bits_[byte] = 1;
   }
-};
-
-template <typename Text>
-void CalculateTemporaryTinyPatternTrie
-(
-  Text const &text,
-  uint8_t const max_factor_size,
-  Trie &trie
-)
-{
-  auto text_it {std::begin(text)};
-  while (std::distance(text_it, std::end(text)) >= max_factor_size)
-  {
-    auto it {text_it};
-    auto end {std::next(it, max_factor_size - 1)};
-    while (it != end)
-    {
-      trie.Insert(it, end);
-      ++it;
-    }
-    ++text_it;
-  }
-  while (text_it != std::end(text))
-  {
-    trie.Insert(text_it, std::end(text));
-    ++text_it;
-  }
-  return;
+  byte_to_symbol_ = decltype(byte_to_symbol_)(&alphabet_bits_);
+  effective_alphabet_size_ = byte_to_symbol_(std::size(alphabet_bits_));
+  effective_alphabet_width_ = sdsl::bits::hi(effective_alphabet_size_ - 1) + 1;
+  symbol_to_byte_ = decltype(symbol_to_byte_)(&alphabet_bits_);
 }
 
-struct TinyPatternTrie
+ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet &&byte_alphabet) noexcept
 {
-  sdsl::bit_vector level_order;
-  sdsl::bit_vector::select_1_type select_1;
-  sdsl::int_vector<> labels;
-  sdsl::int_vector<> counts;
-
-  template <typename Trie>
-  void Construct (Trie const &trie)
+  if (this != &byte_alphabet)
   {
-    std::deque<uint8_t> level_order_;
-    std::deque<uint8_t> labels_;
-    std::deque<uint64_t> counts_;
-    std::deque<std::shared_ptr<typename Trie::Node>> nodes;
-    nodes.emplace_back(trie.root);
-    while (!nodes.empty())
-    {
-      auto node {nodes.front()};
-      nodes.pop_front();
-      for (auto const &pair : node->children)
-      {
-        auto label {std::get<0>(pair)};
-        auto child {std::get<1>(pair)};
-        nodes.emplace_back(child);
-        level_order_.emplace_back(0);
-        labels_.emplace_back(label);
-        counts_.emplace_back(child->count);
-      }
-      level_order_.emplace_back(1);
-    }
-    {
-      level_order.resize(std::size(level_order_));
-      auto it {std::begin(level_order)};
-      for (auto const bit : level_order_)
-      {
-        *it++ = bit;
-      }
-      select_1 = decltype(select_1)(&level_order);
-    }
-    {
-      labels.width(8);
-      labels.resize(std::size(labels_));
-      std::copy(std::begin(labels_), std::end(labels_), std::begin(labels));
-      sdsl::util::bit_compress(labels);
-    }
-    {
-      counts.width(8);
-      counts.resize(std::size(counts_));
-      std::copy(std::begin(counts_), std::end(counts_), std::begin(counts));
-      sdsl::util::bit_compress(counts);
-    }
-    return;
+    effective_alphabet_size_ = std::move(byte_alphabet.effective_alphabet_size_);
+    effective_alphabet_width_ = std::move(byte_alphabet.effective_alphabet_width_);
+    alphabet_bits_ = std::move(byte_alphabet.alphabet_bits_);
+    byte_to_symbol_ = std::move(byte_alphabet.byte_to_symbol_);
+    byte_to_symbol_.set_vector(&alphabet_bits_);
+    symbol_to_byte_ = std::move(byte_alphabet.symbol_to_byte_);
+    symbol_to_byte_.set_vector(&alphabet_bits_);
   }
-
-  template <typename File>
-  void Print (File &file)
-  {
-    file << "space:\n";
-    file << "level_order: " << ProperSizeRepresentation(sdsl::size_in_bytes(level_order)) << "B\n";
-    file << "select_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(select_1)) << "B\n";
-    file << "labels: " << ProperSizeRepresentation(sdsl::size_in_bytes(labels)) << "B\n";
-    file << "counts: " << ProperSizeRepresentation(sdsl::size_in_bytes(counts)) << "B\n";
-    return;
-  }
-};
-
-struct FactorTable
-{
-  sdsl::sd_vector<> bits;
-  sdsl::sd_vector<>::rank_1_type rank_1;
-
-  template <typename File>
-  void Print (File &file)
-  {
-    file << "|factors|: " << rank_1(std::size(bits)) << "\n";
-    file << "space:\n";
-    file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
-  }
-};
-
-template <typename StringIterator>
-uint64_t SymbolsToInteger
-(
-  StringIterator it,
-  StringIterator end,
-  uint8_t const width,
-  int8_t const step = 1
-)
-{
-  uint64_t result {};
-  for (uint64_t i {8}; (it != end) && (i != 0); it += step, --i)
-  {
-    result += *it * (1ULL << (width * (i - 1)));
-  }
-  return result;
+  return *this;
 }
 
-template
-<
-  typename Text,
-  typename LexFactorCounts,
-  typename ColexToLexFactor
->
-void CalculateFactorInformation
-(
-  Text const &text,
-  uint8_t const max_factor_size,
-  LexFactorCounts &lex_factor_counts,
-  ColexToLexFactor &colex_to_lex_factor
-)
-{
-  auto text_prev_begin {std::prev(std::begin(text))};
-  auto text_it {std::prev(std::end(text), 2)};
-  auto next_symbol {*std::prev(std::end(text))};
-  uint8_t sl_type {};
-  uint8_t next_sl_type {L};
-  auto sl_factor_end {std::end(text)};
-  uint64_t lex_factor;
-  uint64_t colex_factor;
-  while (text_it != text_prev_begin)
-  {
-    if (*text_it == next_symbol)
-    {
-      sl_type = next_sl_type;
-    }
-    else if (*text_it < next_symbol)
-    {
-      sl_type = S;
-    }
-    else
-    {
-      sl_type = L;
-    }
-    if ((sl_type == L) && (next_sl_type == S))
-    {
-      auto factor_it {std::next(text_it)};
-      uint64_t lex_factor {};
-      uint64_t colex_factor {};
-      while (std::distance(factor_it, sl_factor_end) >= max_factor_size)
-      {
-        auto factor_end {std::next(factor_it, max_factor_size)};
-        lex_factor = SymbolsToInteger(factor_it, factor_end, text.width());
-        colex_factor = SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), text.width(), -1);
-        if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
-        {
-          lex_factor_counts[lex_factor] = 0;
-        }
-        ++lex_factor_counts[lex_factor];
-        colex_to_lex_factor[colex_factor] = lex_factor;
-        factor_it = factor_end;
-      }
-      if (std::distance(factor_it, sl_factor_end) != 0)
-      {
-        lex_factor = SymbolsToInteger(factor_it, sl_factor_end, text.width());
-        colex_factor = SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), text.width(), -1);
-        if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
-        {
-          lex_factor_counts[lex_factor] = 0;
-        }
-        ++lex_factor_counts[lex_factor];
-        colex_to_lex_factor[colex_factor] = lex_factor;
-      }
-      sl_factor_end = std::next(text_it);
-    }
-    next_symbol = *text_it--;
-    next_sl_type = sl_type;
-  }
-  lex_factor = SymbolsToInteger(std::next(text_prev_begin), sl_factor_end, text.width());
-  colex_factor = SymbolsToInteger(std::prev(sl_factor_end), text_prev_begin, text.width(), -1);
-  if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
-  {
-    lex_factor_counts[lex_factor] = 0;
-  }
-  ++lex_factor_counts[lex_factor];
-  colex_to_lex_factor[colex_factor] = lex_factor;
-  return;
-}
+// class CompactTrie
+// {
+// public:
+//
+//   class Node
+//   {
+//   public:
+//     std::deque<uint8_t> edge_labels;
+//     std::map<uint8_t, std::shared_ptr<Node>> children;
+//     uint64_t count;
+//   };
+//
+//   std::shared_ptr<Node> root;
+//
+//   CompactTrie (): root {std::make_shared<Node>()} {}
+//
+//   template <typename Iterator>
+//   void Insert (Iterator it, Iterator last)
+//   {
+//     auto node {root};
+//     while (true)
+//     {
+//       auto symbol {*it++};
+//       auto children_it {node->children.find(symbol)};
+//       if (children_it == std::end(node->children))
+//       {
+//         node = node->children[symbol] = std::make_shared<Node>();
+//         while (it != last)
+//         {
+//           node->edge_labels.emplace_back(*it);
+//           ++it;
+//         }
+//         node->count = 1;
+//         return;
+//       }
+//       else
+//       {
+//         auto child {std::get<1>(*children_it)};
+//         auto labels_it {std::begin(child->edge_labels)};
+//         auto labels_end {std::end(child->edge_labels)};
+//         while ((it != last) && (labels_it != labels_end) && (*it == *labels_it))
+//         {
+//           ++it;
+//           ++labels_it;
+//         }
+//         if (labels_it == labels_end)
+//         {
+//           if (it != last)
+//           {
+//             node = child;
+//           }
+//           else
+//           {
+//             ++(child->count);
+//             return;
+//           }
+//         }
+//         else
+//         {
+//           auto internal_node {std::make_shared<Node>()};
+//           {
+//             auto length {std::distance(std::begin(child->edge_labels), labels_it)};
+//             while (length--)
+//             {
+//               internal_node->edge_labels.emplace_back(child->edge_labels.front());
+//               child->edge_labels.pop_front();
+//             }
+//             internal_node->count = child->count;
+//           }
+//           std::get<1>(*children_it) = internal_node;
+//           internal_node->children[*labels_it] = child;
+//           if (it != last)
+//           {
+//             node = internal_node;
+//           }
+//           else
+//           {
+//             ++(internal_node->count);
+//             return;
+//           }
+//         }
+//       }
+//     }
+//     return;
+//   }
+//
+//   friend std::ostream& operator<< (std::ostream &out, std::pair<CompactTrie, bool> const &pair)
+//   {
+//     auto &trie {std::get<0>(pair)};
+//     auto is_preorder {std::get<1>(pair)};
+//     std::deque<std::pair<std::shared_ptr<Node>, uint64_t>> nodes;
+//     nodes.emplace_back(trie.root, 0);
+//     while (!nodes.empty())
+//     {
+//       auto node {std::get<0>(nodes.back())};
+//       auto depth {std::get<1>(nodes.back())};
+//       if (is_preorder)
+//       {
+//         nodes.pop_back();
+//       }
+//       else
+//       {
+//         node = std::get<0>(nodes.front());
+//         depth = std::get<1>(nodes.front());
+//         nodes.pop_front();
+//       }
+//       if (depth != 0)
+//       {
+//
+//       }
+//     }
+//     return out;
+//   }
+// };
+//
+// template <typename Text>
+// void CalculateTemporaryTinyPatternTrie
+// (
+//   Text const &text,
+//   CompactTrie &trie
+// )
+// {
+//   auto text_it {std::begin(text)};
+//   while (std::distance(text_it, std::end(text)) >= Index::max_factor_size)
+//   {
+//     auto it {text_it};
+//     auto end {std::next(it, Index::max_factor_size - 1)};
+//     while (it != end)
+//     {
+//       trie.Insert(it, end);
+//       ++it;
+//     }
+//     ++text_it;
+//   }
+//   while (text_it != std::end(text))
+//   {
+//     trie.Insert(text_it, std::end(text));
+//     ++text_it;
+//   }
+//   return;
+// }
+//
+// struct TinyPatternTrie
+// {
+//   sdsl::bit_vector branch_bits;
+//   sdsl::bit_vector::select_1_type branches_select_1;
+//   sdsl::int_vector<> branch_labels;
+//   sdsl::bit_vector edge_bits;
+//   sdsl::bit_vector::select_1_type edge_select_1;
+//   sdsl::int_vector<> edge_labels;
+//   sdsl::int_vector<> counts;
+//
+//   void Construct (CompactTrie const &trie)
+//   {
+//     std::deque<uint8_t> branch_bits_;
+//     std::deque<uint8_t> branch_labels_;
+//     std::deque<uint8_t> edge_bits_;
+//     std::deque<uint8_t> edge_labels_;
+//     std::deque<uint64_t> counts_;
+//     std::deque<std::shared_ptr<CompactTrie::Node>> nodes;
+//     nodes.emplace_back(trie.root);
+//     while (!nodes.empty())
+//     {
+//       auto node {nodes.front()};
+//       nodes.pop_front();
+//       for (auto const &pair : node->children)
+//       {
+//         auto label {std::get<0>(pair)};
+//         auto child {std::get<1>(pair)};
+//         nodes.emplace_back(child);
+//         branch_bits_.emplace_back(0);
+//         branch_labels_.emplace_back(label);
+//         {
+//           auto it {std::begin(child->edge_labels)};
+//           auto prev_end {std::prev(std::end(child->edge_labels))};
+//           edge_bits_.emplace_back(1);
+//           while (it != prev_end)
+//           {
+//             edge_bits_.emplace_back(0);
+//             edge_labels_.emplace_back(*it);
+//           }
+//           edge_labels_.emplace_back(*prev_end);
+//         }
+//         counts_.emplace_back(child->count);
+//       }
+//       branch_bits_.emplace_back(1);
+//     }
+//     {
+//       branch_bits.resize(std::size(branch_bits_));
+//       auto it {std::begin(branch_bits)};
+//       for (auto const bit : branch_bits_)
+//       {
+//         *it++ = bit;
+//       }
+//       branches_select_1 = decltype(branches_select_1)(&branch_bits);
+//     }
+//     {
+//       branch_labels.width(8);
+//       branch_labels.resize(std::size(branch_labels_));
+//       std::copy(std::begin(branch_labels_), std::end(branch_labels_), std::begin(branch_labels));
+//       sdsl::util::bit_compress(branch_labels);
+//     }
+//     {
+//       edge_bits.resize(std::size(edge_bits_));
+//       auto it {std::begin(edge_bits)};
+//       for (auto const bit : edge_bits_)
+//       {
+//         *it++ = bit;
+//       }
+//       edge_select_1 = decltype(edge_select_1)(&edge_bits);
+//     }
+//     {
+//       edge_labels.width(8);
+//       edge_labels.resize(std::size(edge_labels_));
+//       std::copy(std::begin(edge_labels_), std::end(edge_labels_), std::begin(edge_labels));
+//       sdsl::util::bit_compress(edge_labels);
+//     }
+//     {
+//       counts.resize(std::size(counts_));
+//       std::copy(std::begin(counts_), std::end(counts_), std::begin(counts));
+//       sdsl::util::bit_compress(counts);
+//     }
+//     return;
+//   }
+//
+//   template <typename File>
+//   void Print (File &file)
+//   {
+//     file << "space:\n";
+//     file << "branch_bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(branch_bits)) << "B\n";
+//     file << "select_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(branches_select_1)) << "B\n";
+//     file << "branch_labels: " << ProperSizeRepresentation(sdsl::size_in_bytes(branch_labels)) << "B\n";
+//     file << "edge_bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(edge_bits)) << "B\n";
+//     file << "edge_select_1: " << ProperSizeRepresentation(sdsl::size_in_bytes(edge_select_1)) << "B\n";
+//     file << "edge_labels: " << ProperSizeRepresentation(sdsl::size_in_bytes(edge_labels)) << "B\n";
+//     file << "counts: " << ProperSizeRepresentation(sdsl::size_in_bytes(counts)) << "B\n";
+//     return;
+//   }
+// };
+//
+// struct FactorTable
+// {
+//   sdsl::sd_vector<> bits;
+//   sdsl::sd_vector<>::rank_1_type rank_1;
+//
+//   template <typename File>
+//   void Print (File &file)
+//   {
+//     file << "|factors|: " << rank_1(std::size(bits)) << "\n";
+//     file << "space:\n";
+//     file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
+//   }
+// };
+//
+// template <typename StringIterator>
+// uint64_t SymbolsToInteger
+// (
+//   StringIterator it,
+//   StringIterator end,
+//   uint8_t const width,
+//   int8_t const step = 1
+// )
+// {
+//   uint64_t result {};
+//   for (uint64_t i {8}; (it != end) && (i != 0); it += step, --i)
+//   {
+//     result += *it * (1ULL << (width * (i - 1)));
+//   }
+//   return result;
+// }
+//
+// template <bool Index::max_factor_size>
+// template
+// <
+//   typename Text,
+//   typename LexFactorTable,
+//   typename LexText
+// >
+// void Index::CalculateLexText
+// (
+//   Text const &text,
+//   LexFactorTable const &lex_factor_table,
+//   LexText &lex_text
+// )
+// {
+//   auto text_prev_begin {std::prev(std::begin(text))};
+//   auto text_it {std::prev(std::end(text), 2)};
+//   auto next_symbol {*std::prev(std::end(text))};
+//   uint8_t sl_type {};
+//   uint8_t next_sl_type {Index::L};
+//   auto sl_factor_end {std::end(text)};
+//   auto lex_text_it {std::prev(std::end(lex_text), 2)};
+//   while (text_it != text_prev_begin)
+//   {
+//     if (*text_it == next_symbol)
+//     {
+//       sl_type = next_sl_type;
+//     }
+//     else if (*text_it < next_symbol)
+//     {
+//       sl_type = Index::kS;
+//     }
+//     else
+//     {
+//       sl_type = Index::kS;
+//     }
+//     if ((sl_type == Index::kS) && (next_sl_type == S))
+//     {
+//       auto factor_it {std::next(text_it)};
+//       while (std::distance(factor_it, sl_factor_end) >= Index::max_factor_size)
+//       {
+//         auto factor_end {std::next(factor_it, Index::max_factor_size)};
+//         *lex_text_it-- = lex_factor_table.rank_1(SymbolsToInteger(factor_it, factor_end, text.width()));
+//         factor_it = factor_end;
+//       }
+//       if (std::distance(factor_it, sl_factor_end) != 0)
+//       {
+//         *lex_text_it-- = lex_factor_table.rank_1(SymbolsToInteger(factor_it, sl_factor_end, text.width()));
+//       }
+//       sl_factor_end = std::next(text_it);
+//     }
+//     next_symbol = *text_it--;
+//     next_sl_type = sl_type;
+//   }
+//   *lex_text_it = lex_factor_table.rank_1(SymbolsToInteger(std::next(text_prev_begin), sl_factor_end, text.width()));
+//   return;
+// }
 
-template
-<
-  typename Text,
-  typename LexFactorTable,
-  typename LexText
->
-void CalculateLexText
-(
-  Text const &text,
-  LexFactorTable const &lex_factor_table,
-  uint8_t const max_factor_size,
-  LexText &lex_text
-)
+template <uint8_t max_factor_size = 4>
+class Index
 {
-  auto text_prev_begin {std::prev(std::begin(text))};
-  auto text_it {std::prev(std::end(text), 2)};
-  auto next_symbol {*std::prev(std::end(text))};
-  uint8_t sl_type {};
-  uint8_t next_sl_type {L};
-  auto sl_factor_end {std::end(text)};
-  auto lex_text_it {std::prev(std::end(lex_text), 2)};
-  while (text_it != text_prev_begin)
-  {
-    if (*text_it == next_symbol)
-    {
-      sl_type = next_sl_type;
-    }
-    else if (*text_it < next_symbol)
-    {
-      sl_type = S;
-    }
-    else
-    {
-      sl_type = L;
-    }
-    if ((sl_type == L) && (next_sl_type == S))
-    {
-      auto factor_it {std::next(text_it)};
-      while (std::distance(factor_it, sl_factor_end) >= max_factor_size)
-      {
-        auto factor_end {std::next(factor_it, max_factor_size)};
-        *lex_text_it-- = lex_factor_table.rank_1(SymbolsToInteger(factor_it, factor_end, text.width()));
-        factor_it = factor_end;
-      }
-      if (std::distance(factor_it, sl_factor_end) != 0)
-      {
-        *lex_text_it-- = lex_factor_table.rank_1(SymbolsToInteger(factor_it, sl_factor_end, text.width()));
-      }
-      sl_factor_end = std::next(text_it);
-    }
-    next_symbol = *text_it--;
-    next_sl_type = sl_type;
-  }
-  *lex_text_it = lex_factor_table.rank_1(SymbolsToInteger(std::next(text_prev_begin), sl_factor_end, text.width()));
-  return;
-}
+public:
 
-template <uint8_t MaxFactorSize = 4>
-struct Index
-{
-  static constexpr uint8_t max_factor_size {MaxFactorSize};
+  static constexpr uint8_t kMaxFactorSize {Index::max_factor_size};
+  static constexpr uint8_t kS {1};
+  static constexpr uint8_t kL {0};
+
+  Index (std::filesystem::path const &byte_text_path);
+  uint64_t Serialize (std::filesystem::path const &index_path);
+  void Load (std::filesystem::path const &index_path);
+  template <typename PatternIterator>
+  uint64_t Count (PatternIterator begin, PatternIterator end);
+
+private:
+
   ByteAlphabet byte_alphabet;
-  TinyPatternTrie tiny_pattern_trie;
-  FactorTable lex_factor_table;
-  FactorTable colex_factor_table;
+  // TinyPatternTrie tiny_pattern_trie;
+  // FactorTable lex_factor_table;
+  // FactorTable colex_factor_table;
   sdsl::int_vector<> colex_to_lex;
   sdsl::int_vector<> bucket_begin_offsets;
   sdsl::wt_rlmn
@@ -400,126 +469,219 @@ struct Index
     sdsl::wt_ap<>
   >
   bwt;
+
+  // CalculateFactorInformation()
+
 };
 
-template <typename Index>
-void ConstructIndex (std::filesystem::path const &text_path, Index &index)
+template <uint8_t max_factor_size>
+Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
 {
-  std::cout << "construct index of " << std::filesystem::canonical(text_path) << "\n";
+  std::cout << "construct index of " << std::filesystem::canonical(byte_text_path) << "\n";
   sdsl::int_vector<> text;
   {
     sdsl::int_vector<8> byte_text;
-    sdsl::load_vector_from_file(byte_text, text_path);
-    index.byte_alphabet.Construct(byte_text);
-    // index.byte_alphabet.Print(std::cout);
-    text.width(index.byte_alphabet.symbol_width);
-    text.resize(std::size(byte_text));
-    auto text_it {std::begin(text)};
-    for (auto const &byte : byte_text)
+    sdsl::load_vector_from_file(byte_text, byte_text_path);
     {
-      *text_it++ = index.byte_alphabet.GetSymbol(byte);
-    }
-    Print(text, std::cout, 1, "");
-  }
-  return;
-  {
-    Trie trie;
-    CalculateTemporaryTinyPatternTrie(text, Index::max_factor_size, trie);
-    index.tiny_pattern_trie.Construct(trie);
-    index.tiny_pattern_trie.Print(std::cout);
-  }
-  return;
-  std::map<uint64_t, uint64_t> lex_factor_counts;
-  std::map<uint64_t, uint64_t> colex_to_lex_factor;
-  {
-    lex_factor_counts[0] = 1;
-    colex_to_lex_factor[0] = 0;
-    CalculateFactorInformation(text, Index::max_factor_size, lex_factor_counts, colex_to_lex_factor);
-  }
-  sdsl::int_vector<> lex_text;
-  uint64_t lex_text_size {};
-  uint64_t lex_alphabet_size {};
-  uint64_t lex_text_width {};
-  {
-    std::vector<uint64_t> lex_factors;
-    for (auto const &pair : lex_factor_counts)
-    {
-      lex_factors.emplace_back(std::get<0>(pair));
-      lex_text_size += std::get<1>(pair);
-    }
-    {
-      lex_alphabet_size = std::size(lex_factors);
-      lex_text_width = sdsl::bits::hi(lex_alphabet_size - 1) + 1;
-      index.lex_factor_table.bits = decltype(index.lex_factor_table.bits)(std::begin(lex_factors), std::end(lex_factors));
-      index.lex_factor_table.rank_1.set_vector(&(index.lex_factor_table.bits));
-      // index.lex_factor_table.Print(std::cout);
-    }
-    {
-      lex_text.width(sdsl::bits::hi(std::size(lex_factors) - 1) + 1);
-      lex_text.resize(lex_text_size);
-      CalculateLexText(text, index.lex_factor_table, Index::max_factor_size, lex_text);
-      *std::prev(std::end(lex_text)) = 0;
-      // Print(lex_text, std::cout);
-    }
-  }
-  {
-    std::vector<uint64_t> colex_factors;
-    for (auto const &pair : colex_to_lex_factor)
-    {
-      colex_factors.emplace_back(std::get<0>(pair));
-    }
-    index.colex_factor_table.bits = decltype(index.colex_factor_table.bits)(std::begin(colex_factors), std::end(colex_factors));
-    index.colex_factor_table.rank_1.set_vector(&(index.colex_factor_table.bits));
-    // index.colex_factor_table.Print(std::cout);
-  }
-  {
-    index.colex_to_lex.width(lex_text_width);
-    index.colex_to_lex.resize(lex_alphabet_size);
-    auto it {std::begin(index.colex_to_lex)};
-    for (auto const &pair : colex_to_lex_factor)
-    {
-      *it++ = index.lex_factor_table.rank_1(std::get<1>(pair));
-    }
-    // Print(index.colex_to_lex, std::cout);
-  }
-  {
-    index.bucket_begin_offsets.width(sdsl::bits::hi(lex_text_size) + 1);
-    index.bucket_begin_offsets.resize(lex_alphabet_size + 1);
-    sdsl::util::set_to_value(index.bucket_begin_offsets, 0);
-    for (auto const lex_symbol : lex_text)
-    {
-      ++(index.bucket_begin_offsets[lex_symbol]);
-    }
-    std::partial_sum
-    (
-      std::begin(index.bucket_begin_offsets),
-      std::end(index.bucket_begin_offsets),
-      std::begin(index.bucket_begin_offsets)
-    );
-    auto it {std::prev(std::end(index.bucket_begin_offsets))};
-    auto begin {std::begin(index.bucket_begin_offsets)};
-    while (it != begin)
-    {
-      *it-- = *std::prev(it);
-    }
-    *begin = 0;
-    // Print(index.bucket_begin_offsets, std::cout);
-  }
-  {
-    sdsl::int_vector<> buffer;
-    sdsl::qsufsort::construct_sa(buffer, lex_text);
-    for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
-    {
-      if (*it != 0)
+      for (auto byte : byte_text)
       {
-        *it = lex_text[(*it - 1)];
+        if (byte == 0)
+        {
+          throw std::runtime_error("byte_text contains 0");
+        }
       }
+      sdsl::append_zero_symbol(byte_text);
     }
-    sdsl::construct_im(index.bwt, buffer);
-    // Print(index.bwt, std::cout);
+    byte_alphabet = decltype(byte_alphabet)(byte_text);
+    // std::cout << byte_alphabet;
+    return;
+    // text.width(index.byte_alphabet.symbol_width);
+    // text.resize(std::size(byte_text));
+    // auto text_it {std::begin(text)};
+    // for (auto const &byte : byte_text)
+    // {
+    //   *text_it++ = index.byte_alphabet.GetSymbol(byte);
+    // }
+    // Print(text, std::cout, 1, "");
   }
-  return;
+  // {
+  //   CompactTrie trie;
+  //   CalculateTemporaryTinyPatternTrie(text, Index::max_factor_size, trie);
+  //   // index.tiny_pattern_trie.Construct(trie);
+  //   // index.tiny_pattern_trie.Print(std::cout);
+  // }
+  // return;
+  // std::map<uint64_t, uint64_t> lex_factor_counts;
+  // std::map<uint64_t, uint64_t> colex_to_lex_factor;
+  // {
+  //   lex_factor_counts[0] = 1;
+  //   colex_to_lex_factor[0] = 0;
+  //   CalculateFactorInformation(text, Index::max_factor_size, lex_factor_counts, colex_to_lex_factor);
+  // }
+  // sdsl::int_vector<> lex_text;
+  // uint64_t lex_text_size {};
+  // uint64_t lex_alphabet_size {};
+  // uint64_t lex_text_width {};
+  // {
+  //   std::vector<uint64_t> lex_factors;
+  //   for (auto const &pair : lex_factor_counts)
+  //   {
+  //     lex_factors.emplace_back(std::get<0>(pair));
+  //     lex_text_size += std::get<1>(pair);
+  //   }
+  //   {
+  //     lex_alphabet_size = std::size(lex_factors);
+  //     lex_text_width = sdsl::bits::hi(lex_alphabet_size - 1) + 1;
+  //     index.lex_factor_table.bits = decltype(index.lex_factor_table.bits)(std::begin(lex_factors), std::end(lex_factors));
+  //     index.lex_factor_table.rank_1.set_vector(&(index.lex_factor_table.bits));
+  //     // index.lex_factor_table.Print(std::cout);
+  //   }
+  //   {
+  //     lex_text.width(sdsl::bits::hi(std::size(lex_factors) - 1) + 1);
+  //     lex_text.resize(lex_text_size);
+  //     CalculateLexText(text, index.lex_factor_table, Index::max_factor_size, lex_text);
+  //     *std::prev(std::end(lex_text)) = 0;
+  //     // Print(lex_text, std::cout);
+  //   }
+  // }
+  // {
+  //   std::vector<uint64_t> colex_factors;
+  //   for (auto const &pair : colex_to_lex_factor)
+  //   {
+  //     colex_factors.emplace_back(std::get<0>(pair));
+  //   }
+  //   index.colex_factor_table.bits = decltype(index.colex_factor_table.bits)(std::begin(colex_factors), std::end(colex_factors));
+  //   index.colex_factor_table.rank_1.set_vector(&(index.colex_factor_table.bits));
+  //   // index.colex_factor_table.Print(std::cout);
+  // }
+  // {
+  //   index.colex_to_lex.width(lex_text_width);
+  //   index.colex_to_lex.resize(lex_alphabet_size);
+  //   auto it {std::begin(index.colex_to_lex)};
+  //   for (auto const &pair : colex_to_lex_factor)
+  //   {
+  //     *it++ = index.lex_factor_table.rank_1(std::get<1>(pair));
+  //   }
+  //   // Print(index.colex_to_lex, std::cout);
+  // }
+  // {
+  //   index.bucket_begin_offsets.width(sdsl::bits::hi(lex_text_size) + 1);
+  //   index.bucket_begin_offsets.resize(lex_alphabet_size + 1);
+  //   sdsl::util::set_to_value(index.bucket_begin_offsets, 0);
+  //   for (auto const lex_symbol : lex_text)
+  //   {
+  //     ++(index.bucket_begin_offsets[lex_symbol]);
+  //   }
+  //   std::partial_sum
+  //   (
+  //     std::begin(index.bucket_begin_offsets),
+  //     std::end(index.bucket_begin_offsets),
+  //     std::begin(index.bucket_begin_offsets)
+  //   );
+  //   auto it {std::prev(std::end(index.bucket_begin_offsets))};
+  //   auto begin {std::begin(index.bucket_begin_offsets)};
+  //   while (it != begin)
+  //   {
+  //     *it-- = *std::prev(it);
+  //   }
+  //   *begin = 0;
+  //   // Print(index.bucket_begin_offsets, std::cout);
+  // }
+  // {
+  //   sdsl::int_vector<> buffer;
+  //   sdsl::qsufsort::construct_sa(buffer, lex_text);
+  //   for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
+  //   {
+  //     if (*it != 0)
+  //     {
+  //       *it = lex_text[(*it - 1)];
+  //     }
+  //   }
+  //   sdsl::construct_im(index.bwt, buffer);
+  //   // Print(index.bwt, std::cout);
+  // }
 }
+
+// template
+// <
+//   typename Text,
+//   typename LexFactorCounts,
+//   typename ColexToLexFactor
+// >
+// void CalculateFactorInformation
+// (
+//   Text const &text,
+//   uint8_t const Index::max_factor_size,
+//   LexFactorCounts &lex_factor_counts,
+//   ColexToLexFactor &colex_to_lex_factor
+// )
+// {
+//   auto text_prev_begin {std::prev(std::begin(text))};
+//   auto text_it {std::prev(std::end(text), 2)};
+//   auto next_symbol {*std::prev(std::end(text))};
+//   uint8_t sl_type {};
+//   uint8_t next_sl_type {Index::kL};
+//   auto sl_factor_end {std::end(text)};
+//   uint64_t lex_factor;
+//   uint64_t colex_factor;
+//   while (text_it != text_prev_begin)
+//   {
+//     if (*text_it == next_symbol)
+//     {
+//       sl_type = next_sl_type;
+//     }
+//     else if (*text_it < next_symbol)
+//     {
+//       sl_type = Index::kS;
+//     }
+//     else
+//     {
+//       sl_type = L;
+//     }
+//     if ((sl_type == L) && (next_sl_type == Index::kS))
+//     {
+//       auto factor_it {std::next(text_it)};
+//       uint64_t lex_factor {};
+//       uint64_t colex_factor {};
+//       while (std::distance(factor_it, sl_factor_end) >= Index::max_factor_size)
+//       {
+//         auto factor_end {std::next(factor_it, Index::max_factor_size)};
+//         lex_factor = SymbolsToInteger(factor_it, factor_end, text.width());
+//         colex_factor = SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), text.width(), -1);
+//         if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
+//         {
+//           lex_factor_counts[lex_factor] = 0;
+//         }
+//         ++lex_factor_counts[lex_factor];
+//         colex_to_lex_factor[colex_factor] = lex_factor;
+//         factor_it = factor_end;
+//       }
+//       if (std::distance(factor_it, sl_factor_end) != 0)
+//       {
+//         lex_factor = SymbolsToInteger(factor_it, sl_factor_end, text.width());
+//         colex_factor = SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), text.width(), -1);
+//         if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
+//         {
+//           lex_factor_counts[lex_factor] = 0;
+//         }
+//         ++lex_factor_counts[lex_factor];
+//         colex_to_lex_factor[colex_factor] = lex_factor;
+//       }
+//       sl_factor_end = std::next(text_it);
+//     }
+//     next_symbol = *text_it--;
+//     next_sl_type = sl_type;
+//   }
+//   lex_factor = SymbolsToInteger(std::next(text_prev_begin), sl_factor_end, text.width());
+//   colex_factor = SymbolsToInteger(std::prev(sl_factor_end), text_prev_begin, text.width(), -1);
+//   if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
+//   {
+//     lex_factor_counts[lex_factor] = 0;
+//   }
+//   ++lex_factor_counts[lex_factor];
+//   colex_to_lex_factor[colex_factor] = lex_factor;
+//   return;
+// }
 
 // template <typename Index, typename Node = InformationNode<std::string, uint64_t>>
 // uint64_t SerializeIndex
@@ -676,7 +838,7 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
 //   auto labels_begin {std::get<0>(trie.labels_range)};
 //   std::pair<uint64_t, uint64_t> pair {1, 0};
 //   uint64_t begin_offset {};
-//   uint64_t end_offset {trie.level_order_select(1)};
+//   uint64_t end_offset {trie.branch_bits_select(1)};
 //   uint64_t offset {};
 //   while (begin_offset != end_offset)
 //   {
@@ -714,8 +876,8 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
 //         }
 //         else
 //         {
-//           begin_offset = trie.level_order_select(offset + 1) - (offset + 1) + 1;
-//           end_offset = trie.level_order_select(offset + 2) - (offset + 2) + 1;
+//           begin_offset = trie.branch_bits_select(offset + 1) - (offset + 1) + 1;
+//           end_offset = trie.branch_bits_select(offset + 2) - (offset + 2) + 1;
 //         }
 //       }
 //       else
@@ -726,8 +888,8 @@ void ConstructIndex (std::filesystem::path const &text_path, Index &index)
 //           {
 //             if (edge_it == edge_end)
 //             {
-//               begin_offset = trie.level_order_select(offset + 1) + 1;
-//               auto bit {trie.level_order[begin_offset]};
+//               begin_offset = trie.branch_bits_select(offset + 1) + 1;
+//               auto bit {trie.branch_bits[begin_offset]};
 //               if ((bit == 1) || ((bit == 0) && trie.leftmost_ranks[offset] != trie.leftmost_ranks[begin_offset - (offset + 1)]))
 //               {
 //                 std::get<1>(pair) = trie.leftmost_ranks[offset];
