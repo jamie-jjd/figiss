@@ -372,24 +372,7 @@ std::ostream& operator<< (std::ostream &out, std::pair<TinyPatternTrie, bool> co
 //   }
 // };
 
-// template <typename StringIterator>
-// uint64_t SymbolsToInteger
-// (
-//   StringIterator it,
-//   StringIterator end,
-//   uint8_t const width,
-//   int8_t const step = 1
-// )
-// {
-//   uint64_t result {};
-//   for (uint64_t i {8}; (it != end) && (i != 0); it += step, --i)
-//   {
-//     result += *it * (1ULL << (width * (i - 1)));
-//   }
-//   return result;
-// }
-//
-// template <bool Index::max_factor_size>
+// template <bool Index::kMaxFactorSize>
 // template
 // <
 //   typename Text,
@@ -427,9 +410,9 @@ std::ostream& operator<< (std::ostream &out, std::pair<TinyPatternTrie, bool> co
 //     if ((sl_type == Index::kS) && (next_sl_type == S))
 //     {
 //       auto factor_it {std::next(text_it)};
-//       while (std::distance(factor_it, sl_factor_end) >= Index::max_factor_size)
+//       while (std::distance(factor_it, sl_factor_end) >= Index::kMaxFactorSize)
 //       {
-//         auto factor_end {std::next(factor_it, Index::max_factor_size)};
+//         auto factor_end {std::next(factor_it, Index::kMaxFactorSize)};
 //         *lex_text_it-- = lex_factor_table.rank_1(SymbolsToInteger(factor_it, factor_end, text.width()));
 //         factor_it = factor_end;
 //       }
@@ -480,6 +463,27 @@ private:
 
   void CalculateTemporaryTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie);
 
+  template <typename Iterator>
+  uint64_t SymbolsToInteger (Iterator it, Iterator end, int8_t const step = 1);
+
+  // std::deque<uint64_t> IntegerToSymbols (uint64_t integer);
+
+  template <typename Iterator>
+  void UpdateLexFactorCountsAndTemporaryColexToLex
+  (
+    Iterator factor_begin,
+    Iterator factor_end,
+    std::map<uint64_t, uint64_t> &lex_factor_counts,
+    std::map<uint64_t, uint64_t> &temporary_colex_to_lex
+  );
+
+  void CalculateLexFactorCountsAndTemporaryColexToLex
+  (
+    sdsl::int_vector<> const &text,
+    std::map<uint64_t, uint64_t> &lex_factor_counts,
+    std::map<uint64_t, uint64_t> &temporary_colex_to_lex
+  );
+
 };
 
 template <uint8_t max_factor_size>
@@ -523,13 +527,22 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     tiny_pattern_trie = decltype(tiny_pattern_trie)(trie);
     // std::cout << std::make_pair(tiny_pattern_trie, /*is_level_order=*/false);
   }
-  // return;
-  // std::map<uint64_t, uint64_t> lex_factor_counts;
-  // std::map<uint64_t, uint64_t> colex_to_lex_factor;
+  std::map<uint64_t, uint64_t> lex_factor_counts;
+  std::map<uint64_t, uint64_t> temporary_colex_to_lex;
+  CalculateLexFactorCountsAndTemporaryColexToLex(text, lex_factor_counts, temporary_colex_to_lex);
   // {
-  //   lex_factor_counts[0] = 1;
-  //   colex_to_lex_factor[0] = 0;
-  //   CalculateFactorInformation(text, Index::max_factor_size, lex_factor_counts, colex_to_lex_factor);
+  //   for (auto const &pair : lex_factor_counts)
+  //   {
+  //     Print(IntegerToSymbols(std::get<0>(pair)), std::cout, 1, " ", "");
+  //     std::cout << ":" << std::get<1>(pair) << "\n";
+  //   }
+  //   for (auto const &pair : temporary_colex_to_lex)
+  //   {
+  //     Print(IntegerToSymbols(std::get<0>(pair)), std::cout, -1, " ", "");
+  //     std::cout << ":";
+  //     Print(IntegerToSymbols(std::get<1>(pair)), std::cout, 1, " ", "");
+  //     std::cout << "\n";
+  //   }
   // }
   // sdsl::int_vector<> lex_text;
   // uint64_t lex_text_size {};
@@ -552,14 +565,14 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
   //   {
   //     lex_text.width(sdsl::bits::hi(std::size(lex_factors) - 1) + 1);
   //     lex_text.resize(lex_text_size);
-  //     CalculateLexText(text, index.lex_factor_table, Index::max_factor_size, lex_text);
+  //     CalculateLexText(text, index.lex_factor_table, Index::kMaxFactorSize, lex_text);
   //     *std::prev(std::end(lex_text)) = 0;
   //     // Print(lex_text, std::cout);
   //   }
   // }
   // {
   //   std::vector<uint64_t> colex_factors;
-  //   for (auto const &pair : colex_to_lex_factor)
+  //   for (auto const &pair : temporary_colex_to_lex)
   //   {
   //     colex_factors.emplace_back(std::get<0>(pair));
   //   }
@@ -571,7 +584,7 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
   //   index.colex_to_lex.width(lex_text_width);
   //   index.colex_to_lex.resize(lex_alphabet_size);
   //   auto it {std::begin(index.colex_to_lex)};
-  //   for (auto const &pair : colex_to_lex_factor)
+  //   for (auto const &pair : temporary_colex_to_lex)
   //   {
   //     *it++ = index.lex_factor_table.rank_1(std::get<1>(pair));
   //   }
@@ -639,86 +652,123 @@ void Index<max_factor_size>::CalculateTemporaryTinyPatternTrie (sdsl::int_vector
   return;
 }
 
-// template
-// <
-//   typename Text,
-//   typename LexFactorCounts,
-//   typename ColexToLexFactor
-// >
-// void CalculateFactorInformation
-// (
-//   Text const &text,
-//   uint8_t const Index::max_factor_size,
-//   LexFactorCounts &lex_factor_counts,
-//   ColexToLexFactor &colex_to_lex_factor
-// )
+template <uint8_t max_factor_size>
+template <typename Iterator>
+uint64_t Index<max_factor_size>::SymbolsToInteger (Iterator it, Iterator end, int8_t const step)
+{
+  uint64_t result {};
+  for (auto k {Index::kMaxFactorSize}; (it != end) && (k != 0); it += step, --k)
+  {
+    result += *it * (1ULL << (byte_alphabet.GetEffectiveAlphabetWidth() * (k - 1)));
+  }
+  return result;
+}
+
+// template <uint8_t max_factor_size>
+// std::deque<uint64_t> Index<max_factor_size>::IntegerToSymbols (uint64_t integer)
 // {
-//   auto text_prev_begin {std::prev(std::begin(text))};
-//   auto text_it {std::prev(std::end(text), 2)};
-//   auto next_symbol {*std::prev(std::end(text))};
-//   uint8_t sl_type {};
-//   uint8_t next_sl_type {Index::kL};
-//   auto sl_factor_end {std::end(text)};
-//   uint64_t lex_factor;
-//   uint64_t colex_factor;
-//   while (text_it != text_prev_begin)
+//   std::deque<uint64_t> symbols;
+//   auto const base {1ULL << byte_alphabet.GetEffectiveAlphabetWidth()};
+//   while (integer != 0)
 //   {
-//     if (*text_it == next_symbol)
-//     {
-//       sl_type = next_sl_type;
-//     }
-//     else if (*text_it < next_symbol)
-//     {
-//       sl_type = Index::kS;
-//     }
-//     else
-//     {
-//       sl_type = L;
-//     }
-//     if ((sl_type == L) && (next_sl_type == Index::kS))
-//     {
-//       auto factor_it {std::next(text_it)};
-//       uint64_t lex_factor {};
-//       uint64_t colex_factor {};
-//       while (std::distance(factor_it, sl_factor_end) >= Index::max_factor_size)
-//       {
-//         auto factor_end {std::next(factor_it, Index::max_factor_size)};
-//         lex_factor = SymbolsToInteger(factor_it, factor_end, text.width());
-//         colex_factor = SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), text.width(), -1);
-//         if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
-//         {
-//           lex_factor_counts[lex_factor] = 0;
-//         }
-//         ++lex_factor_counts[lex_factor];
-//         colex_to_lex_factor[colex_factor] = lex_factor;
-//         factor_it = factor_end;
-//       }
-//       if (std::distance(factor_it, sl_factor_end) != 0)
-//       {
-//         lex_factor = SymbolsToInteger(factor_it, sl_factor_end, text.width());
-//         colex_factor = SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), text.width(), -1);
-//         if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
-//         {
-//           lex_factor_counts[lex_factor] = 0;
-//         }
-//         ++lex_factor_counts[lex_factor];
-//         colex_to_lex_factor[colex_factor] = lex_factor;
-//       }
-//       sl_factor_end = std::next(text_it);
-//     }
-//     next_symbol = *text_it--;
-//     next_sl_type = sl_type;
+//     symbols.emplace_front(integer % base);
+//     integer /= base;
 //   }
-//   lex_factor = SymbolsToInteger(std::next(text_prev_begin), sl_factor_end, text.width());
-//   colex_factor = SymbolsToInteger(std::prev(sl_factor_end), text_prev_begin, text.width(), -1);
-//   if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
-//   {
-//     lex_factor_counts[lex_factor] = 0;
-//   }
-//   ++lex_factor_counts[lex_factor];
-//   colex_to_lex_factor[colex_factor] = lex_factor;
-//   return;
+//   return symbols;
 // }
+
+template <uint8_t max_factor_size>
+template <typename Iterator>
+void Index<max_factor_size>::UpdateLexFactorCountsAndTemporaryColexToLex
+(
+  Iterator factor_begin,
+  Iterator factor_end,
+  std::map<uint64_t, uint64_t> &lex_factor_counts,
+  std::map<uint64_t, uint64_t> &temporary_colex_to_lex
+)
+{
+  auto lex_factor {SymbolsToInteger(factor_begin, factor_end)};
+  auto colex_factor {SymbolsToInteger(std::prev(factor_end), std::prev(factor_begin), -1)};
+  if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
+  {
+    lex_factor_counts[lex_factor] = 0;
+  }
+  ++lex_factor_counts[lex_factor];
+  temporary_colex_to_lex[colex_factor] = lex_factor;
+  return;
+}
+
+template <uint8_t max_factor_size>
+void Index<max_factor_size>::CalculateLexFactorCountsAndTemporaryColexToLex
+(
+  sdsl::int_vector<> const &text,
+  std::map<uint64_t, uint64_t> &lex_factor_counts,
+  std::map<uint64_t, uint64_t> &temporary_colex_to_lex
+)
+{
+  auto text_prev_begin {std::prev(std::begin(text))};
+  auto text_it {std::prev(std::end(text), 2)};
+  auto next_symbol {*std::prev(std::end(text))};
+  uint8_t sl_type {};
+  uint8_t next_sl_type {Index::kL};
+  auto sl_factor_end {std::prev(std::end(text))};
+  {
+    lex_factor_counts[0] = 1;
+    temporary_colex_to_lex[0] = 0;
+  }
+  while (text_it != text_prev_begin)
+  {
+    if (*text_it == next_symbol)
+    {
+      sl_type = next_sl_type;
+    }
+    else if (*text_it < next_symbol)
+    {
+      sl_type = Index::kS;
+    }
+    else
+    {
+      sl_type = Index::kL;
+    }
+    if ((sl_type == Index::kL) && (next_sl_type == Index::kS))
+    {
+      auto factor_it {std::next(text_it)};
+      while (std::distance(factor_it, sl_factor_end) >= Index::kMaxFactorSize)
+      {
+        auto factor_end {std::next(factor_it, Index::kMaxFactorSize)};
+        UpdateLexFactorCountsAndTemporaryColexToLex
+        (
+          factor_it,
+          factor_end,
+          lex_factor_counts,
+          temporary_colex_to_lex
+        );
+        factor_it = factor_end;
+      }
+      if (std::distance(factor_it, sl_factor_end) != 0)
+      {
+        UpdateLexFactorCountsAndTemporaryColexToLex
+        (
+          factor_it,
+          sl_factor_end,
+          lex_factor_counts,
+          temporary_colex_to_lex
+        );
+      }
+      sl_factor_end = std::next(text_it);
+    }
+    next_symbol = *text_it--;
+    next_sl_type = sl_type;
+  }
+  UpdateLexFactorCountsAndTemporaryColexToLex
+  (
+    std::begin(text),
+    sl_factor_end,
+    lex_factor_counts,
+    temporary_colex_to_lex
+  );
+  return;
+}
 
 // template <typename Index, typename Node = InformationNode<std::string, uint64_t>>
 // uint64_t SerializeIndex
