@@ -17,13 +17,13 @@ void f (T)
   std::cout << __PRETTY_FUNCTION__ << "\n";
   return;
 }
-class ByteAlphabet
+class SymbolTable
 {
 public:
 
-  ByteAlphabet () = default;
-  ByteAlphabet (sdsl::int_vector<8> const &byte_text) noexcept;
-  ByteAlphabet& operator= (ByteAlphabet &&) noexcept;
+  SymbolTable () = default;
+  SymbolTable (sdsl::int_vector<8> const &byte_text) noexcept;
+  SymbolTable& operator= (SymbolTable &&) noexcept;
 
   inline uint16_t GetEffectiveAlphabetSize () const noexcept
   {
@@ -53,7 +53,7 @@ public:
     return 0;
   }
 
-  friend std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet);
+  friend std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table);
 
 private:
 
@@ -65,7 +65,7 @@ private:
 
 };
 
-ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const &byte_text) noexcept
+SymbolTable::SymbolTable (sdsl::int_vector<8> const &byte_text) noexcept
 {
   alphabet_bits_.resize(*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1);
   sdsl::util::set_to_value(alphabet_bits_, 0);
@@ -79,43 +79,43 @@ ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const &byte_text) noexcept
   symbol_to_byte_ = decltype(symbol_to_byte_)(&alphabet_bits_);
 }
 
-ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet &&byte_alphabet) noexcept
+SymbolTable& SymbolTable::operator= (SymbolTable &&symbol_table) noexcept
 {
-  if (this != &byte_alphabet)
+  if (this != &symbol_table)
   {
-    effective_alphabet_size_ = std::move(byte_alphabet.effective_alphabet_size_);
-    effective_alphabet_width_ = std::move(byte_alphabet.effective_alphabet_width_);
-    alphabet_bits_ = std::move(byte_alphabet.alphabet_bits_);
-    byte_to_symbol_ = std::move(byte_alphabet.byte_to_symbol_);
+    effective_alphabet_size_ = std::move(symbol_table.effective_alphabet_size_);
+    effective_alphabet_width_ = std::move(symbol_table.effective_alphabet_width_);
+    alphabet_bits_ = std::move(symbol_table.alphabet_bits_);
+    byte_to_symbol_ = std::move(symbol_table.byte_to_symbol_);
     byte_to_symbol_.set_vector(&alphabet_bits_);
-    symbol_to_byte_ = std::move(byte_alphabet.symbol_to_byte_);
+    symbol_to_byte_ = std::move(symbol_table.symbol_to_byte_);
     symbol_to_byte_.set_vector(&alphabet_bits_);
   }
   return *this;
 }
 
-std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet)
+std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table)
 {
   {
     out << "value:\n";
     out << "effective_alphabet_size_:\n";
-    out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_size_) << "\n";
+    out << static_cast<uint64_t>(symbol_table.effective_alphabet_size_) << "\n";
     out << "effective_alphabet_width_:\n";
-    out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_width_) << "\n";
+    out << static_cast<uint64_t>(symbol_table.effective_alphabet_width_) << "\n";
     out << "byte alphabet:\n";
-    for (uint16_t symbol {}; symbol != byte_alphabet.effective_alphabet_size_; ++symbol)
+    for (uint16_t symbol {}; symbol != symbol_table.effective_alphabet_size_; ++symbol)
     {
-      out << byte_alphabet.ToByte(symbol);
-      out << ((symbol != (byte_alphabet.effective_alphabet_size_ - 1)) ? " " : "\n");
+      out << symbol_table.ToByte(symbol);
+      out << ((symbol != (symbol_table.effective_alphabet_size_ - 1)) ? " " : "\n");
     }
   }
   {
     out << "space:\n";
-    out << "effective_alphabet_size_: " << sizeof(byte_alphabet.effective_alphabet_size_) << "B\n";
-    out << "effective_alphabet_width_: " << sizeof(byte_alphabet.effective_alphabet_width_) << "B\n";
-    out << "alphabet_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.alphabet_bits_)) << "B\n";
-    out << "byte_to_symbol_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.byte_to_symbol_)) << "B\n";
-    out << "symbol_to_byte_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.symbol_to_byte_)) << "B\n";
+    out << "effective_alphabet_size_: " << sizeof(symbol_table.effective_alphabet_size_) << "B\n";
+    out << "effective_alphabet_width_: " << sizeof(symbol_table.effective_alphabet_width_) << "B\n";
+    out << "alphabet_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_table.alphabet_bits_)) << "B\n";
+    out << "byte_to_symbol_: " << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_table.byte_to_symbol_)) << "B\n";
+    out << "symbol_to_byte_: " << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_table.symbol_to_byte_)) << "B\n";
   }
   return out;
 }
@@ -359,19 +359,57 @@ std::ostream& operator<< (std::ostream &out, std::pair<TinyPatternTrie, bool> co
   return out;
 }
 
-// struct FactorTable
-// {
-//   sdsl::sd_vector<> bits;
-//   sdsl::sd_vector<>::rank_1_type rank_1;
-//
-//   template <typename File>
-//   void Print (File &file)
-//   {
-//     file << "|factors|: " << rank_1(std::size(bits)) << "\n";
-//     file << "space:\n";
-//     file << "bits: " << ProperSizeRepresentation(sdsl::size_in_bytes(bits)) << "B\n";
-//   }
-// };
+class GrammarSymbolTable
+{
+public:
+
+  GrammarSymbolTable () = default;
+  GrammarSymbolTable (std::set<uint64_t> &factor_integers) noexcept;
+  GrammarSymbolTable& operator= (GrammarSymbolTable &&) noexcept;
+
+  friend std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &symbol_table);
+
+private:
+
+  uint64_t effective_alphabet_size_;
+  uint8_t effective_alphabet_width_;
+  sdsl::sd_vector<> factor_integer_bits_;
+  sdsl::sd_vector<>::rank_1_type factor_integer_rank_1_;
+
+};
+
+GrammarSymbolTable::GrammarSymbolTable (std::set<uint64_t> &factor_integers) noexcept
+{
+  std::vector<uint64_t> sorted_factor_integers(std::begin(factor_integers), std::end(factor_integers));
+  effective_alphabet_size_ = std::size(factor_integers);
+  effective_alphabet_width_ = sdsl::bits::hi(effective_alphabet_size_ - 1) + 1;
+  factor_integer_bits_ = decltype(factor_integer_bits_)(std::begin(sorted_factor_integers), std::end(sorted_factor_integers));
+  factor_integer_rank_1_.set_vector(&factor_integer_bits_);
+}
+
+GrammarSymbolTable& GrammarSymbolTable::operator= (GrammarSymbolTable &&grammar_symbol_table) noexcept
+{
+  if (this != &grammar_symbol_table)
+  {
+    effective_alphabet_size_ = std::move(grammar_symbol_table.effective_alphabet_size_);
+    effective_alphabet_width_ = std::move(grammar_symbol_table.effective_alphabet_width_);
+    factor_integer_bits_ = std::move(grammar_symbol_table.factor_integer_bits_);
+    factor_integer_rank_1_.set_vector(&factor_integer_bits_);
+  }
+  return *this;
+}
+
+std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &grammar_symbol_table)
+{
+  out << "value:\n";
+  out << "effective_alphabet_size_: " << grammar_symbol_table.effective_alphabet_size_ << "\n";
+  out << "effective_alphabet_width_: " << static_cast<uint64_t>(grammar_symbol_table.effective_alphabet_width_) << "\n";
+  out << "space:\n";
+  out << "effective_alphabet_size_: " << sizeof(grammar_symbol_table.effective_alphabet_size_) << "B\n";
+  out << "effective_alphabet_width_: " << sizeof(grammar_symbol_table.effective_alphabet_width_) << "B\n";
+  out << "factor_integer_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_symbol_table.factor_integer_bits_)) << "B\n";
+  return out;
+}
 
 // template <bool Index::kMaxFactorSize>
 // template
@@ -447,12 +485,12 @@ public:
 
 private:
 
-  ByteAlphabet byte_alphabet;
-  TinyPatternTrie tiny_pattern_trie;
-  // FactorTable lex_factor_table;
-  // FactorTable colex_factor_table;
-  sdsl::int_vector<> colex_to_lex;
-  sdsl::int_vector<> bucket_begin_offsets;
+  SymbolTable symbol_table_;
+  TinyPatternTrie tiny_pattern_trie_;
+  GrammarSymbolTable lex_symbol_table_;
+  GrammarSymbolTable colex_symbol_table_;
+  sdsl::int_vector<> colex_to_lex_;
+  sdsl::int_vector<> bucket_begin_offsets_;
   sdsl::wt_rlmn
   <
     sdsl::sd_vector<>,
@@ -460,21 +498,27 @@ private:
     typename sdsl::sd_vector<>::select_1_type,
     sdsl::wt_ap<>
   >
-  bwt;
+  bwt_;
 
-  void CalculateTemporaryTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie);
+  void CalculateSymbolTableAndText
+  (
+    std::filesystem::path const &byte_text_path,
+    sdsl::int_vector<> &text
+  );
+
+  void CalculateTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie);
 
   template <typename Iterator>
   uint64_t SymbolsToInteger (Iterator it, Iterator end, int8_t const step = 1);
 
   // std::deque<uint64_t> IntegerToSymbols (uint64_t integer);
 
-  void CalculateLexTextSizeAndTemporaryLexFactorsAndTemporaryColexFactors
+  void CalculateLexTextSizeAndLexFactorIntegersAndColexFactorIntegers
   (
     sdsl::int_vector<> const &text,
     uint64_t &lex_text_size,
-    std::set<uint64_t> &temporary_lex_factors,
-    std::set<uint64_t> &temporary_colex_factors
+    std::set<uint64_t> &lex_factor_integers,
+    std::set<uint64_t> &colex_factor_integers
   );
 
 };
@@ -484,99 +528,55 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
 {
   std::cout << "construct index of " << std::filesystem::canonical(byte_text_path) << "\n";
   sdsl::int_vector<> text;
-  {
-    sdsl::int_vector<8> byte_text;
-    sdsl::load_vector_from_file(byte_text, byte_text_path);
-    {
-      for (auto byte : byte_text)
-      {
-        if (byte == 0)
-        {
-          throw std::runtime_error("byte_text contains 0");
-        }
-      }
-      sdsl::append_zero_symbol(byte_text);
-    }
-    byte_alphabet = decltype(byte_alphabet)(byte_text);
-    // std::cout << byte_alphabet;
-    text.width(byte_alphabet.GetEffectiveAlphabetWidth());
-    text.resize(std::size(byte_text));
-    std::transform
-    (
-      std::begin(byte_text),
-      std::end(byte_text),
-      std::begin(text),
-      [&] (auto const byte)
-      {
-        return byte_alphabet.ToSymbol(byte);
-      }
-    );
-    // Print(text, std::cout);
-  }
-  {
-    Trie trie;
-    CalculateTemporaryTinyPatternTrie(text, trie);
-    // std::cout << std::make_pair(trie, /*is_level_order=*/false);
-    tiny_pattern_trie = decltype(tiny_pattern_trie)(trie);
-    // std::cout << std::make_pair(tiny_pattern_trie, /*is_level_order=*/false);
-  }
+  CalculateSymbolTableAndText(byte_text_path, text);
+  // {
+  //   Trie trie;
+  //   CalculateTinyPatternTrie(text, trie);
+  //   // std::cout << std::make_pair(trie, /*is_level_order=*/false);
+  //   tiny_pattern_trie_ = decltype(tiny_pattern_trie_)(trie);
+  //   // std::cout << std::make_pair(tiny_pattern_trie, /*is_level_order=*/false);
+  // }
   uint64_t lex_text_size {};
-  std::set<uint64_t> temporary_lex_factors;
-  std::set<uint64_t> temporary_colex_factors;
-  CalculateLexTextSizeAndTemporaryLexFactorsAndTemporaryColexFactors
+  std::set<uint64_t> lex_factor_integers;
+  std::set<uint64_t> colex_factor_integers;
+  CalculateLexTextSizeAndLexFactorIntegersAndColexFactorIntegers
   (
     text,
     lex_text_size,
-    temporary_lex_factors,
-    temporary_colex_factors
+    lex_factor_integers,
+    colex_factor_integers
   );
   // {
   //   std::cout << "lex_text_size:\n" << lex_text_size << "\n";
-  //   std::cout << "temporary_lex_factors:\n";
-  //   for (auto const &factor : temporary_lex_factors)
+  //   std::cout << "lex_factor_integers:\n";
+  //   for (auto const &factor : lex_factor_integers)
   //   {
   //     Print(IntegerToSymbols(factor), std::cout);
   //   }
-  //   std::cout << "temporary_colex_factors:\n";
-  //   for (auto const &factor : temporary_colex_factors)
+  //   std::cout << "colex_factor_integers:\n";
+  //   for (auto const &factor : colex_factor_integers)
   //   {
   //     Print(IntegerToSymbols(factor), std::cout);
   //   }
   // }
-  // LexText lex_text(temporary_lex_factors);
+  lex_symbol_table_ = decltype(lex_symbol_table_)(lex_factor_integers);
+  // std::cout << lex_symbol_table_;
+  // LexText lex_text(lex_factor_integers);
   // sdsl::int_vector<> lex_text;
-  // uint64_t lex_text_size {};
-  // uint64_t lex_alphabet_size {};
-  // uint64_t lex_text_width {};
   // {
-  //   std::vector<uint64_t> lex_factors;
-  //   for (auto const &pair : temporary_lex_factors)
-  //   {
-  //     lex_factors.emplace_back(std::get<0>(pair));
-  //     lex_text_size += std::get<1>(pair);
-  //   }
-  //   {
-  //     lex_alphabet_size = std::size(lex_factors);
-  //     lex_text_width = sdsl::bits::hi(lex_alphabet_size - 1) + 1;
-  //     index.lex_factor_table.bits = decltype(index.lex_factor_table.bits)(std::begin(lex_factors), std::end(lex_factors));
-  //     index.lex_factor_table.rank_1.set_vector(&(index.lex_factor_table.bits));
-  //     // index.lex_factor_table.Print(std::cout);
-  //   }
-  //   {
-  //     lex_text.width(sdsl::bits::hi(std::size(lex_factors) - 1) + 1);
-  //     lex_text.resize(lex_text_size);
-  //     CalculateLexText(text, index.lex_factor_table, Index::kMaxFactorSize, lex_text);
-  //     *std::prev(std::end(lex_text)) = 0;
-  //     // Print(lex_text, std::cout);
-  //   }
+  //   lex_text.width(sdsl::bits::hi(std::size(lex_factor_integers) - 1) + 1);
+  //   lex_text.resize(lex_text_size);
+  //   CalculateLexText(text, index.lex_factor_table, Index::kMaxFactorSize, lex_text);
+  //   *std::prev(std::end(lex_text)) = 0;
+  //   // Print(lex_text, std::cout);
   // }
   // {
-  //   std::vector<uint64_t> colex_factors;
-  //   for (auto const &pair : temporary_colex_to_lex)
+  //   std::vector<uint64_t> colex_factor_integers;
+  //   for (auto const &pair : colex_to_lex)
   //   {
-  //     colex_factors.emplace_back(std::get<0>(pair));
+  //     colex_factor_integers.emplace_back(std::get<0>(pair));
   //   }
-  //   index.colex_factor_table.bits = decltype(index.colex_factor_table.bits)(std::begin(colex_factors), std::end(colex_factors));
+  //   index.colex_factor_table.bits = decltype(index.colex_factor_table.bits)(std::begin(colex_factor_integers), std::end(colex_factor_integers));
   //   index.colex_factor_table.rank_1.set_vector(&(index.colex_factor_table.bits));
   //   // index.colex_factor_table.Print(std::cout);
   // }
@@ -584,7 +584,7 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
   //   index.colex_to_lex.width(lex_text_width);
   //   index.colex_to_lex.resize(lex_alphabet_size);
   //   auto it {std::begin(index.colex_to_lex)};
-  //   for (auto const &pair : temporary_colex_to_lex)
+  //   for (auto const &pair : colex_to_lex)
   //   {
   //     *it++ = index.lex_factor_table.rank_1(std::get<1>(pair));
   //   }
@@ -629,7 +629,43 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
 }
 
 template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateTemporaryTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie)
+void Index<max_factor_size>::CalculateSymbolTableAndText
+(
+  std::filesystem::path const &byte_text_path,
+  sdsl::int_vector<> &text
+)
+{
+  sdsl::int_vector<8> byte_text;
+  sdsl::load_vector_from_file(byte_text, byte_text_path);
+  {
+    for (auto byte : byte_text)
+    {
+      if (byte == 0)
+      {
+        throw std::runtime_error("byte_text contains 0");
+      }
+    }
+    sdsl::append_zero_symbol(byte_text);
+  }
+  symbol_table_ = decltype(symbol_table_)(byte_text);
+  // std::cout << symbol_table_;
+  text.width(symbol_table_.GetEffectiveAlphabetWidth());
+  text.resize(std::size(byte_text));
+  std::transform
+  (
+    std::begin(byte_text),
+    std::end(byte_text),
+    std::begin(text),
+    [&] (auto const byte)
+    {
+      return symbol_table_.ToSymbol(byte);
+    }
+  );
+  // Print(text, std::cout);
+}
+
+template <uint8_t max_factor_size>
+void Index<max_factor_size>::CalculateTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie)
 {
   auto text_it {std::begin(text)};
   auto text_last {std::prev(std::end(text))};
@@ -659,7 +695,7 @@ uint64_t Index<max_factor_size>::SymbolsToInteger (Iterator it, Iterator end, in
   uint64_t result {};
   for (auto k {Index::kMaxFactorSize}; (it != end) && (k != 0); it += step, --k)
   {
-    result += *it * (1ULL << (byte_alphabet.GetEffectiveAlphabetWidth() * (k - 1)));
+    result += *it * (1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * (k - 1)));
   }
   return result;
 }
@@ -668,7 +704,7 @@ uint64_t Index<max_factor_size>::SymbolsToInteger (Iterator it, Iterator end, in
 // std::deque<uint64_t> Index<max_factor_size>::IntegerToSymbols (uint64_t integer)
 // {
 //   std::deque<uint64_t> symbols;
-//   auto const base {1ULL << byte_alphabet.GetEffectiveAlphabetWidth()};
+//   auto const base {1ULL << symbol_table_.GetEffectiveAlphabetWidth()};
 //   while (integer != 0)
 //   {
 //     symbols.emplace_front(integer % base);
@@ -678,12 +714,12 @@ uint64_t Index<max_factor_size>::SymbolsToInteger (Iterator it, Iterator end, in
 // }
 
 template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateLexTextSizeAndTemporaryLexFactorsAndTemporaryColexFactors
+void Index<max_factor_size>::CalculateLexTextSizeAndLexFactorIntegersAndColexFactorIntegers
 (
   sdsl::int_vector<> const &text,
   uint64_t &lex_text_size,
-  std::set<uint64_t> &temporary_lex_factors,
-  std::set<uint64_t> &temporary_colex_factors
+  std::set<uint64_t> &lex_factor_integers,
+  std::set<uint64_t> &colex_factor_integers
 )
 {
   auto text_prev_begin {std::prev(std::begin(text))};
@@ -694,8 +730,8 @@ void Index<max_factor_size>::CalculateLexTextSizeAndTemporaryLexFactorsAndTempor
   auto sl_factor_end {std::prev(std::end(text))};
   {
     ++lex_text_size;
-    temporary_lex_factors.insert(0);
-    temporary_colex_factors.insert(0);
+    lex_factor_integers.insert(0);
+    colex_factor_integers.insert(0);
   }
   while (text_it != text_prev_begin)
   {
@@ -718,15 +754,15 @@ void Index<max_factor_size>::CalculateLexTextSizeAndTemporaryLexFactorsAndTempor
       {
         auto factor_end {std::next(factor_it, Index::kMaxFactorSize)};
         ++lex_text_size;
-        temporary_lex_factors.insert(SymbolsToInteger(factor_it, factor_end));
-        temporary_colex_factors.insert(SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), -1));
+        lex_factor_integers.insert(SymbolsToInteger(factor_it, factor_end));
+        colex_factor_integers.insert(SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), -1));
         factor_it = factor_end;
       }
       if (std::distance(factor_it, sl_factor_end) != 0)
       {
         ++lex_text_size;
-        temporary_lex_factors.insert(SymbolsToInteger(factor_it, sl_factor_end));
-        temporary_colex_factors.insert(SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), -1));
+        lex_factor_integers.insert(SymbolsToInteger(factor_it, sl_factor_end));
+        colex_factor_integers.insert(SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), -1));
       }
       sl_factor_end = std::next(text_it);
     }
@@ -734,8 +770,8 @@ void Index<max_factor_size>::CalculateLexTextSizeAndTemporaryLexFactorsAndTempor
     next_sl_type = sl_type;
   }
   ++lex_text_size;
-  temporary_lex_factors.insert(SymbolsToInteger(std::next(text_prev_begin), sl_factor_end));
-  temporary_colex_factors.insert(SymbolsToInteger(std::prev(sl_factor_end), text_prev_begin, -1));
+  lex_factor_integers.insert(SymbolsToInteger(std::next(text_prev_begin), sl_factor_end));
+  colex_factor_integers.insert(SymbolsToInteger(std::prev(sl_factor_end), text_prev_begin, -1));
   return;
 }
 
