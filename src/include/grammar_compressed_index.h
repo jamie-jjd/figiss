@@ -3,6 +3,7 @@
 #include <deque>
 #include <map>
 #include <memory>
+#include <set>
 
 #include <sdsl/wavelet_trees.hpp>
 
@@ -468,20 +469,12 @@ private:
 
   // std::deque<uint64_t> IntegerToSymbols (uint64_t integer);
 
-  template <typename Iterator>
-  void UpdateLexFactorCountsAndTemporaryColexToLex
-  (
-    Iterator factor_begin,
-    Iterator factor_end,
-    std::map<uint64_t, uint64_t> &lex_factor_counts,
-    std::map<uint64_t, uint64_t> &temporary_colex_to_lex
-  );
-
-  void CalculateLexFactorCountsAndTemporaryColexToLex
+  void CalculateLexTextSizeAndTemporaryLexFactorsAndTemporaryColexFactors
   (
     sdsl::int_vector<> const &text,
-    std::map<uint64_t, uint64_t> &lex_factor_counts,
-    std::map<uint64_t, uint64_t> &temporary_colex_to_lex
+    uint64_t &lex_text_size,
+    std::set<uint64_t> &temporary_lex_factors,
+    std::set<uint64_t> &temporary_colex_factors
   );
 
 };
@@ -527,30 +520,37 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     tiny_pattern_trie = decltype(tiny_pattern_trie)(trie);
     // std::cout << std::make_pair(tiny_pattern_trie, /*is_level_order=*/false);
   }
-  std::map<uint64_t, uint64_t> lex_factor_counts;
-  std::map<uint64_t, uint64_t> temporary_colex_to_lex;
-  CalculateLexFactorCountsAndTemporaryColexToLex(text, lex_factor_counts, temporary_colex_to_lex);
+  uint64_t lex_text_size {};
+  std::set<uint64_t> temporary_lex_factors;
+  std::set<uint64_t> temporary_colex_factors;
+  CalculateLexTextSizeAndTemporaryLexFactorsAndTemporaryColexFactors
+  (
+    text,
+    lex_text_size,
+    temporary_lex_factors,
+    temporary_colex_factors
+  );
   // {
-  //   for (auto const &pair : lex_factor_counts)
+  //   std::cout << "lex_text_size:\n" << lex_text_size << "\n";
+  //   std::cout << "temporary_lex_factors:\n";
+  //   for (auto const &factor : temporary_lex_factors)
   //   {
-  //     Print(IntegerToSymbols(std::get<0>(pair)), std::cout, 1, " ", "");
-  //     std::cout << ":" << std::get<1>(pair) << "\n";
+  //     Print(IntegerToSymbols(factor), std::cout);
   //   }
-  //   for (auto const &pair : temporary_colex_to_lex)
+  //   std::cout << "temporary_colex_factors:\n";
+  //   for (auto const &factor : temporary_colex_factors)
   //   {
-  //     Print(IntegerToSymbols(std::get<0>(pair)), std::cout, -1, " ", "");
-  //     std::cout << ":";
-  //     Print(IntegerToSymbols(std::get<1>(pair)), std::cout, 1, " ", "");
-  //     std::cout << "\n";
+  //     Print(IntegerToSymbols(factor), std::cout);
   //   }
   // }
+  // LexText lex_text(temporary_lex_factors);
   // sdsl::int_vector<> lex_text;
   // uint64_t lex_text_size {};
   // uint64_t lex_alphabet_size {};
   // uint64_t lex_text_width {};
   // {
   //   std::vector<uint64_t> lex_factors;
-  //   for (auto const &pair : lex_factor_counts)
+  //   for (auto const &pair : temporary_lex_factors)
   //   {
   //     lex_factors.emplace_back(std::get<0>(pair));
   //     lex_text_size += std::get<1>(pair);
@@ -678,32 +678,12 @@ uint64_t Index<max_factor_size>::SymbolsToInteger (Iterator it, Iterator end, in
 // }
 
 template <uint8_t max_factor_size>
-template <typename Iterator>
-void Index<max_factor_size>::UpdateLexFactorCountsAndTemporaryColexToLex
-(
-  Iterator factor_begin,
-  Iterator factor_end,
-  std::map<uint64_t, uint64_t> &lex_factor_counts,
-  std::map<uint64_t, uint64_t> &temporary_colex_to_lex
-)
-{
-  auto lex_factor {SymbolsToInteger(factor_begin, factor_end)};
-  auto colex_factor {SymbolsToInteger(std::prev(factor_end), std::prev(factor_begin), -1)};
-  if (lex_factor_counts.find(lex_factor) == lex_factor_counts.end())
-  {
-    lex_factor_counts[lex_factor] = 0;
-  }
-  ++lex_factor_counts[lex_factor];
-  temporary_colex_to_lex[colex_factor] = lex_factor;
-  return;
-}
-
-template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateLexFactorCountsAndTemporaryColexToLex
+void Index<max_factor_size>::CalculateLexTextSizeAndTemporaryLexFactorsAndTemporaryColexFactors
 (
   sdsl::int_vector<> const &text,
-  std::map<uint64_t, uint64_t> &lex_factor_counts,
-  std::map<uint64_t, uint64_t> &temporary_colex_to_lex
+  uint64_t &lex_text_size,
+  std::set<uint64_t> &temporary_lex_factors,
+  std::set<uint64_t> &temporary_colex_factors
 )
 {
   auto text_prev_begin {std::prev(std::begin(text))};
@@ -713,8 +693,9 @@ void Index<max_factor_size>::CalculateLexFactorCountsAndTemporaryColexToLex
   uint8_t next_sl_type {Index::kL};
   auto sl_factor_end {std::prev(std::end(text))};
   {
-    lex_factor_counts[0] = 1;
-    temporary_colex_to_lex[0] = 0;
+    ++lex_text_size;
+    temporary_lex_factors.insert(0);
+    temporary_colex_factors.insert(0);
   }
   while (text_it != text_prev_begin)
   {
@@ -736,37 +717,25 @@ void Index<max_factor_size>::CalculateLexFactorCountsAndTemporaryColexToLex
       while (std::distance(factor_it, sl_factor_end) >= Index::kMaxFactorSize)
       {
         auto factor_end {std::next(factor_it, Index::kMaxFactorSize)};
-        UpdateLexFactorCountsAndTemporaryColexToLex
-        (
-          factor_it,
-          factor_end,
-          lex_factor_counts,
-          temporary_colex_to_lex
-        );
+        ++lex_text_size;
+        temporary_lex_factors.insert(SymbolsToInteger(factor_it, factor_end));
+        temporary_colex_factors.insert(SymbolsToInteger(std::prev(factor_end), std::prev(factor_it), -1));
         factor_it = factor_end;
       }
       if (std::distance(factor_it, sl_factor_end) != 0)
       {
-        UpdateLexFactorCountsAndTemporaryColexToLex
-        (
-          factor_it,
-          sl_factor_end,
-          lex_factor_counts,
-          temporary_colex_to_lex
-        );
+        ++lex_text_size;
+        temporary_lex_factors.insert(SymbolsToInteger(factor_it, sl_factor_end));
+        temporary_colex_factors.insert(SymbolsToInteger(std::prev(sl_factor_end), std::prev(factor_it), -1));
       }
       sl_factor_end = std::next(text_it);
     }
     next_symbol = *text_it--;
     next_sl_type = sl_type;
   }
-  UpdateLexFactorCountsAndTemporaryColexToLex
-  (
-    std::begin(text),
-    sl_factor_end,
-    lex_factor_counts,
-    temporary_colex_to_lex
-  );
+  ++lex_text_size;
+  temporary_lex_factors.insert(SymbolsToInteger(std::next(text_prev_begin), sl_factor_end));
+  temporary_colex_factors.insert(SymbolsToInteger(std::prev(sl_factor_end), text_prev_begin, -1));
   return;
 }
 
