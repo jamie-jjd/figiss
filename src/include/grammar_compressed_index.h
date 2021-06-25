@@ -19,6 +19,13 @@ public:
   SymbolTable (sdsl::int_vector<8> const &byte_text) noexcept;
   SymbolTable& operator= (SymbolTable &&) noexcept;
 
+  uint64_t Serialize
+  (
+    std::ostream &out,
+    std::shared_ptr<SpaceNode> parent = nullptr,
+    std::string const name = ""
+  );
+
   inline uint16_t GetEffectiveAlphabetSize () const noexcept
   {
     return effective_alphabet_size_;
@@ -86,6 +93,36 @@ SymbolTable& SymbolTable::operator= (SymbolTable &&symbol_table) noexcept
     symbol_to_byte_.set_vector(&alphabet_bits_);
   }
   return *this;
+}
+
+uint64_t SymbolTable::Serialize
+(
+  std::ostream &out,
+  std::shared_ptr<SpaceNode> parent,
+  std::string const name
+)
+{
+  uint64_t size_in_bytes {};
+  if (!parent)
+  {
+    sdsl::write_member(effective_alphabet_size_, out);
+    sdsl::write_member(effective_alphabet_width_, out);
+    sdsl::serialize(alphabet_bits_, out);
+    sdsl::serialize(byte_to_symbol_, out);
+    sdsl::serialize(symbol_to_byte_, out);
+  }
+  else
+  {
+    auto node {std::make_shared<SpaceNode>(name)};
+    node->AddLeaf("effective_alphabet_size_", sdsl::write_member(effective_alphabet_size_, out));
+    node->AddLeaf("effective_alphabet_width_", sdsl::write_member(effective_alphabet_width_, out));
+    node->AddLeaf("alphabet_bits_", sdsl::serialize(alphabet_bits_, out));
+    node->AddLeaf("byte_to_symbol_", sdsl::serialize(byte_to_symbol_, out));
+    node->AddLeaf("symbol_to_byte_", sdsl::serialize(symbol_to_byte_, out));
+    parent->AddChild(node);
+    size_in_bytes = node->GetSizeInBytes();
+  }
+  return size_in_bytes;
 }
 
 std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table)
@@ -216,6 +253,13 @@ public:
   TinyPatternTrie (TinyPatternTrie const &) = default;
   TinyPatternTrie& operator= (TinyPatternTrie &&) noexcept;
 
+  uint64_t Serialize
+  (
+    std::ostream &out,
+    std::shared_ptr<SpaceNode> parent = nullptr,
+    std::string const name = ""
+  );
+
   inline auto GetOffsetRange (uint64_t const level_order) const noexcept
   {
     return std::make_pair
@@ -299,6 +343,34 @@ TinyPatternTrie& TinyPatternTrie::operator= (TinyPatternTrie &&tiny_pattern_trie
   return *this;
 }
 
+uint64_t TinyPatternTrie::Serialize
+(
+  std::ostream &out,
+  std::shared_ptr<SpaceNode> parent,
+  std::string const name
+)
+{
+  uint64_t size_in_bytes {};
+  if (!parent)
+  {
+    sdsl::serialize(level_order_bits_, out);
+    sdsl::serialize(level_order_select_1_, out);
+    sdsl::serialize(labels_, out);
+    sdsl::serialize(counts_, out);
+  }
+  else
+  {
+    auto node {std::make_shared<SpaceNode>(name)};
+    node->AddLeaf("level_order_bits_", sdsl::serialize(level_order_bits_, out));
+    node->AddLeaf("level_order_select_1_", sdsl::serialize(level_order_select_1_, out));
+    node->AddLeaf("labels_", sdsl::serialize(labels_, out));
+    node->AddLeaf("counts_", sdsl::serialize(counts_, out));
+    parent->AddChild(node);
+    size_in_bytes = node->GetSizeInBytes();
+  }
+  return size_in_bytes;
+}
+
 std::ostream& operator<< (std::ostream &out, std::pair<TinyPatternTrie, bool> const &pair)
 {
   auto const &trie {std::get<0>(pair)};
@@ -361,6 +433,13 @@ public:
   GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers) noexcept;
   GrammarSymbolTable& operator= (GrammarSymbolTable &&) noexcept;
 
+  uint64_t Serialize
+  (
+    std::ostream &out,
+    std::shared_ptr<SpaceNode> parent = nullptr,
+    std::string const name = ""
+  );
+
   uint64_t operator[] (uint64_t const factor_integer) const noexcept;
 
   friend std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &symbol_table);
@@ -386,6 +465,30 @@ GrammarSymbolTable& GrammarSymbolTable::operator= (GrammarSymbolTable &&grammar_
     factor_integer_rank_1_.set_vector(&factor_integer_bits_);
   }
   return *this;
+}
+
+uint64_t GrammarSymbolTable::Serialize
+(
+  std::ostream &out,
+  std::shared_ptr<SpaceNode> parent,
+  std::string const name
+)
+{
+  uint64_t size_in_bytes {};
+  if (!parent)
+  {
+    sdsl::serialize(factor_integer_bits_, out);
+    sdsl::serialize(factor_integer_rank_1_, out);
+  }
+  else
+  {
+    auto node {std::make_shared<SpaceNode>(name)};
+    node->AddLeaf("factor_integer_bits_", sdsl::serialize(factor_integer_bits_, out));
+    node->AddLeaf("factor_integer_rank_1_", sdsl::serialize(factor_integer_rank_1_, out));
+    parent->AddChild(node);
+    size_in_bytes = node->GetSizeInBytes();
+  }
+  return size_in_bytes;
 }
 
 uint64_t GrammarSymbolTable::operator[] (uint64_t const factor_integer) const noexcept
@@ -414,7 +517,11 @@ public:
   static constexpr uint8_t kL {0};
 
   Index (std::filesystem::path const &byte_text_path);
-  uint64_t Serialize (std::filesystem::path const &index_path);
+  uint64_t Serialize
+  (
+    std::filesystem::path const &index_path,
+    std::shared_ptr<SpaceNode> root = nullptr
+  );
   void Load (std::filesystem::path const &index_path);
   template <typename PatternIterator>
   uint64_t Count (PatternIterator begin, PatternIterator end);
@@ -533,6 +640,40 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     CalculateLexBwt(lex_text);
     // std::cout << lex_bwt_ << "\n";
   }
+}
+
+template <uint8_t max_factor_size>
+uint64_t Index<max_factor_size>::Serialize
+(
+  std::filesystem::path const &index_path,
+  std::shared_ptr<SpaceNode> root
+)
+{
+  std::fstream index_file {index_path, std::ios_base::out | std::ios_base::trunc};
+  std::cout << "serialize index to " << std::filesystem::canonical(index_path) << "\n";
+  uint64_t size_in_bytes {};
+  if (!root)
+  {
+    symbol_table_.Serialize(index_file);
+    tiny_pattern_trie_.Serialize(index_file);
+    lex_symbol_table_.Serialize(index_file);
+    colex_symbol_table_.Serialize(index_file);;
+    sdsl::serialize(colex_to_lex_, index_file);
+    sdsl::serialize(lex_symbol_bucket_offsets_, index_file);
+    sdsl::serialize(lex_bwt_, index_file);
+  }
+  else
+  {
+    root->AccumalateSizeInBytes(symbol_table_.Serialize(index_file, root, "symbol_table_"));
+    root->AccumalateSizeInBytes(tiny_pattern_trie_.Serialize(index_file, root, "tiny_pattern_trie_"));
+    root->AccumalateSizeInBytes(lex_symbol_table_.Serialize(index_file, root, "lex_symbol_table_"));
+    root->AccumalateSizeInBytes(colex_symbol_table_.Serialize(index_file, root, "colex_symbol_table_"));
+    root->AddLeaf("colex_to_lex_", sdsl::serialize(colex_to_lex_, index_file));
+    root->AddLeaf("lex_symbol_bucket_offsets_", sdsl::serialize(lex_symbol_bucket_offsets_, index_file));
+    root->AddLeaf("lex_bwt_", sdsl::serialize(lex_bwt_, index_file));
+    size_in_bytes = root->GetSizeInBytes();
+  }
+  return size_in_bytes;
 }
 
 template <uint8_t max_factor_size>
@@ -834,75 +975,6 @@ void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text
   return;
 }
 
-// template <typename Index, typename Node = InformationNode<std::string, uint64_t>>
-// uint64_t SerializeIndex
-// (
-//   Index const &index,
-//   std::filesystem::path const &index_path,
-//   std::shared_ptr<Node> root = nullptr
-// )
-// {
-//   std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
-//   std::cout << "serialize index to " << std::filesystem::canonical(index_path) << "\n";
-//   if (root == nullptr)
-//   {
-//     sdsl::serialize(index.grammar_rules, index_file);
-//     SerializeStaticGrammarTrie(index.lex_grammar_count_trie, index_file);
-//     SerializeStaticGrammarTrie(index.lex_grammar_rank_trie, index_file);
-//     SerializeStaticGrammarTrie(index.colex_grammar_rank_trie, index_file);
-//     sdsl::serialize(index.colex_to_lex, index_file);
-//     sdsl::serialize(index.lex_rank_bucket_begin_offsets, index_file);
-//     sdsl::serialize(index.colex_bwt, index_file);
-//   }
-//   else
-//   {
-//     {
-//       auto node {std::make_shared<Node>("grammar_rules")};
-//       node->value = sdsl::serialize(index.grammar_rules, index_file);
-//       root->value += node->value;
-//       root->children.emplace_back(node);
-//     }
-//     {
-//       auto node {std::make_shared<Node>("lex_grammar_count_trie")};
-//       SerializeStaticGrammarTrie(index.lex_grammar_count_trie, index_file, node);
-//       root->value += node->value;
-//       root->children.emplace_back(node);
-//     }
-//     {
-//       auto node {std::make_shared<Node>("lex_grammar_rank_trie")};
-//       SerializeStaticGrammarTrie(index.lex_grammar_rank_trie, index_file, node);
-//       root->value += node->value;
-//       root->children.emplace_back(node);
-//     }
-//     {
-//       auto node {std::make_shared<Node>("colex_grammar_rank_trie")};
-//       SerializeStaticGrammarTrie(index.colex_grammar_rank_trie, index_file, node);
-//       root->value += node->value;
-//       root->children.emplace_back(node);
-//     }
-//     {
-//       auto node {std::make_shared<Node>("colex_to_lex")};
-//       node->value = sdsl::serialize(index.colex_to_lex, index_file);
-//       root->value += node->value;
-//       root->children.emplace_back(node);
-//     }
-//     {
-//       auto node {std::make_shared<Node>("lex_rank_bucket_begin_offsets")};
-//       node->value = sdsl::serialize(index.lex_rank_bucket_begin_offsets, index_file);
-//       root->value += node->value;
-//       root->children.emplace_back(node);
-//     }
-//     {
-//       auto node {std::make_shared<Node>("colex_bwt")};
-//       node->value = sdsl::serialize(index.colex_bwt, index_file);
-//       root->value += node->value;
-//       root->children.emplace_back(node);
-//     }
-//     return root->value;
-//   }
-//   return 0;
-// }
-//
 // template <typename Index>
 // void LoadIndex (Index &index, std::filesystem::path const &index_path)
 // {
