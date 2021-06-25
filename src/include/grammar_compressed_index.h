@@ -390,7 +390,7 @@ GrammarSymbolTable& GrammarSymbolTable::operator= (GrammarSymbolTable &&grammar_
 
 uint64_t GrammarSymbolTable::operator[] (uint64_t const factor_integer) const noexcept
 {
-  if ((factor_integer < std::size(factor_integer_bits_)) && factor_integer_bits_[factor_integer])
+  if ((factor_integer <= std::size(factor_integer_bits_)) && factor_integer_bits_[factor_integer])
   {
     return factor_integer_rank_1_(factor_integer);
   }
@@ -445,7 +445,7 @@ private:
   void CalculateTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie);
   template <typename Iterator>
   uint64_t SymbolsToInteger (Iterator it, Iterator end, int8_t const step = 1);
-  // std::deque<uint64_t> IntegerToSymbols (uint64_t integer);
+  std::deque<uint64_t> IntegerToSymbols (uint64_t integer);
   void CalculateLexTextSizeAndLexFactorIntegersAndTemporaryColexToLex
   (
     sdsl::int_vector<> const &text,
@@ -462,6 +462,8 @@ private:
     uint64_t const lex_text_alphabet_size,
     sdsl::int_vector<> const &lex_text
   );
+  void CalculateLexBwt (sdsl::int_vector<> const &lex_text);
+
 };
 
 template <uint8_t max_factor_size>
@@ -470,13 +472,13 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
   std::cout << "construct index of " << std::filesystem::canonical(byte_text_path) << "\n";
   sdsl::int_vector<> text;
   CalculateSymbolTableAndText(byte_text_path, text);
-  // {
-  //   Trie trie;
-  //   CalculateTinyPatternTrie(text, trie);
-  //   // std::cout << std::make_pair(trie, /*is_level_order=*/false);
-  //   tiny_pattern_trie_ = decltype(tiny_pattern_trie_)(trie);
-  //   // std::cout << std::make_pair(tiny_pattern_trie, /*is_level_order=*/false);
-  // }
+  {
+    Trie trie;
+    CalculateTinyPatternTrie(text, trie);
+    // std::cout << std::make_pair(trie, /*is_level_order=*/true);
+    tiny_pattern_trie_ = decltype(tiny_pattern_trie_)(trie);
+    // std::cout << std::make_pair(tiny_pattern_trie_, /*is_level_order=*/true);
+  }
   uint64_t lex_text_size {};
   std::set<uint64_t> lex_factor_integers;
   std::map<uint64_t, uint64_t> temporary_colex_to_lex;
@@ -489,6 +491,7 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
       temporary_colex_to_lex
     );
     // std::cout << "lex_text_size:\n" << lex_text_size << "\n";
+    // std::cout << "|lex_factor_integers|: " << std::size(lex_factor_integers) << "\n";
     // std::cout << "lex_factor_integers:\n";
     // for (auto const &factor : lex_factor_integers)
     // {
@@ -526,19 +529,10 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     CalculateLexSymbolBucketOffsets(lex_text_alphabet_size, lex_text);
     // Print(lex_symbol_bucket_offsets_, std::cout);
   }
-  // {
-  //   sdsl::int_vector<> buffer;
-  //   sdsl::qsufsort::construct_sa(buffer, lex_text);
-  //   for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
-  //   {
-  //     if (*it != 0)
-  //     {
-  //       *it = lex_text[(*it - 1)];
-  //     }
-  //   }
-  //   sdsl::construct_im(index.bwt, buffer);
-  //   // Print(index.bwt, std::cout);
-  // }
+  {
+    CalculateLexBwt(lex_text);
+    // std::cout << lex_bwt_ << "\n";
+  }
 }
 
 template <uint8_t max_factor_size>
@@ -613,18 +607,25 @@ uint64_t Index<max_factor_size>::SymbolsToInteger (Iterator it, Iterator end, in
   return result;
 }
 
-// template <uint8_t max_factor_size>
-// std::deque<uint64_t> Index<max_factor_size>::IntegerToSymbols (uint64_t integer)
-// {
-//   std::deque<uint64_t> symbols;
-//   auto const base {1ULL << symbol_table_.GetEffectiveAlphabetWidth()};
-//   while (integer != 0)
-//   {
-//     symbols.emplace_front(integer % base);
-//     integer /= base;
-//   }
-//   return symbols;
-// }
+template <uint8_t max_factor_size>
+std::deque<uint64_t> Index<max_factor_size>::IntegerToSymbols (uint64_t integer)
+{
+  std::deque<uint64_t> symbols;
+  auto const base {1ULL << symbol_table_.GetEffectiveAlphabetWidth()};
+  if (integer == 0)
+  {
+    symbols.emplace_back(0);
+  }
+  else
+  {
+    while (integer != 0)
+    {
+      symbols.emplace_front(integer % base);
+      integer /= base;
+    }
+  }
+  return symbols;
+}
 
 template <uint8_t max_factor_size>
 void Index<max_factor_size>::CalculateLexTextSizeAndLexFactorIntegersAndTemporaryColexToLex
@@ -716,7 +717,7 @@ void Index<max_factor_size>::CalculateLexText
   auto next_symbol {*std::prev(std::end(text), 2)};
   uint8_t sl_type {};
   uint8_t next_sl_type {Index::kL};
-  auto sl_factor_end {std::end(text)};
+  auto sl_factor_end {std::prev(std::end(text))};
   auto lex_text_it {std::prev(std::end(lex_text), 2)};
   std::vector<uint64_t> sl_factor;
   while (text_it != text_prev_begin)
@@ -817,6 +818,21 @@ void Index<max_factor_size>::CalculateLexSymbolBucketOffsets
   return;
 }
 
+template <uint8_t max_factor_size>
+void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text)
+{
+  sdsl::int_vector<> buffer;
+  sdsl::qsufsort::construct_sa(buffer, lex_text);
+  for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
+  {
+    if (*it != 0)
+    {
+      *it = lex_text[*it - 1];
+    }
+  }
+  sdsl::construct_im(lex_bwt_, buffer);
+  return;
+}
 
 // template <typename Index, typename Node = InformationNode<std::string, uint64_t>>
 // uint64_t SerializeIndex
