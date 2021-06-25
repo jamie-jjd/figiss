@@ -464,37 +464,77 @@ std::string ProperTimeRepresentation (double const nanoseconds)
   return "0.00";
 }
 
-template <typename Key, typename Value>
-struct InformationNode
+class SpaceNode
 {
-  Key key;
-  Value value;
-  std::deque<std::shared_ptr<InformationNode<Key, Value>>> children;
+public:
 
-  InformationNode (Key const &key_): key {key_}, value {} {}
+  SpaceNode () = default;
+  SpaceNode (std::string const &name, uint64_t const size_in_bytes = 0) noexcept;
+
+  void AccumalateSizeInBytes (uint64_t const size_in_bytes);
+  void AddChild (std::shared_ptr<SpaceNode> child);
+  void AddLeaf (std::string const &name, uint64_t const size_in_bytes);
+
+  inline uint64_t GetSizeInBytes () const noexcept
+  {
+    return size_in_bytes_;
+  }
+
+  friend std::ostream& operator<< (std::ostream &out, std::shared_ptr<SpaceNode> root);
+
+private:
+
+  std::string name_;
+  uint64_t size_in_bytes_;
+  std::deque<std::shared_ptr<SpaceNode>> children_;
+
 };
 
-template <typename File, typename Node>
-void Print (File &file, std::shared_ptr<Node> root)
+SpaceNode::SpaceNode (std::string const &name, uint64_t const size_in_bytes) noexcept
+: name_ {name},
+  size_in_bytes_ {size_in_bytes},
+  children_ {}
 {
-  std::deque<std::pair<std::shared_ptr<Node>, uint64_t>> nodes;
+}
+
+void SpaceNode::AccumalateSizeInBytes (uint64_t const size_in_bytes)
+{
+  size_in_bytes_ += size_in_bytes;
+  return;
+}
+
+void SpaceNode::AddChild (std::shared_ptr<SpaceNode> child)
+{
+  children_.emplace_back(child);
+  size_in_bytes_ += child->GetSizeInBytes();
+  return;
+}
+
+void SpaceNode::AddLeaf (std::string const &name, uint64_t const size_in_bytes)
+{
+  auto node {std::make_shared<SpaceNode>(name, size_in_bytes)};
+  children_.emplace_back(node);
+  size_in_bytes_ += size_in_bytes;
+  return;
+}
+
+std::ostream& operator<< (std::ostream &out, std::shared_ptr<SpaceNode> root)
+{
+  std::deque<std::pair<std::shared_ptr<SpaceNode>, uint64_t>> nodes;
   nodes.emplace_back(root, 0);
   while (!nodes.empty())
   {
-    auto node {std::get<0>(nodes.back())};
-    auto depth {std::get<1>(nodes.back())};
+    auto const node {std::get<0>(nodes.back())};
+    auto const depth {std::get<1>(nodes.back())};
     nodes.pop_back();
     std::string whitespaces(depth * 2, ' ');
-    file << whitespaces << node->key << ": " << ProperSizeRepresentation(node->value) << "\n";
-    auto children_rit {std::rbegin(node->children)};
-    auto children_rend {std::rend(node->children)};
-    while (children_rit != children_rend)
+    out << whitespaces << node->name_ << ": " << ProperSizeRepresentation(node->size_in_bytes_) << "\n";
+    for (auto it {std::rbegin(node->children_)}; it != std::rend(node->children_); ++it)
     {
-      nodes.emplace_back(*children_rit, depth + 1);
-      ++children_rit;
+      nodes.emplace_back(*it, depth + 1);
     }
   }
-  return;
+  return out;
 }
 
 template <typename Index>
@@ -507,15 +547,10 @@ void PrintSpace (Index &index, std::filesystem::path const &text_path)
   {
     auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
     auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".index")};
-    ConstructIndex(index, text_path);
-    auto root {std::make_shared<InformationNode<std::string, uint64_t>>("index")};
-    SerializeIndex(index, index_path, root);
-    Print(space_file, root);
-    for (auto it {std::begin(root->children)}; it != std::end(root->children); ++it)
-    {
-      space_file << ProperSizeRepresentation((*it)->value) << " & ";
-    }
-    space_file << ProperSizeRepresentation(root->value) << " & ";
+    Index index {text_path};
+    auto root {std::make_shared<SpaceNode>("index")};
+    index.Serialize(index_path, root);
+    space_file << root;
   }
   {
     auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
@@ -530,10 +565,10 @@ void PrintSpace (Index &index, std::filesystem::path const &text_path)
     >
     rlfm;
     sdsl::construct_im(rlfm, text);
-    std::fstream index_file(index_path, std::ios_base::out | std::ios_base::trunc);
-    space_file << ProperSizeRepresentation(sdsl::serialize(rlfm, index_file)) << " & ";
+    std::fstream index_file {index_path, std::ios_base::out | std::ios_base::trunc};
+    space_file << ProperSizeRepresentation(sdsl::serialize(rlfm, index_file)) << "\n";
   }
-  space_file << ProperSizeRepresentation(std::filesystem::file_size(text_path)) << " \\\\\n";
+  space_file << ProperSizeRepresentation(std::filesystem::file_size(text_path)) << "\n";
   return;
 }
 
