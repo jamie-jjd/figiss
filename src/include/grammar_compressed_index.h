@@ -426,7 +426,7 @@ private:
   GrammarSymbolTable lex_symbol_table_;
   GrammarSymbolTable colex_symbol_table_;
   sdsl::int_vector<> colex_to_lex_;
-  sdsl::int_vector<> bucket_begin_offsets_;
+  sdsl::int_vector<> lex_symbol_bucket_offsets_;
   sdsl::wt_rlmn
   <
     sdsl::sd_vector<>,
@@ -434,7 +434,7 @@ private:
     typename sdsl::sd_vector<>::select_1_type,
     sdsl::wt_ap<>
   >
-  bwt_;
+  lex_bwt_;
 
   void CalculateSymbolTableAndText
   (
@@ -443,12 +443,9 @@ private:
   );
 
   void CalculateTinyPatternTrie (sdsl::int_vector<> const &text, Trie &trie);
-
   template <typename Iterator>
   uint64_t SymbolsToInteger (Iterator it, Iterator end, int8_t const step = 1);
-
   // std::deque<uint64_t> IntegerToSymbols (uint64_t integer);
-
   void CalculateLexTextSizeAndLexFactorIntegersAndTemporaryColexToLex
   (
     sdsl::int_vector<> const &text,
@@ -456,15 +453,15 @@ private:
     std::set<uint64_t> &lex_factor_integers,
     std::map<uint64_t, uint64_t> &temporary_colex_to_lex
   );
-
   void CalculateLexSymbolTable (std::set<uint64_t> const &lex_factor_integers);
-
   void CalculateLexText (sdsl::int_vector<> const &text, sdsl::int_vector<> &lex_text);
-
   void CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const &temporary_colex_to_lex);
-
   void CalculateColexToLex (std::map<uint64_t, uint64_t> const &temporary_colex_to_lex);
-
+  void CalculateLexSymbolBucketOffsets
+  (
+    uint64_t const lex_text_alphabet_size,
+    sdsl::int_vector<> const &lex_text
+  );
 };
 
 template <uint8_t max_factor_size>
@@ -525,29 +522,10 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     CalculateColexToLex(temporary_colex_to_lex);
     // Print(colex_to_lex_, std::cout);
   }
-  // {
-  //   index.bucket_begin_offsets.width(sdsl::bits::hi(lex_text_size) + 1);
-  //   index.bucket_begin_offsets.resize(lex_alphabet_size + 1);
-  //   sdsl::util::set_to_value(index.bucket_begin_offsets, 0);
-  //   for (auto const lex_symbol : lex_text)
-  //   {
-  //     ++(index.bucket_begin_offsets[lex_symbol]);
-  //   }
-  //   std::partial_sum
-  //   (
-  //     std::begin(index.bucket_begin_offsets),
-  //     std::end(index.bucket_begin_offsets),
-  //     std::begin(index.bucket_begin_offsets)
-  //   );
-  //   auto it {std::prev(std::end(index.bucket_begin_offsets))};
-  //   auto begin {std::begin(index.bucket_begin_offsets)};
-  //   while (it != begin)
-  //   {
-  //     *it-- = *std::prev(it);
-  //   }
-  //   *begin = 0;
-  //   // Print(index.bucket_begin_offsets, std::cout);
-  // }
+  {
+    CalculateLexSymbolBucketOffsets(lex_text_alphabet_size, lex_text);
+    // Print(lex_symbol_bucket_offsets_, std::cout);
+  }
   // {
   //   sdsl::int_vector<> buffer;
   //   sdsl::qsufsort::construct_sa(buffer, lex_text);
@@ -808,6 +786,37 @@ void Index<max_factor_size>::CalculateColexToLex (std::map<uint64_t, uint64_t> c
   }
   return;
 }
+
+template <uint8_t max_factor_size>
+void Index<max_factor_size>::CalculateLexSymbolBucketOffsets
+(
+  uint64_t const lex_text_alphabet_size,
+  sdsl::int_vector<> const &lex_text
+)
+{
+  lex_symbol_bucket_offsets_.width(sdsl::bits::hi(std::size(lex_text)) + 1);
+  lex_symbol_bucket_offsets_.resize(lex_text_alphabet_size + 1);
+  sdsl::util::set_to_value(lex_symbol_bucket_offsets_, 0);
+  for (auto const lex_symbol : lex_text)
+  {
+    ++(lex_symbol_bucket_offsets_[lex_symbol]);
+  }
+  std::partial_sum
+  (
+    std::begin(lex_symbol_bucket_offsets_),
+    std::end(lex_symbol_bucket_offsets_),
+    std::begin(lex_symbol_bucket_offsets_)
+  );
+  auto it {std::prev(std::end(lex_symbol_bucket_offsets_))};
+  auto begin {std::begin(lex_symbol_bucket_offsets_)};
+  while (it != begin)
+  {
+    *it-- = *std::prev(it);
+  }
+  *begin = 0;
+  return;
+}
+
 
 // template <typename Index, typename Node = InformationNode<std::string, uint64_t>>
 // uint64_t SerializeIndex
