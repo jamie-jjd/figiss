@@ -25,6 +25,7 @@ public:
     std::shared_ptr<SpaceNode> parent = nullptr,
     std::string const name = ""
   );
+  void Load (std::istream &in);
 
   inline uint16_t GetEffectiveAlphabetSize () const noexcept
   {
@@ -123,6 +124,18 @@ uint64_t SymbolTable::Serialize
     size_in_bytes = node->GetSizeInBytes();
   }
   return size_in_bytes;
+}
+
+void SymbolTable::Load (std::istream &in)
+{
+  sdsl::read_member(effective_alphabet_size_, in);
+  sdsl::read_member(effective_alphabet_width_, in);
+  alphabet_bits_.load(in);
+  byte_to_symbol_.load(in);
+  byte_to_symbol_.set_vector(&alphabet_bits_);
+  symbol_to_byte_.load(in);
+  symbol_to_byte_.set_vector(&alphabet_bits_);
+  return;
 }
 
 std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table)
@@ -259,6 +272,7 @@ public:
     std::shared_ptr<SpaceNode> parent = nullptr,
     std::string const name = ""
   );
+  void Load (std::istream &in);
 
   inline auto GetOffsetRange (uint64_t const level_order) const noexcept
   {
@@ -371,6 +385,16 @@ uint64_t TinyPatternTrie::Serialize
   return size_in_bytes;
 }
 
+void TinyPatternTrie::Load (std::istream &in)
+{
+  level_order_bits_.load(in);
+  level_order_select_1_.load(in);
+  level_order_select_1_.set_vector(&level_order_bits_);
+  labels_.load(in);
+  counts_.load(in);
+  return;
+}
+
 std::ostream& operator<< (std::ostream &out, std::pair<TinyPatternTrie, bool> const &pair)
 {
   auto const &trie {std::get<0>(pair)};
@@ -439,6 +463,7 @@ public:
     std::shared_ptr<SpaceNode> parent = nullptr,
     std::string const name = ""
   );
+  void Load (std::istream &in);
 
   uint64_t operator[] (uint64_t const factor_integer) const noexcept;
 
@@ -491,6 +516,14 @@ uint64_t GrammarSymbolTable::Serialize
   return size_in_bytes;
 }
 
+void GrammarSymbolTable::Load (std::istream &in)
+{
+  factor_integer_bits_.load(in);
+  factor_integer_rank_1_.load(in);
+  factor_integer_rank_1_.set_vector(&factor_integer_bits_);
+  return;
+}
+
 uint64_t GrammarSymbolTable::operator[] (uint64_t const factor_integer) const noexcept
 {
   if ((factor_integer <= std::size(factor_integer_bits_)) && factor_integer_bits_[factor_integer])
@@ -507,6 +540,12 @@ std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &grammar_s
   return out;
 }
 
+template <uint8_t max_factor_size>
+class Index;
+
+template <uint8_t max_factor_size>
+std::ostream& operator<< (std::ostream &out, Index<max_factor_size> const &index);
+
 template <uint8_t max_factor_size = 4>
 class Index
 {
@@ -516,15 +555,20 @@ public:
   static constexpr uint8_t kS {1};
   static constexpr uint8_t kL {0};
 
+  Index () = default;
   Index (std::filesystem::path const &byte_text_path);
+
   uint64_t Serialize
   (
     std::filesystem::path const &index_path,
     std::shared_ptr<SpaceNode> root = nullptr
   );
   void Load (std::filesystem::path const &index_path);
+
   template <typename PatternIterator>
   uint64_t Count (PatternIterator begin, PatternIterator end);
+
+  friend std::ostream& operator<< <max_factor_size> (std::ostream &out, Index<max_factor_size> const &index);
 
 private:
 
@@ -654,6 +698,7 @@ uint64_t Index<max_factor_size>::Serialize
   uint64_t size_in_bytes {};
   if (!root)
   {
+    sdsl::write_member(kMaxFactorSize, index_file);
     symbol_table_.Serialize(index_file);
     tiny_pattern_trie_.Serialize(index_file);
     lex_symbol_table_.Serialize(index_file);
@@ -664,6 +709,7 @@ uint64_t Index<max_factor_size>::Serialize
   }
   else
   {
+    root->AddLeaf("kMaxFactorSize", sdsl::write_member(kMaxFactorSize, index_file));
     root->AccumalateSizeInBytes(symbol_table_.Serialize(index_file, root, "symbol_table_"));
     root->AccumalateSizeInBytes(tiny_pattern_trie_.Serialize(index_file, root, "tiny_pattern_trie_"));
     root->AccumalateSizeInBytes(lex_symbol_table_.Serialize(index_file, root, "lex_symbol_table_"));
@@ -674,6 +720,40 @@ uint64_t Index<max_factor_size>::Serialize
     size_in_bytes = root->GetSizeInBytes();
   }
   return size_in_bytes;
+}
+
+template <uint8_t max_factor_size>
+void Index<max_factor_size>::Load (std::filesystem::path const &index_path)
+{
+  std::ifstream index_file {index_path};
+  std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
+  uint8_t loaded_max_factor_size {};
+  sdsl::read_member(loaded_max_factor_size, index_file);
+  if (loaded_max_factor_size != kMaxFactorSize)
+  {
+    throw std::runtime_error("wrong max_factor_size");
+  }
+  symbol_table_.Load(index_file);
+  tiny_pattern_trie_.Load(index_file);
+  lex_symbol_table_.Load(index_file);
+  colex_symbol_table_.Load(index_file);
+  colex_to_lex_.load(index_file);
+  lex_symbol_bucket_offsets_.load(index_file);
+  lex_bwt_.load(index_file);
+  return;
+}
+
+template <uint8_t max_factor_size>
+std::ostream& operator<< (std::ostream &out, Index<max_factor_size> const &index)
+{
+  out << index.symbol_table_;
+  out << std::make_pair(index.tiny_pattern_trie_, true);
+  out << index.lex_symbol_table_;
+  out << index.colex_symbol_table_;
+  out << index.colex_to_lex_ << "\n";
+  out << index.lex_symbol_bucket_offsets_ << "\n";
+  out << index.lex_bwt_ << "\n";
+  return out;
 }
 
 template <uint8_t max_factor_size>
@@ -975,24 +1055,6 @@ void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text
   return;
 }
 
-// template <typename Index>
-// void LoadIndex (Index &index, std::filesystem::path const &index_path)
-// {
-//   std::ifstream index_file {index_path};
-//   std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
-//   index.grammar_rules.load(index_file);
-//   LoadStaticGrammarTrie(index.lex_grammar_count_trie, index_file);
-//   SetLabels(index.grammar_rules, index.lex_grammar_count_trie);
-//   LoadStaticGrammarTrie(index.lex_grammar_rank_trie, index_file);
-//   SetLabels(index.grammar_rules, index.lex_grammar_rank_trie);
-//   LoadStaticGrammarTrie(index.colex_grammar_rank_trie, index_file);
-//   SetLabels(index.grammar_rules, index.colex_grammar_rank_trie);
-//   index.colex_to_lex.load(index_file);
-//   index.lex_rank_bucket_begin_offsets.load(index_file);
-//   index.colex_bwt.load(index_file);
-//   return;
-// }
-//
 // template <typename Range>
 // constexpr bool IsNotEmptyRange (Range const &range)
 // {
