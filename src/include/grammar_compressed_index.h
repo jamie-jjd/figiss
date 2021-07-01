@@ -467,12 +467,19 @@ public:
 
   uint64_t operator[] (uint64_t const factor_integer) const noexcept;
 
+  std::pair<uint64_t, uint64_t> SymbolRange
+  (
+    uint64_t const smallest_factor_integer,
+    uint64_t const largest_factor_integer
+  ) const noexcept;
+
   friend std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &symbol_table);
 
 private:
 
   sdsl::sd_vector<> factor_integer_bits_;
   sdsl::sd_vector<>::rank_1_type factor_integer_rank_1_;
+  sdsl::sd_vector<>::select_1_type factor_integer_select_1_;
 
 };
 
@@ -526,11 +533,37 @@ void GrammarSymbolTable::Load (std::istream &in)
 
 uint64_t GrammarSymbolTable::operator[] (uint64_t const factor_integer) const noexcept
 {
-  if ((factor_integer <= std::size(factor_integer_bits_)) && factor_integer_bits_[factor_integer])
+  if ((factor_integer < std::size(factor_integer_bits_)) && factor_integer_bits_[factor_integer])
   {
     return factor_integer_rank_1_(factor_integer);
   }
   return 0;
+}
+
+std::pair<uint64_t, uint64_t> GrammarSymbolTable::SymbolRange
+(
+  uint64_t const smallest_factor_integer,
+  uint64_t const largest_factor_integer
+) const noexcept
+{
+  std::pair<uint64_t, uint64_t> symbol_range {1, 0};
+  if (smallest_factor_integer < std::size(factor_integer_bits_))
+  {
+    std::get<0>(symbol_range) = factor_integer_rank_1_(smallest_factor_integer);
+    if (factor_integer_bits_[smallest_factor_integer] == 0)
+    {
+      ++std::get<0>(symbol_range);
+    }
+    if (largest_factor_integer < std::size(factor_integer_bits_))
+    {
+      std::get<1>(symbol_range) = factor_integer_rank_1_(largest_factor_integer);
+    }
+    else
+    {
+      std::get<1>(symbol_range) = factor_integer_rank_1_(std::size(factor_integer_bits_));
+    }
+  }
+  return symbol_range;
 }
 
 std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &grammar_symbol_table)
@@ -565,8 +598,8 @@ public:
   );
   void Load (std::filesystem::path const &index_path);
 
-  template <typename PatternIterator>
-  uint64_t Count (PatternIterator begin, PatternIterator end);
+  template <typename Iterator>
+  uint64_t Count (Iterator begin, Iterator end);
 
   friend std::ostream& operator<< <max_factor_size> (std::ostream &out, Index<max_factor_size> const &index);
 
@@ -614,6 +647,52 @@ private:
     sdsl::int_vector<> const &lex_text
   );
   void CalculateLexBwt (sdsl::int_vector<> const &lex_text);
+
+  template <typename Range> // [,]
+  inline bool IsNotEmptyRange (Range const &range) const noexcept
+  {
+    return (std::get<0>(range) <= std::get<1>(range));
+  }
+
+  template <typename Range> // [,]
+  inline uint64_t RangeSize (Range const &range) const noexcept
+  {
+    if (std::get<0>(range) <= std::get<1>(range))
+    {
+      return (std::get<1>(range) - std::get<0>(range) + 1);
+    }
+    return 0;
+  }
+
+  template <typename Iterator>
+  void CalculateSlFactor (Iterator const rend, Iterator &rfirst, Iterator &rlast);
+
+  template <typename Iterator>
+  Iterator ClassifyPatternSuffix (Iterator rbegin, Iterator rend);
+
+  template <typename Iterator, typename Range>
+  Iterator BackwardSearchPatternSuffix
+  (
+    Iterator rbegin,
+    Iterator rend,
+    Range &pattern_range,
+    Range &pattern_range_ls
+  );
+
+  template <typename Iterator, typename Range>
+  void BackwardSearchPatternSuffixSlFactor (Iterator rbegin, Iterator rend, Range &pattern_range);
+
+  template <typename Iterator>
+  std::pair<uint64_t, uint64_t> CalculateLexSymbolRange (Iterator begin, Iterator end);
+
+  template <typename Iterator, typename Range>
+  void BackwardSearchPatternInfixFactors (Iterator rbegin, Iterator rend, Range &pattern_range);
+
+  template <typename Iterator, typename Range>
+  void BackwardSearchPatternPrefixFactors (Iterator rbegin, Iterator rend, Range &pattern_range);
+
+  template <typename Iterator, typename Range>
+  void CountShortPattern (Iterator rbegin, Iterator rend, Range &pattern_range);
 
 };
 
@@ -720,6 +799,37 @@ uint64_t Index<max_factor_size>::Serialize
     size_in_bytes = root->GetSizeInBytes();
   }
   return size_in_bytes;
+}
+
+template <uint8_t max_factor_size>
+template <typename Iterator>
+uint64_t Index<max_factor_size>::Count (Iterator begin, Iterator end)
+{
+  // Print(std::cout, begin, end);
+  std::pair<uint64_t, uint64_t> pattern_range {1, 0};
+  std::pair<uint64_t, uint64_t> pattern_range_ls {1, 0};
+  auto rbegin {std::prev(end)};
+  auto rend {std::prev(begin)};
+  auto rfirst {rbegin};
+  auto rlast {rbegin};
+  rlast = BackwardSearchPatternSuffix(rbegin, rend, pattern_range, pattern_range_ls);
+  if (rlast != rend)
+  {
+    while (IsNotEmptyRange(pattern_range) || IsNotEmptyRange(pattern_range_ls))
+    {
+      CalculateSlFactor(rend, rfirst, rlast);
+      if (rlast != rend)
+      {
+        rlast = BackwardSearchPatternInfix(rfirst, rlast, pattern_range, pattern_range_ls);
+      }
+      else
+      {
+        BackwardSearchPatternPrefix(pattern_range, pattern_range_ls, rfirst, rlast);
+        break;
+      }
+    }
+  }
+  return (RangeSize(pattern_range) + RangeSize(pattern_range_ls));
 }
 
 template <uint8_t max_factor_size>
@@ -1055,22 +1165,187 @@ void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text
   return;
 }
 
-// template <typename Range>
-// constexpr bool IsNotEmptyRange (Range const &range)
-// {
-//   return (std::get<0>(range) <= std::get<1>(range));
-// }
-//
-// template <typename Range>
-// constexpr uint64_t CalculateRangeSize (Range const &range)
-// {
-//   if (std::get<0>(range) <= std::get<1>(range))
-//   {
-//     return (std::get<1>(range) - std::get<0>(range) + 1);
-//   }
-//   return 0;
-// }
-//
+template <uint8_t max_factor_size>
+template <typename Iterator, typename Range>
+Iterator Index<max_factor_size>::BackwardSearchPatternSuffix
+(
+  Iterator rbegin,
+  Iterator rend,
+  Range &pattern_range,
+  Range &pattern_range_ls
+)
+{
+  auto rfirst {rbegin};
+  auto rlast {ClassifyPatternSuffix(rbegin, rend)};
+  if (rlast != rend)
+  {
+    if (rlast != rbegin)
+    {
+      BackwardSearchPatternSuffixSlFactor(rfirst, rlast, pattern_range_ls);
+      CalculateSlFactor(rend, rfirst, rlast);
+      if (IsNotEmptyRange(pattern_range_ls))
+      {
+        if (rlast != rend)
+        {
+          BackwardSearchPatternInfixFactors(rfirst, rlast, pattern_range_ls);
+        }
+        else
+        {
+          BackwardSearchPatternPrefixFactors(rfirst, rlast, pattern_range_ls);
+        }
+      }
+    }
+    else
+    {
+      CalculateSlFactor(rend, rfirst, rlast);
+    }
+    if (rlast != rend)
+    {
+      BackwardSearchPatternSuffixSlFactor(pattern_range, rfirst, rlast);
+    }
+    else
+    {
+      CountShortPattern(rbegin, rend, pattern_range);
+    }
+  }
+  else
+  {
+    CountShortPattern(rbegin, rend, pattern_range);
+  }
+  return rlast;
+}
+
+template <uint8_t max_factor_size>
+template <typename Iterator>
+Iterator Index<max_factor_size>::ClassifyPatternSuffix (Iterator rbegin, Iterator rend)
+{
+  auto it {rbegin};
+  while ((std::prev(it) != rend) && (*std::prev(it) == *it))
+  {
+    --it;
+  }
+  if ((std::prev(it) != rend) && (*std::prev(it) < *it))
+  {
+    return rbegin;
+  }
+  return std::prev(it); // LS
+}
+
+template <uint8_t max_factor_size>
+template <typename Iterator>
+void Index<max_factor_size>::CalculateSlFactor
+(
+  Iterator const rend,
+  Iterator &rfirst,
+  Iterator &rlast
+)
+{
+  auto prev_sl_type {Index::kL};
+  rfirst = rlast--;
+  while ((rlast != rend) && !((prev_sl_type == Index::kS) && (*rlast > *std::next(rlast))))
+  {
+    if((prev_sl_type == Index::kL) && (*rlast < *std::next(rlast)))
+    {
+      prev_sl_type = Index::kS;
+    }
+    --rlast;
+  }
+  return;
+}
+
+template <uint8_t max_factor_size>
+template <typename Iterator, typename Range>
+void Index<max_factor_size>::BackwardSearchPatternSuffixSlFactor
+(
+  Iterator rbegin,
+  Iterator rend,
+  Range &pattern_range
+)
+{
+  auto rfirst {rbegin};
+  auto rlast {std::prev(rbegin, std::distance(rend, rbegin) % Index::kMaxFactorSize)};
+  if (rfirst == rlast)
+  {
+    rlast = std::prev(rbegin, Index::kMaxFactorSize);
+  }
+  auto lex_symbol_range {lex_symbol_table_.SymbolRange(std::next(rlast), std::next(rfirst))};
+  if (IsNotEmptyRange(lex_symbol_range))
+  {
+    pattern_range =
+    {
+      lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
+      lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
+    };
+    while (rlast != rend)
+    {
+      rfirst = rlast;
+      rlast = std::prev(rfirst, Index::kMaxFactorSize);
+      auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
+      if (lex_symbol != 0)
+      {
+        auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+        pattern_range =
+        {
+          begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
+          begin_offset + lex_bwt_.rank(std::get<1>(pattern_range) + 1, lex_symbol) - 1
+        };
+      }
+      else
+      {
+        pattern_range = {1, 0};
+      }
+    }
+  }
+  return;
+}
+
+template <uint8_t max_factor_size>
+template <typename Iterator>
+std::pair<uint64_t, uint64_t> Index<max_factor_size>::CalculateLexSymbolRange (Iterator begin, Iterator end)
+{
+  uint64_t factor_integer {};
+  auto it {begin};
+  auto k {Index::kMaxFactorSize};
+  while (it != std::prev(end))
+  {
+    factor_integer += (*it++) * (1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * ((k--) - 1)));
+  }
+  auto base {1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * (k - 1))};
+  factor_integer += *it * base;
+  return lex_symbol_table_.SymbolRange(factor_integer, factor_integer + base - 1);
+}
+
+template <uint8_t max_factor_size>
+template <typename Iterator, typename Range>
+void Index<max_factor_size>::BackwardSearchPatternInfixFactors
+(
+  Iterator rfirst,
+  Iterator rlast,
+  Range &pattern_range
+)
+{
+  return;
+}
+
+template <uint8_t max_factor_size>
+template <typename Iterator, typename Range>
+void Index<max_factor_size>::BackwardSearchPatternPrefixFactors
+(
+  Iterator rfirst,
+  Iterator rlast,
+  Range &pattern_range
+)
+{
+  return;
+}
+
+template <uint8_t max_factor_size>
+template <typename Iterator, typename Range>
+void Index<max_factor_size>::CountShortPattern (Iterator begin, Iterator end, Range &range)
+{
+  return;
+}
+
 // template <typename WaveletTree>
 // uint64_t RangeCount
 // (
@@ -1088,159 +1363,50 @@ void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text
 //   }
 //   return count;
 // }
-//
-// template <typename TextIterator>
-// void CalculateSlFactor
-// (
-//   TextIterator const rend,
-//   TextIterator &rfirst,
-//   TextIterator &rlast
-// )
-// {
-//   uint64_t prev_sl_type {L};
-//   rfirst = rlast--;
-//   while ((rlast != rend) && !((prev_sl_type == S) && (*rlast > *std::next(rlast))))
-//   {
-//     if((prev_sl_type == L) && (*rlast < *std::next(rlast)))
-//     {
-//       prev_sl_type = S;
-//     }
-//     --rlast;
-//   }
-//   return;
-// }
-//
-// template <typename StaticGrammarTrie, typename SlFactorIterator>
-// std::pair<uint64_t, uint64_t> LookUpSlFactor
-// (
-//   StaticGrammarTrie const &trie,
-//   SlFactorIterator it,
-//   SlFactorIterator last,
-//   bool const is_exact = true, // false: prefix
-//   bool const is_rank = true // false: count
-// )
-// {
-//   auto labels_begin {std::get<0>(trie.labels_range)};
-//   std::pair<uint64_t, uint64_t> pair {1, 0};
-//   uint64_t begin_offset {};
-//   uint64_t end_offset {trie.branch_bits_select(1)};
-//   uint64_t offset {};
-//   while (begin_offset != end_offset)
-//   {
-//     while (begin_offset != end_offset)
-//     {
-//       offset = begin_offset + (end_offset - begin_offset) / 2;
-//       auto branch_character {*std::next(labels_begin, trie.edge_begin_offsets[offset])};
-//       if (*it == branch_character)
-//       {
-//         break;
-//       }
-//       else if (*it < branch_character)
-//       {
-//         end_offset = offset;
-//       }
-//       else
-//       {
-//         begin_offset = offset + 1;
-//       }
-//     }
-//     if (begin_offset != end_offset)
-//     {
-//       auto edge_it {std::next(labels_begin, trie.edge_begin_offsets[offset])};
-//       auto edge_end {std::next(labels_begin, trie.edge_prev_end_offsets[offset] + trie.step)};
-//       while ((it != last) && (edge_it != edge_end) && (*it == *edge_it))
-//       {
-//         it += trie.step;
-//         edge_it += trie.step;
-//       }
-//       if (it != last)
-//       {
-//         if (edge_it != edge_end)
-//         {
-//           break;
-//         }
-//         else
-//         {
-//           begin_offset = trie.branch_bits_select(offset + 1) - (offset + 1) + 1;
-//           end_offset = trie.branch_bits_select(offset + 2) - (offset + 2) + 1;
-//         }
-//       }
-//       else
-//       {
-//         if (is_rank)
-//         {
-//           if (is_exact)
-//           {
-//             if (edge_it == edge_end)
-//             {
-//               begin_offset = trie.branch_bits_select(offset + 1) + 1;
-//               auto bit {trie.branch_bits[begin_offset]};
-//               if ((bit == 1) || ((bit == 0) && trie.leftmost_ranks[offset] != trie.leftmost_ranks[begin_offset - (offset + 1)]))
-//               {
-//                 std::get<1>(pair) = trie.leftmost_ranks[offset];
-//               }
-//             }
-//           }
-//           else
-//           {
-//             std::get<0>(pair) = trie.leftmost_ranks[offset];
-//             std::get<1>(pair) = trie.rightmost_ranks[offset];
-//           }
-//         }
-//         else
-//         {
-//           std::get<1>(pair) = trie.counts[offset];
-//         }
-//         break;
-//       }
-//     }
-//   }
-//   return pair;
-// }
-//
+
 // template
 // <
 //   typename Index,
-//   typename PatternRange,
-//   typename PatternIterator
+//   typename Range,
+//   typename Iterator
 // >
 // void BackwardSearchPatternPrefix
 // (
 //   Index const &index,
-//   PatternRange &pattern_range_l,
-//   PatternRange &pattern_range_s,
-//   PatternIterator rfirst,
-//   PatternIterator rlast
+//   Range &pattern_range,
+//   Range &pattern_range_ls,
+//   Iterator rfirst,
+//   Iterator rlast
 // )
 // {
 //   auto colex_rank_range {LookUpSlFactor(index.colex_grammar_rank_trie, rfirst, rlast, false)};
 //   if (IsNotEmptyRange(colex_rank_range))
 //   {
-//     if (IsNotEmptyRange(pattern_range_l))
+//     if (IsNotEmptyRange(pattern_range))
 //     {
-//       pattern_range_l =
+//       pattern_range =
 //       {
 //         1,
 //         RangeCount
 //         (
 //           index.colex_bwt,
-//           std::get<0>(pattern_range_l),
-//           std::get<1>(pattern_range_l) + 1,
+//           std::get<0>(pattern_range),
+//           std::get<1>(pattern_range) + 1,
 //           std::get<0>(colex_rank_range),
 //           std::get<1>(colex_rank_range) + 1
 //         )
 //       };
 //     }
-//     if (IsNotEmptyRange(pattern_range_s))
+//     if (IsNotEmptyRange(pattern_range_ls))
 //     {
-//       pattern_range_s =
+//       pattern_range_ls =
 //       {
 //         1,
 //         RangeCount
 //         (
 //           index.colex_bwt,
-//           std::get<0>(pattern_range_s),
-//           std::get<1>(pattern_range_s) + 1,
+//           std::get<0>(pattern_range_ls),
+//           std::get<1>(pattern_range_ls) + 1,
 //           std::get<0>(colex_rank_range),
 //           std::get<1>(colex_rank_range) + 1
 //         )
@@ -1248,19 +1414,19 @@ void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text
 //     }
 //   }
 //   // {
-//   //   if (IsNotEmptyRange(pattern_range_l))
+//   //   if (IsNotEmptyRange(pattern_range))
 //   //   {
 //   //     std::cout << "pattern-l prefix:\n";
 //   //   }
-//   //   if (IsNotEmptyRange(pattern_range_s))
+//   //   if (IsNotEmptyRange(pattern_range_ls))
 //   //   {
 //   //     std::cout << "pattern-s prefix:\n";
 //   //   }
 //   //   Print(std::cout, rfirst, rlast, -1);
 //   //   std::cout
 //   //   << "->[" << std::get<0>(colex_rank_range) << "," << std::get<1>(colex_rank_range) << "]"
-//   //   << "->L:[" << std::get<0>(pattern_range_l) << "," << std::get<1>(pattern_range_l) << "]"
-//   //   << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
+//   //   << "->L:[" << std::get<0>(pattern_range) << "," << std::get<1>(pattern_range) << "]"
+//   //   << "->S:[" << std::get<0>(pattern_range_ls) << "," << std::get<1>(pattern_range_ls) << "]\n";
 //   // }
 //   return;
 // }
@@ -1268,262 +1434,60 @@ void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text
 // template
 // <
 //   typename Index,
-//   typename PatternRange,
-//   typename PatternIterator
+//   typename Range,
+//   typename Iterator
 // >
 // auto BackwardSearchPatternInfix
 // (
 //   Index const &index,
-//   PatternRange &pattern_range_l,
-//   PatternRange &pattern_range_s,
-//   PatternIterator rfirst,
-//   PatternIterator rlast
+//   Range &pattern_range,
+//   Range &pattern_range_ls,
+//   Iterator rfirst,
+//   Iterator rlast
 // )
 // {
 //   auto colex_rank {std::get<1>(LookUpSlFactor(index.colex_grammar_rank_trie, rfirst, rlast))};
 //   if (colex_rank != 0)
 //   {
 //     auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
-//     if (IsNotEmptyRange(pattern_range_l))
+//     if (IsNotEmptyRange(pattern_range))
 //     {
-//       pattern_range_l =
+//       pattern_range =
 //       {
-//         begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range_l), colex_rank),
-//         begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_l) + 1, colex_rank) - 1
+//         begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range), colex_rank),
+//         begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range) + 1, colex_rank) - 1
 //       };
 //     }
-//     if (IsNotEmptyRange(pattern_range_s))
+//     if (IsNotEmptyRange(pattern_range_ls))
 //     {
-//       pattern_range_s =
+//       pattern_range_ls =
 //       {
-//         begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range_s), colex_rank),
-//         begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_s) + 1, colex_rank) - 1
+//         begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range_ls), colex_rank),
+//         begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_ls) + 1, colex_rank) - 1
 //       };
 //     }
 //   }
 //   else
 //   {
-//     pattern_range_l = pattern_range_s = {1, 0};
+//     pattern_range = pattern_range_ls = {1, 0};
 //   }
 //   // {
-//   //   if (IsNotEmptyRange(pattern_range_l))
+//   //   if (IsNotEmptyRange(pattern_range))
 //   //   {
 //   //     std::cout << "pattern-l sl-factor\n";
 //   //   }
-//   //   if (IsNotEmptyRange(pattern_range_s))
+//   //   if (IsNotEmptyRange(pattern_range_ls))
 //   //   {
 //   //     std::cout << "pattern-s sl-factor\n";
 //   //   }
 //   //   Print(std::cout, rfirst, rlast, -1);
 //   //   std::cout
 //   //   << "->[" << colex_rank << ":" << index.colex_to_lex[colex_rank] << "]"
-//   //   << "->L:[" << std::get<0>(pattern_range_l) << "," << std::get<1>(pattern_range_l) << "]"
-//   //   << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
+//   //   << "->L:[" << std::get<0>(pattern_range) << "," << std::get<1>(pattern_range) << "]"
+//   //   << "->S:[" << std::get<0>(pattern_range_ls) << "," << std::get<1>(pattern_range_ls) << "]\n";
 //   // }
 //   return rlast;
 // }
 //
-// template <typename PatternIterator>
-// auto CalculatePatternSuffixS (PatternIterator rbegin, PatternIterator rend)
-// {
-//   auto it {rbegin};
-//   while ((std::prev(it) != rend) && (*std::prev(it) == *it))
-//   {
-//     --it;
-//   }
-//   if ((std::prev(it) != rend) && (*std::prev(it) < *it))
-//   {
-//     return rbegin;
-//   }
-//   return std::prev(it);
-// }
-//
-// template
-// <
-//   typename Index,
-//   typename PatternRange,
-//   typename PatternIterator
-// >
-// auto BackwardSearchPatternSuffix
-// (
-//   Index const &index,
-//   PatternRange &pattern_range_l,
-//   PatternRange &pattern_range_s,
-//   PatternIterator rbegin,
-//   PatternIterator rend
-// )
-// {
-//   auto rfirst {rbegin};
-//   auto rlast {CalculatePatternSuffixS(rbegin, rend)};
-//   if (rlast == rend)
-//   {
-//     std::get<1>(pattern_range_l) = std::get<1>
-//     (
-//       LookUpSlFactor
-//       (
-//         index.lex_grammar_count_trie,
-//         std::next(rend),
-//         std::next(rbegin),
-//         false,
-//         false
-//       )
-//     );
-//     // {
-//     //   std::cout << "pattern of single-run:\n";
-//     //   Print(std::cout, std::next(rend), std::next(rbegin));
-//     //   std::cout << "->L:[" << std::get<0>(pattern_range_l) << "," << std::get<1>(pattern_range_l) << "]\n";
-//     // }
-//   }
-//   else
-//   {
-//     if (rlast != rbegin)
-//     {
-//       auto lex_rank_range {LookUpSlFactor(index.lex_grammar_rank_trie, std::next(rlast), std::next(rbegin), false)};
-//       if (IsNotEmptyRange(lex_rank_range))
-//       {
-//         pattern_range_s =
-//         {
-//           index.lex_rank_bucket_begin_offsets[std::get<0>(lex_rank_range)],
-//           index.lex_rank_bucket_begin_offsets[std::get<1>(lex_rank_range) + 1] - 1
-//         };
-//       }
-//       // {
-//       //   std::cout << "pattern-s suffix:\n";
-//       //   Print(std::cout, std::next(rlast), std::next(rbegin));
-//       //   std::cout << "->[" << std::get<0>(lex_rank_range) << "," << std::get<1>(lex_rank_range) << "]";
-//       //   std::cout << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
-//       // }
-//       CalculateSlFactor(rend, rfirst, rlast);
-//       if (IsNotEmptyRange(pattern_range_s))
-//       {
-//         if (rlast == rend)
-//         {
-//           auto colex_rank_range {LookUpSlFactor(index.colex_grammar_rank_trie, rfirst, rlast, false)};
-//           pattern_range_s =
-//           {
-//             1,
-//             RangeCount
-//             (
-//               index.colex_bwt,
-//               std::get<0>(pattern_range_s),
-//               std::get<1>(pattern_range_s) + 1,
-//               std::get<0>(colex_rank_range),
-//               std::get<1>(colex_rank_range) + 1
-//             )
-//           };
-//           // {
-//           //   std::cout << "pattern-s prefix:\n";
-//           //   Print(std::cout, rfirst, rlast, -1);
-//           //   std::cout
-//           //   << "->[" << std::get<0>(colex_rank_range)
-//           //   << ":" << index.colex_to_lex[std::get<0>(colex_rank_range)]
-//           //   << "," << std::get<1>(colex_rank_range) << "]"
-//           //   << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
-//           // }
-//         }
-//         else
-//         {
-//           auto colex_rank {std::get<1>(LookUpSlFactor(index.colex_grammar_rank_trie, rfirst, rlast))};
-//           if (colex_rank != 0)
-//           {
-//             auto begin_offset {index.lex_rank_bucket_begin_offsets[index.colex_to_lex[colex_rank]]};
-//             pattern_range_s =
-//             {
-//               begin_offset + index.colex_bwt.rank(std::get<0>(pattern_range_s), colex_rank),
-//               begin_offset + index.colex_bwt.rank(std::get<1>(pattern_range_s) + 1, colex_rank) - 1
-//             };
-//           }
-//           else
-//           {
-//             pattern_range_s = {1, 0};
-//           }
-//           // {
-//           //   std::cout << "pattern-s exact-sl-factor:\n";
-//           //   Print(std::cout, rfirst, rlast, -1);
-//           //   std::cout
-//           //   << "->(" << colex_rank << ":" << index.colex_to_lex[colex_rank] << ")"
-//           //   << "->S:[" << std::get<0>(pattern_range_s) << "," << std::get<1>(pattern_range_s) << "]\n";
-//           // }
-//         }
-//       }
-//     }
-//     else
-//     {
-//       CalculateSlFactor(rend, rfirst, rlast);
-//     }
-//     if (rlast == rend)
-//     {
-//       std::get<1>(pattern_range_l) = std::get<1>
-//       (
-//         LookUpSlFactor
-//         (
-//           index.lex_grammar_count_trie,
-//           std::next(rend),
-//           std::next(rbegin),
-//           false,
-//           false
-//         )
-//       );
-//       // {
-//       //   std::cout << "pattern-l sub-sl-factor:\n";
-//       //   Print(std::cout, std::next(rend), std::next(rbegin));
-//       //   std::cout << "->L:[" << std::get<0>(pattern_range_l) << "," << std::get<1>(pattern_range_l) << "]\n";
-//       // }
-//     }
-//     else
-//     {
-//       auto lex_rank_range {LookUpSlFactor(index.lex_grammar_rank_trie, std::next(rlast), std::next(rbegin), false)};
-//       if (IsNotEmptyRange(lex_rank_range))
-//       {
-//         pattern_range_l =
-//         {
-//           index.lex_rank_bucket_begin_offsets[std::get<0>(lex_rank_range)],
-//           (index.lex_rank_bucket_begin_offsets[std::get<1>(lex_rank_range) + 1] - 1)
-//         };
-//       }
-//       // {
-//       //   std::cout << "pattern-l suffix:\n";
-//       //   Print(std::cout, std::next(rlast), std::next(rbegin));
-//       //   std::cout << "->[" << std::get<0>(lex_rank_range) << "," << std::get<1>(lex_rank_range) << "]";
-//       //   std::cout << "->L:[" << std::get<0>(pattern_range_l) << "," << std::get<1>(pattern_range_l) << "]\n";
-//       // }
-//     }
-//   }
-//   return rlast;
-// }
-//
-// template <typename Index, typename PatternIterator>
-// uint64_t Count
-// (
-//   Index const &index,
-//   PatternIterator begin,
-//   PatternIterator end
-// )
-// {
-//   std::pair<uint64_t, uint64_t> pattern_range_l {1, 0};
-//   std::pair<uint64_t, uint64_t> pattern_range_s {1, 0};
-//   auto rbegin {std::prev(end)};
-//   auto rend {std::prev(begin)};
-//   auto rfirst {rbegin};
-//   auto rlast {rbegin};
-//   // Print(std::cout, begin, end);
-//   rlast = BackwardSearchPatternSuffix(index, pattern_range_l, pattern_range_s, rbegin, rend);
-//   if (rlast != rend)
-//   {
-//     while (IsNotEmptyRange(pattern_range_l) || IsNotEmptyRange(pattern_range_s))
-//     {
-//       CalculateSlFactor(rend, rfirst, rlast);
-//       if (rlast != rend)
-//       {
-//         rlast = BackwardSearchPatternInfix(index, pattern_range_l, pattern_range_s, rfirst, rlast);
-//       }
-//       else
-//       {
-//         BackwardSearchPatternPrefix(index, pattern_range_l, pattern_range_s, rfirst, rlast);
-//         break;
-//       }
-//     }
-//   }
-//   return (CalculateRangeSize(pattern_range_l) + CalculateRangeSize(pattern_range_s));
-// }
+
 }
