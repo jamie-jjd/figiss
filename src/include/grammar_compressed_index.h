@@ -274,24 +274,8 @@ public:
   );
   void Load (std::istream &in);
 
-  inline auto GetOffsetRange (uint64_t const level_order) const noexcept
-  {
-    return std::make_pair
-    (
-      level_order_select_1_(level_order + 1) - (level_order + 1) + 1,
-      level_order_select_1_(level_order + 2) - (level_order + 2) + 1
-    );
-  }
-
-  inline auto GetLabel (uint64_t const offset) const noexcept
-  {
-    return labels_[offset];
-  }
-
-  inline auto GetCount (uint64_t const offset) const noexcept
-  {
-    return counts_[offset];
-  }
+  template <typename Iterator>
+  uint64_t Count (Iterator it, Iterator end);
 
   friend std::ostream& operator<< (std::ostream &out, std::pair<SubFactorTrie, bool> const &pair);
 
@@ -395,6 +379,38 @@ void SubFactorTrie::Load (std::istream &in)
   return;
 }
 
+template <typename Iterator>
+uint64_t SubFactorTrie::Count (Iterator it, Iterator end)
+{
+  uint64_t offset {};
+  uint64_t end_offset {level_order_select_1_(1)};
+  while (true)
+  {
+    while ((offset != end_offset) && (*it != labels_[offset]))
+    {
+      ++offset;
+    }
+    if (offset != end_offset)
+    {
+      if (it != end)
+      {
+        end_offset = level_order_select_1_(offset + 2) - (offset + 2) + 1;
+        offset = level_order_select_1_(offset + 1) - (offset + 1) + 1;
+        ++it;
+      }
+      else
+      {
+        return counts_[offset];
+      }
+    }
+    else
+    {
+      return 0;
+    }
+  }
+  return 0;
+}
+
 std::ostream& operator<< (std::ostream &out, std::pair<SubFactorTrie, bool> const &pair)
 {
   auto const &trie {std::get<0>(pair)};
@@ -415,28 +431,32 @@ std::ostream& operator<< (std::ostream &out, std::pair<SubFactorTrie, bool> cons
       depth = std::get<1>(offsets.back());
       offsets.pop_back();
     }
-    auto offset_range {trie.GetOffsetRange(offset)};
+    uint64_t end_offset {};
     if (depth != 0)
     {
-      out << depth << ":" << trie.GetLabel(offset) << "(" << trie.GetCount(offset) << ")\n";
+      out << depth << ":" << trie.labels_[offset] << "(" << trie.counts_[offset] << ")\n";
+      end_offset = trie.level_order_select_1_(offset + 2) - (offset + 2) + 1;
+      offset = trie.level_order_select_1_(offset + 1) - (offset + 1) + 1;
     }
     else
     {
-      std::get<1>(offset_range) = std::get<0>(offset_range);
-      std::get<0>(offset_range) = 0;
+      end_offset = trie.level_order_select_1_(1);
     }
     if (is_level_order)
     {
-      for (auto offset {std::get<0>(offset_range)}; offset != std::get<1>(offset_range); ++offset)
+      while (offset != end_offset)
       {
         offsets.emplace_back(offset, depth + 1);
+        ++offset;
       }
     }
     else
     {
-      for (auto offset {std::get<1>(offset_range) - 1}; offset != (std::get<0>(offset_range) - 1); --offset)
+      std::swap(--offset, --end_offset);
+      while (offset != end_offset)
       {
         offsets.emplace_back(offset, depth + 1);
+        --offset;
       }
     }
   }
@@ -1548,8 +1568,45 @@ void Index<max_factor_size>::CountWithinSlFactor
   Range &pattern_range
 )
 {
-  Print(rbegin, rend, std::cout, -1);
-  std::cout << "[" << std::get<0>(pattern_range) << "," << std::get<1>(pattern_range) << "]\n";
+  if (std::distance(rend, rbegin) >= Index::kMaxFactorSize)
+  {
+    uint64_t count {};
+    for (uint64_t k {1}; k <= Index::kMaxFactorSize; ++k)
+    {
+      auto rfirst {rbegin};
+      auto rlast {std::prev(rbegin, k)};
+      auto temporary_pattern_range {pattern_range};
+      auto lex_symbol_range {CalculateSymbolRange(std::next(rlast), std::next(rfirst))};
+      if (IsNotEmptyRange(lex_symbol_range))
+      {
+        temporary_pattern_range =
+        {
+          lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
+          lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
+        };
+      }
+      if ((rlast != rend) && IsNotEmptyRange(temporary_pattern_range))
+      {
+        if (std::distance(rend, rlast) >= Index::kMaxFactorSize)
+        {
+          rfirst = rlast;
+          rlast = std::next(rend, (std::distance(rend, rbegin) - k) % Index::kMaxFactorSize);
+          BackwardSearchPatternInfixFactors(rfirst, rlast, pattern_range);
+        }
+        if (IsNotEmptyRange(temporary_pattern_range))
+        {
+          auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
+          count += RangeCount(temporary_pattern_range, colex_symbol_range);
+        }
+      }
+      count += RangeSize(temporary_pattern_range);
+    }
+    pattern_range = {1, count};
+  }
+  else
+  {
+    pattern_range = {1, sub_factor_trie_.Count(std::next(rend), std::next(rbegin))};
+  }
   return;
 }
 
