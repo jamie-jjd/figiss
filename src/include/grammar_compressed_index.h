@@ -1620,9 +1620,42 @@ void Index<max_factor_size>::BackwardSearchPatternInfix
   Range &pattern_range_ls
 )
 {
-  Print(rbegin, rend, std::cout, -1);
-  std::cout << "[" << std::get<0>(pattern_range) << "," << std::get<1>(pattern_range) << "]\n";
-  std::cout << "[" << std::get<0>(pattern_range_ls) << "," << std::get<1>(pattern_range_ls) << "]\n";
+  auto rfirst {rbegin};
+  auto rlast {std::prev(rbegin, std::distance(rend, rfirst) % Index::kMaxFactorSize)};
+  if (rfirst == rlast)
+  {
+    rlast = std::prev(rbegin, Index::kMaxFactorSize);
+  }
+  while ((rfirst != rend) && (IsNotEmptyRange(pattern_range) || IsNotEmptyRange(pattern_range_ls)))
+  {
+    auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
+    if (lex_symbol != 0)
+    {
+      auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+      if (IsNotEmptyRange(pattern_range))
+      {
+        pattern_range =
+        {
+          begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
+          begin_offset + lex_bwt_.rank(std::get<1>(pattern_range) + 1, lex_symbol) - 1
+        };
+      }
+      if (IsNotEmptyRange(pattern_range_ls))
+      {
+        pattern_range_ls =
+        {
+          begin_offset + lex_bwt_.rank(std::get<0>(pattern_range_ls), lex_symbol),
+          begin_offset + lex_bwt_.rank(std::get<1>(pattern_range_ls) + 1, lex_symbol) - 1
+        };
+      }
+    }
+    else
+    {
+      pattern_range = pattern_range_ls = {1, 0};
+    }
+    rfirst = rlast;
+    rlast = std::prev(rlast, Index::kMaxFactorSize);
+  }
   return;
 }
 
