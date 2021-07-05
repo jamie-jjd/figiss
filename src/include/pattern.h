@@ -16,11 +16,24 @@ public:
     std::filesystem::path const &text_path,
     uint64_t const amount,
     uint64_t const unit_size,
-    bool const is_mutated = true
+    bool const is_mutated = false
   );
 
   void Serialize (std::filesystem::path const &path);
   void Load (std::filesystem::path const &path);
+
+  auto begin () noexcept;
+  auto end () noexcept;
+
+  inline auto GetAmount () const noexcept
+  {
+    return amount_;
+  }
+
+  inline auto GetUnitSize () const noexcept
+  {
+    return unit_size_;
+  }
 
 private:
 
@@ -98,4 +111,14 @@ void Patterns::Load (std::filesystem::path const &path)
   sdsl::read_member(unit_size_, fin);
   labels_.load(fin);
   return;
+}
+
+auto Patterns::begin () noexcept
+{
+  return std::begin(labels_);
+}
+
+auto Patterns::end () noexcept
+{
+  return std::end(labels_);
 }

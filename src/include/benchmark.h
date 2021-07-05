@@ -6,6 +6,7 @@
 #include <sdsl/suffix_array_algorithm.hpp>
 
 #include "grammar_compressed_index.h"
+#include "pattern.h"
 #include "utility.h"
 
 namespace project
@@ -14,26 +15,25 @@ template <typename SdslIndex>
 void SetUpSdslIndex
 (
   std::filesystem::path const &text_path,
-  std::string const &index_name,
   SdslIndex &sdsl_index
 )
 {
   auto parent_path {CreateParentDirectoryByCategory("sdsl_index", text_path)};
-  auto path {CreatePath(parent_path, text_path.filename().string(), "." + index_name)};
+  auto path {CreatePath(parent_path, text_path.filename().string(), ".sdsl")};
   if (!std::filesystem::exists(path))
   {
     sdsl::int_vector<8> text;
     sdsl::load_vector_from_file(text, text_path);
-    std::cout << "construct " << index_name << " of " << std::filesystem::canonical(text_path) << "\n";
+    std::cout << "construct sdsl index of " << std::filesystem::canonical(text_path) << "\n";
     sdsl::construct_im(sdsl_index, text);
     std::fstream index_file(path, std::ios_base::out | std::ios_base::trunc);
-    std::cout << "serialize " << index_name << " to " << std::filesystem::canonical(path) << "\n";
+    std::cout << "serialize sdsl index to " << std::filesystem::canonical(path) << "\n";
     sdsl::serialize(sdsl_index, index_file);
   }
   else
   {
     std::ifstream index_file {path};
-    std::cout << "load " << index_name << " from " << std::filesystem::canonical(path) << "\n";
+    std::cout << "load sdsl index from " << std::filesystem::canonical(path) << "\n";
     sdsl::load(sdsl_index, index_file);
   }
   return;
@@ -47,12 +47,12 @@ void SetUpIndex (std::filesystem::path const &text_path, Index &index)
     auto path {CreatePath(parent_path, text_path.filename().string(), ".index")};
     if (!std::filesystem::exists(path))
     {
-      ConstructIndex(index, text_path);
-      SerializeIndex(index, path);
+      index = Index(text_path);
+      index.Serialize(path);
     }
     else
     {
-      LoadIndex(index, path);
+      index.Load(path);
     }
   }
   return;
@@ -68,28 +68,31 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
     std::numeric_limits<uint32_t>::max()
   >
   rlfm;
-  SetUpSdslIndex(text_path, "rlfm", rlfm);
+  SetUpSdslIndex(text_path, rlfm);
   SetUpIndex(text_path, index);
   {
-    sdsl::int_vector<8> text;
-    sdsl::load_vector_from_file(text, text_path);
-    uint64_t max_unit_size {std::min(std::size(text), (1UL << 20))};
-    std::cout << "test pattern counting\namount\tsize\n";
-    for (uint64_t unit_size {1}; unit_size <= max_unit_size; unit_size *= 2)
+    uint64_t text_size {};
     {
-      auto patterns {ConcatenatedPatterns{std::min(max_unit_size / unit_size, (1UL << 13)), unit_size}};
-      GenerateConcatenatedPatterns(text_path, patterns);
-      auto begin {std::begin(patterns.labels)};
+      sdsl::int_vector<8> text;
+      sdsl::load_vector_from_file(text, text_path);
+      text_size = std::size(text);
+    }
+    uint64_t max_unit_size {std::min(text_size, (1UL << 20))};
+    std::cout << "test pattern counting\namount\tsize\n";
+    for (uint64_t unit_size {1}; unit_size <= max_unit_size; ++unit_size)
+    {
+      auto patterns {Patterns(text_path, std::min(max_unit_size / unit_size, (1UL << 13)), unit_size)};
+      auto begin {std::begin(patterns)};
       auto end {begin};
-      for (uint64_t i {}; i != patterns.amount; ++i)
+      for (uint64_t i {}; i != patterns.GetAmount(); ++i)
       {
         begin = end;
-        end = std::next(begin, patterns.unit_size);
+        end = std::next(begin, patterns.GetUnitSize());
         auto rlfm_count {sdsl::count(rlfm, begin, end)};
-        auto index_count {Count(index, begin, end)};
+        auto index_count {index.Count(begin, end)};
         if (rlfm_count != index_count)
         {
-          std::string pattern(begin, end);
+          std::string pattern {begin, end};
           throw std::runtime_error
           (
             "\033[31mfailed at pattern: " + pattern
@@ -99,8 +102,8 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
         }
       }
       std::cout
-      << std::to_string(patterns.amount) << "\t"
-      << std::to_string(patterns.unit_size) << "\t\033[32msucceed\033[0m\n";
+      << std::to_string(patterns.GetAmount()) << "\t"
+      << std::to_string(patterns.GetUnitSize()) << "\t\033[32msucceed\033[0m\n";
     }
   }
   return;
@@ -109,33 +112,44 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
 template <typename SdslIndex>
 void MeasureSdslIndexCountingTime
 (
-  std::filesystem::path const &text_path,
   std::vector<std::filesystem::path> const &pattern_paths,
-  SdslIndex &sdsl_index,
-  std::string const &index_name
+  SdslIndex const &sdsl_index,
+  std::vector<std::pair<uint64_t, double>> &time
 )
 {
-  std::vector<std::pair<uint64_t, double>> times;
   for (auto const &path : pattern_paths)
   {
-    ConcatenatedPatterns patterns;
-    LoadConcatenatedPatterns(path, patterns);
-    SetUpSdslIndex(text_path, index_name, sdsl_index);
-    auto begin {std::begin(patterns.labels)};
-    auto begin_time {std::chrono::steady_clock::now()};
-    while (begin != std::end(patterns.labels))
+    Patterns patterns;
+    patterns.Load(path);
     {
-      auto end {std::next(begin, patterns.unit_size)};
-      sdsl::count(sdsl_index, begin, end);
-      begin = end;
+      auto begin {std::begin(patterns)};
+      while (begin != std::end(patterns))
+      {
+        auto end {std::next(begin, patterns.GetUnitSize())};
+        sdsl::count(sdsl_index, begin, end);
+        begin = end;
+      }
     }
-    times.emplace_back
-    (
-      patterns.unit_size,
-      (static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())) / patterns.amount / patterns.unit_size
-    );
+    {
+      auto begin {std::begin(patterns)};
+      auto begin_time {std::chrono::steady_clock::now()};
+      while (begin != std::end(patterns))
+      {
+        auto end {std::next(begin, patterns.GetUnitSize())};
+        sdsl::count(sdsl_index, begin, end);
+        begin = end;
+      }
+      time.emplace_back
+      (
+        patterns.GetUnitSize(),
+        (
+          static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())
+          / patterns.GetAmount()
+          / patterns.GetUnitSize()
+        )
+      );
+    }
   }
-  PrintTime("sdsl_time", text_path, times);
   return;
 }
 
@@ -143,55 +157,80 @@ template <typename Index>
 void MeasureIndexCountingTime
 (
   std::vector<std::filesystem::path> const &pattern_paths,
-  std::filesystem::path const &text_path,
-  Index &index
+  Index const &index,
+  std::vector<std::pair<uint64_t, double>> &time
 )
 {
-  std::vector<std::pair<uint64_t, double>> times;
   for (auto const &path : pattern_paths)
   {
-    ConcatenatedPatterns patterns;
-    LoadConcatenatedPatterns(path, patterns);
-    SetUpIndex(text_path, index);
-    auto begin {std::begin(patterns.labels)};
-    auto begin_time {std::chrono::steady_clock::now()};
-    while (begin != std::end(patterns.labels))
+    Patterns patterns;
+    patterns.Load(path);
     {
-      auto end {std::next(begin, patterns.unit_size)};
-      Count(index, begin, end);
-      begin = end;
+      auto begin {std::begin(patterns)};
+      while (begin != std::end(patterns))
+      {
+        auto end {std::next(begin, patterns.GetUnitSize())};
+        index.Count(begin, end);
+        begin = end;
+      }
     }
-    times.emplace_back
-    (
-      patterns.unit_size,
-      (static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())) / patterns.amount / patterns.unit_size
-    );
+    {
+      auto begin {std::begin(patterns)};
+      auto begin_time {std::chrono::steady_clock::now()};
+      while (begin != std::end(patterns))
+      {
+        auto end {std::next(begin, patterns.GetUnitSize())};
+        index.Count(begin, end);
+        begin = end;
+      }
+      time.emplace_back
+      (
+        patterns.GetUnitSize(),
+        (
+          static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())
+          / patterns.GetAmount()
+          / patterns.GetUnitSize()
+        )
+      );
+    }
   }
-  PrintTime("time", text_path, times);
   return;
 }
 
-void MeasureCoutingTime (std::filesystem::path const &text_path)
+template <typename Index, typename SdslIndex>
+void MeasureCountingTime
+(
+  std::filesystem::path const &text_path,
+  Index &index,
+  SdslIndex &sdsl_index
+)
 {
   std::vector<std::filesystem::path> pattern_paths;
-  for (uint64_t pattern_size {1}; pattern_size <= (1ULL << 16); pattern_size <<= 1)
+  for (uint64_t unit_size {1}; unit_size <= (1ULL << 16); unit_size <<= 1)
   {
-    auto patterns {ConcatenatedPatterns{1ULL << 14, pattern_size}};
-    pattern_paths.push_back(GenerateAndSerializeConcatenatedPatterns(text_path, patterns));
+    auto patterns {Patterns(text_path, 1ULL << 14, unit_size)};
+    pattern_paths.emplace_back
+    (
+      std::filesystem::path
+      (
+        text_path.filename().string() + "_" +
+        std::to_string(patterns.GetAmount()) + "_" +
+        std::to_string(patterns.GetUnitSize())
+      )
+    );
+    patterns.Serialize(pattern_paths.back());
   }
   {
-    Index index;
-    MeasureIndexCountingTime(pattern_paths, text_path, index);
+    std::vector<std::pair<uint64_t, double>> time;
+    SetUpIndex(text_path, index);
+    MeasureIndexCountingTime(pattern_paths, index);
+    PrintTime("time", text_path, time);
   }
   {
-    sdsl::csa_wt
-    <
-      sdsl::wt_rlmn<>,
-      std::numeric_limits<int32_t>::max(),
-      std::numeric_limits<int32_t>::max()
-    >
-    rlfm;
-    MeasureSdslIndexCountingTime(text_path, pattern_paths, rlfm, "rlfm");
+    std::vector<std::pair<uint64_t, double>> time;
+    SetUpSdslIndex(text_path, sdsl_index);
+    MeasureSdslIndexCountingTime(pattern_paths, sdsl_index);
+    PrintTime("sdsl_time", text_path, time);
   }
   return;
 }
