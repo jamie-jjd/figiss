@@ -1519,14 +1519,20 @@ void Index<max_factor_size>::BackwardSearchPatternPrefixSlFactor
         if (IsNotEmptyRange(temporary_pattern_range))
         {
           auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
-          count += RangeCount(temporary_pattern_range, colex_symbol_range);
+          if (IsNotEmptyRange(colex_symbol_range))
+          {
+            count += RangeCount(temporary_pattern_range, colex_symbol_range);
+          }
         }
       }
     }
     else
     {
       auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
-      count += RangeCount(temporary_pattern_range, colex_symbol_range);
+      if (IsNotEmptyRange(colex_symbol_range))
+      {
+        count += RangeCount(temporary_pattern_range, colex_symbol_range);
+      }
       break;
     }
   }
@@ -1596,7 +1602,10 @@ void Index<max_factor_size>::CountWithinSlFactor
         if (IsNotEmptyRange(temporary_pattern_range))
         {
           auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
-          count += RangeCount(temporary_pattern_range, colex_symbol_range);
+          if (IsNotEmptyRange(colex_symbol_range))
+          {
+            count += RangeCount(temporary_pattern_range, colex_symbol_range);
+          }
         }
       }
       count += RangeSize(temporary_pattern_range);
@@ -1669,9 +1678,74 @@ void Index<max_factor_size>::BackwardSearchPatternPrefix
   Range &pattern_range_ls
 )
 {
-  Print(rbegin, rend, std::cout, -1);
-  std::cout << "[" << std::get<0>(pattern_range) << "," << std::get<1>(pattern_range) << "]\n";
-  std::cout << "[" << std::get<0>(pattern_range_ls) << "," << std::get<1>(pattern_range_ls) << "]\n";
+  uint64_t count {};
+  uint64_t count_ls {};
+  auto sl_factor_size {std::distance(rend, rbegin)};
+  for (int64_t k {1}; k <= Index::kMaxFactorSize; ++k)
+  {
+    auto temporary_pattern_range {pattern_range};
+    auto temporary_pattern_range_ls {temporary_pattern_range_ls};
+    if (k != sl_factor_size)
+    {
+      auto rfirst {rbegin};
+      auto rlast {std::prev(rbegin, k)};
+      auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
+      if (lex_symbol != 0)
+      {
+        auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+        if (IsNotEmptyRange(temporary_pattern_range))
+        {
+          temporary_pattern_range =
+          {
+            begin_offset + lex_bwt_.rank(std::get<0>(temporary_pattern_range), lex_symbol),
+            begin_offset + lex_bwt_.rank(std::get<1>(temporary_pattern_range) + 1, lex_symbol) - 1
+          };
+        }
+        if (IsNotEmptyRange(temporary_pattern_range_ls))
+        {
+          temporary_pattern_range_ls =
+          {
+            begin_offset + lex_bwt_.rank(std::get<0>(temporary_pattern_range_ls), lex_symbol),
+            begin_offset + lex_bwt_.rank(std::get<1>(temporary_pattern_range_ls) + 1, lex_symbol) - 1
+          };
+        }
+      }
+      else
+      {
+        temporary_pattern_range = temporary_pattern_range_ls = {1, 0};
+      }
+      if (IsNotEmptyRange(temporary_pattern_range) || IsNotEmptyRange(temporary_pattern_range_ls))
+      {
+        if (std::distance(rend, rlast) > Index::kMaxFactorSize)
+        {
+          rfirst = rlast;
+          rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
+          BackwardSearchPatternInfix(rfirst, rlast, temporary_pattern_range, temporary_pattern_range_ls);
+        }
+        if (IsNotEmptyRange(temporary_pattern_range) || IsNotEmptyRange(temporary_pattern_range_ls))
+        {
+          auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
+          if (IsNotEmptyRange(colex_symbol_range))
+          {
+            count += RangeCount(temporary_pattern_range, colex_symbol_range);
+            count_ls += RangeCount(temporary_pattern_range_ls, colex_symbol_range);
+          }
+        }
+      }
+    }
+    else
+    {
+      auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
+      if (IsNotEmptyRange(colex_symbol_range))
+      {
+        count += RangeCount(temporary_pattern_range, colex_symbol_range);
+        count_ls += RangeCount(temporary_pattern_range_ls, colex_symbol_range);
+      }
+      break;
+    }
+  }
+  pattern_range = {1, count};
+  pattern_range_ls = {1, count_ls};
   return;
 }
 }
