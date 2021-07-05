@@ -4,14 +4,11 @@
 
 #include <filesystem>
 #include <fstream>
-#include <functional>
 #include <iomanip>
 #include <map>
 #include <memory>
-#include <random>
 
 #include <sdsl/csa_wt.hpp>
-#include <sdsl/int_vector.hpp>
 
 namespace project
 {
@@ -130,118 +127,6 @@ void GeneratePrefix
     prefix_file << text[i];
   }
   return;
-}
-
-struct ConcatenatedPatterns
-{
-  uint64_t amount;
-  uint64_t unit_size;
-  sdsl::int_vector<8> labels;
-
-  ConcatenatedPatterns
-  (
-    uint64_t const amount_ = 0,
-    uint64_t const unit_size_ = 0
-  )
-  : amount {amount_},
-    unit_size {unit_size_}
-  {
-  }
-};
-
-void GenerateConcatenatedPatterns
-(
-  std::filesystem::path const &text_path,
-  ConcatenatedPatterns &patterns
-)
-{
-  sdsl::int_vector<8> text;
-  sdsl::load_vector_from_file(text, text_path);
-  if (patterns.unit_size > std::size(text))
-  {
-    std::cout << "warning: pattern size is replaced with text size\n";
-    patterns.unit_size = std::size(text);
-  }
-  std::cout
-  << "generate " << patterns.amount << " random patterns of size " << patterns.unit_size
-  << " from " << std::filesystem::canonical(text_path) << "\n" ;
-  std::mt19937 engine {std::random_device{}()};
-  std::uniform_int_distribution<uint64_t> distribution(0, std::size(text) - patterns.unit_size);
-  auto random_begin_offset {std::bind(distribution, engine)};
-  patterns.labels.resize(patterns.amount * patterns.unit_size);
-  auto patterns_it {std::begin(patterns.labels)};
-  for (uint64_t i {}; i != patterns.amount; ++i)
-  {
-    auto text_it {std::next(std::begin(text), random_begin_offset())};
-    for (uint64_t j {}; j != patterns.unit_size; ++j)
-    {
-      *patterns_it = *text_it;
-      ++patterns_it;
-      ++text_it;
-    }
-  }
-  return;
-}
-
-auto GenerateAndSerializeConcatenatedPatterns
-(
-  std::filesystem::path const &text_path,
-  ConcatenatedPatterns & patterns
-)
-{
-  GenerateConcatenatedPatterns(text_path, patterns);
-  auto parent_patterns_path {CreateParentDirectoryByCategory("patterns", text_path)};
-  auto patterns_path
-  {
-    CreatePath
-    (
-      parent_patterns_path,
-      text_path.filename().string(),
-      "." + std::to_string(patterns.amount) + "." + std::to_string(patterns.unit_size)
-    )
-  };
-  if (std::size(patterns.labels) != 0)
-  {
-    std::fstream patterns_file {patterns_path, std::ios_base::out | std::ios_base::trunc};
-    std::cout << "serialize patterns into " << std::filesystem::canonical(patterns_path) << "\n";
-    sdsl::write_member(patterns.amount, patterns_file);
-    sdsl::write_member(patterns.unit_size, patterns_file);
-    sdsl::serialize(patterns.labels, patterns_file);
-  }
-  return patterns_path;
-}
-
-template <typename Patterns>
-void LoadConcatenatedPatterns
-(
-  std::filesystem::path const &patterns_path,
-  Patterns &patterns
-)
-{
-  std::ifstream patterns_file {patterns_path};
-  std::cout << "load patterns from " << std::filesystem::canonical(patterns_path) << "\n";
-  sdsl::read_member(patterns.amount, patterns_file);
-  sdsl::read_member(patterns.unit_size, patterns_file);
-  patterns.labels.load(patterns_file);
-  return;
-}
-
-template <typename Text>
-uint64_t CalculateRunsSize (Text const &text)
-{
-  uint64_t runs_size {};
-  uint64_t prev_character {std::numeric_limits<uint64_t>::max()};
-  auto it {std::begin(text)};
-  while (it != std::end(text))
-  {
-    if (prev_character != *it)
-    {
-      ++runs_size;
-      prev_character = *it;
-    }
-    ++it;
-  }
-  return runs_size;
 }
 
 template <typename Text>
