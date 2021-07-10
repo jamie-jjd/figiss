@@ -20,7 +20,7 @@ void SetUpSdslIndex
 {
   auto parent_path {CreateParentDirectoryByCategory("sdsl_index", text_path)};
   auto path {CreatePath(parent_path, text_path.filename().string(), ".sdsl")};
-  if (!std::filesystem::exists(path))
+  // if (!std::filesystem::exists(path))
   {
     sdsl::int_vector<8> text;
     sdsl::load_vector_from_file(text, text_path);
@@ -30,12 +30,12 @@ void SetUpSdslIndex
     std::cout << "serialize sdsl index to " << std::filesystem::canonical(path) << "\n";
     sdsl::serialize(sdsl_index, index_file);
   }
-  else
-  {
-    std::ifstream index_file {path};
-    std::cout << "load sdsl index from " << std::filesystem::canonical(path) << "\n";
-    sdsl::load(sdsl_index, index_file);
-  }
+  // else
+  // {
+  //   std::ifstream index_file {path};
+  //   std::cout << "load sdsl index from " << std::filesystem::canonical(path) << "\n";
+  //   sdsl::load(sdsl_index, index_file);
+  // }
   return;
 }
 
@@ -43,18 +43,16 @@ template <typename Index>
 void SetUpIndex (std::filesystem::path const &text_path, Index &index)
 {
   auto parent_path {CreateParentDirectoryByCategory("index", text_path)};
+  auto path {CreatePath(parent_path, text_path.filename().string(), ".index")};
+  // if (!std::filesystem::exists(path))
   {
-    auto path {CreatePath(parent_path, text_path.filename().string(), ".index")};
-    if (!std::filesystem::exists(path))
-    {
-      index = Index(text_path);
-      index.Serialize(path);
-    }
-    else
-    {
-      index.Load(path);
-    }
+    index = Index(text_path);
+    index.Serialize(path);
   }
+  // else
+  // {
+  //   index.Load(path);
+  // }
   return;
 }
 
@@ -81,29 +79,33 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
     std::cout << "test pattern counting\namount\tsize\n";
     for (uint64_t unit_size {1}; unit_size <= max_unit_size; ++unit_size)
     {
-      auto patterns {Patterns(text_path, std::min(max_unit_size / unit_size, (1UL << 13)), unit_size)};
-      auto begin {std::begin(patterns)};
-      auto end {begin};
-      for (uint64_t i {}; i != patterns.GetAmount(); ++i)
+      uint64_t amount {std::min(max_unit_size / unit_size, (1UL << 13))};
+      for (uint8_t is_mutated {}; is_mutated != 2; ++is_mutated)
       {
-        begin = end;
-        end = std::next(begin, patterns.GetUnitSize());
-        auto rlfm_count {sdsl::count(rlfm, begin, end)};
-        auto index_count {index.Count(begin, end)};
-        if (rlfm_count != index_count)
+        auto patterns {Patterns(text_path, amount, unit_size, is_mutated)};
+        auto begin {std::begin(patterns)};
+        auto end {begin};
+        for (uint64_t i {}; i != patterns.GetAmount(); ++i)
         {
-          std::string pattern {begin, end};
-          throw std::runtime_error
-          (
-            "\033[31mfailed at pattern: " + pattern
-            + ", real count: " + std::to_string(rlfm_count)
-            + ", count: " + std::to_string(index_count)
-            + "\033[0m");
+          begin = end;
+          end = std::next(begin, patterns.GetUnitSize());
+          auto rlfm_count {sdsl::count(rlfm, begin, end)};
+          auto index_count {index.Count(begin, end)};
+          if (rlfm_count != index_count)
+          {
+            std::string pattern {begin, end};
+            throw std::runtime_error
+            (
+              "\033[31mfailed at pattern: " + pattern
+              + ", real count: " + std::to_string(rlfm_count)
+              + ", count: " + std::to_string(index_count)
+              + "\033[0m");
+          }
         }
       }
       std::cout
-      << std::to_string(patterns.GetAmount()) << "\t"
-      << std::to_string(patterns.GetUnitSize()) << "\t\033[32msucceed\033[0m\n";
+      << std::to_string(amount) << "\t"
+      << std::to_string(unit_size) << "\t\033[32msucceed\033[0m\n";
     }
   }
   return;
