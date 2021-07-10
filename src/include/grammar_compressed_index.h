@@ -569,17 +569,15 @@ std::pair<uint64_t, uint64_t> GrammarSymbolTable::SymbolRange
   if (smallest_factor_integer < std::size(factor_integer_bits_))
   {
     std::get<0>(symbol_range) = factor_integer_rank_1_(smallest_factor_integer);
-    if (factor_integer_bits_[smallest_factor_integer] == 0)
-    {
-      ++std::get<0>(symbol_range);
-    }
     if (largest_factor_integer < std::size(factor_integer_bits_))
     {
-      std::get<1>(symbol_range) = factor_integer_rank_1_(largest_factor_integer);
+      std::get<1>(symbol_range)
+      = factor_integer_rank_1_(largest_factor_integer)
+      - (factor_integer_bits_[largest_factor_integer] == 0);
     }
     else
     {
-      std::get<1>(symbol_range) = factor_integer_rank_1_(std::size(factor_integer_bits_));
+      std::get<1>(symbol_range) = factor_integer_rank_1_(std::size(factor_integer_bits_)) - 1;
     }
   }
   return symbol_range;
@@ -768,60 +766,60 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     sub_factor_trie_ = decltype(sub_factor_trie_)(trie);
     // std::cout << std::make_pair(sub_factor_trie_, /*is_level_order=*/true);
   }
-  uint64_t lex_text_size {};
-  std::set<uint64_t> lex_factor_integers;
-  std::map<uint64_t, uint64_t> temporary_colex_to_lex;
-  {
-    CalculateLexTextSizeAndLexFactorIntegersAndTemporaryColexToLex
-    (
-      text,
-      lex_text_size,
-      lex_factor_integers,
-      temporary_colex_to_lex
-    );
-    // std::cout << "lex_text_size:\n" << lex_text_size << "\n";
-    // std::cout << "|lex_factor_integers|: " << std::size(lex_factor_integers) << "\n";
-    // std::cout << "lex_factor_integers:\n";
-    // for (auto const &factor : lex_factor_integers)
-    // {
-    //   Print(IntegerToSymbols(factor), std::cout);
-    // }
-    // std::cout << "temporary_colex_to_lex:\n";
-    // for (auto const &pair : temporary_colex_to_lex)
-    // {
-    //   Print(IntegerToSymbols(std::get<0>(pair)), std::cout, 1, " ", "");
-    //   std::cout << ":";
-    //   Print(IntegerToSymbols(std::get<1>(pair)), std::cout, 1, " ", "");
-    //   std::cout << "\n";
-    // }
-  }
-  uint64_t lex_text_alphabet_size {std::size(lex_factor_integers)};
-  uint64_t lex_text_width {sdsl::bits::hi(lex_text_alphabet_size - 1) + 1};
-  {
-    CalculateLexSymbolTable(lex_factor_integers);
-    // std::cout << lex_symbol_table_;
-  }
-  sdsl::int_vector<> lex_text(lex_text_size, 0, lex_text_width);
-  {
-    CalculateLexText(text, lex_text);
-    // Print(lex_text, std::cout);
-  }
-  {
-    CalculateColexSymbolTable(temporary_colex_to_lex);
-    // std::cout << colex_symbol_table_;
-  }
-  {
-    CalculateColexToLex(temporary_colex_to_lex);
-    // Print(colex_to_lex_, std::cout);
-  }
-  {
-    CalculateLexSymbolBucketOffsets(lex_text_alphabet_size, lex_text);
-    Print(lex_symbol_bucket_offsets_, std::cout);
-  }
-  {
-    CalculateLexBwt(lex_text);
-    // std::cout << lex_bwt_ << "\n";
-  }
+  // uint64_t lex_text_size {};
+  // std::set<uint64_t> lex_factor_integers;
+  // std::map<uint64_t, uint64_t> temporary_colex_to_lex;
+  // {
+  //   CalculateLexTextSizeAndLexFactorIntegersAndTemporaryColexToLex
+  //   (
+  //     text,
+  //     lex_text_size,
+  //     lex_factor_integers,
+  //     temporary_colex_to_lex
+  //   );
+  //   // std::cout << "lex_text_size:\n" << lex_text_size << "\n";
+  //   // std::cout << "|lex_factor_integers|: " << std::size(lex_factor_integers) << "\n";
+  //   // std::cout << "lex_factor_integers:\n";
+  //   // for (auto const &factor : lex_factor_integers)
+  //   // {
+  //   //   Print(IntegerToSymbols(factor), std::cout);
+  //   // }
+  //   // std::cout << "temporary_colex_to_lex:\n";
+  //   // for (auto const &pair : temporary_colex_to_lex)
+  //   // {
+  //   //   Print(IntegerToSymbols(std::get<0>(pair)), std::cout, 1, " ", "");
+  //   //   std::cout << ":";
+  //   //   Print(IntegerToSymbols(std::get<1>(pair)), std::cout, 1, " ", "");
+  //   //   std::cout << "\n";
+  //   // }
+  // }
+  // uint64_t lex_text_alphabet_size {std::size(lex_factor_integers)};
+  // uint64_t lex_text_width {sdsl::bits::hi(lex_text_alphabet_size - 1) + 1};
+  // {
+  //   CalculateLexSymbolTable(lex_factor_integers);
+  //   // std::cout << lex_symbol_table_;
+  // }
+  // sdsl::int_vector<> lex_text(lex_text_size, 0, lex_text_width);
+  // {
+  //   CalculateLexText(text, lex_text);
+  //   // Print(lex_text, std::cout);
+  // }
+  // {
+  //   CalculateColexSymbolTable(temporary_colex_to_lex);
+  //   // std::cout << colex_symbol_table_;
+  // }
+  // {
+  //   CalculateColexToLex(temporary_colex_to_lex);
+  //   // Print(colex_to_lex_, std::cout);
+  // }
+  // {
+  //   CalculateLexSymbolBucketOffsets(lex_text_alphabet_size, lex_text);
+  //   // Print(lex_symbol_bucket_offsets_, std::cout);
+  // }
+  // {
+  //   CalculateLexBwt(lex_text);
+  //   // std::cout << lex_bwt_ << "\n";
+  // }
 }
 
 template <uint8_t max_factor_size>
@@ -998,7 +996,7 @@ void Index<max_factor_size>::CalculateSubFactorTrie (sdsl::int_vector<> const &t
     {
       sl_type = Index::kL;
     }
-    if ((sl_type == Index::kL) && (next_sl_type == Index::kS))
+    if (sl_type != next_sl_type)
     {
       auto sl_factor_begin {std::next(text_it)};
       InsertSubFactorsInSlFactor(sl_factor_begin, sl_factor_end, trie);
@@ -1032,21 +1030,19 @@ void Index<max_factor_size>::InsertSubFactorsInSlFactor
   while (factor_it != sl_factor_last)
   {
     auto factor_last {std::next(factor_it, Index::kMaxFactorSize)};
-    auto last {std::prev(factor_last)};
-    for (auto it {std::next(factor_it)}; it != last; ++it)
+    for (auto it {std::next(factor_it)}; it != factor_last; ++it)
     {
-      trie.Insert(it, last);
+      trie.Insert(it, factor_last);
     }
     factor_it = factor_last;
   }
   if (factor_it != sl_factor_end)
   {
-    if (std::distance(factor_it, sl_factor_end) > (Index::kMaxFactorSize - 2))
+    if (std::distance(factor_it, sl_factor_end) > 1)
     {
-      auto last {std::prev(sl_factor_end)};
-      for (auto it {std::next(factor_it)}; it != last; ++it)
+      for (auto it {std::next(factor_it)}; it != sl_factor_end; ++it)
       {
-        trie.Insert(it, last);
+        trie.Insert(it, sl_factor_end);
       }
     }
   }
@@ -1581,7 +1577,7 @@ uint64_t Index<max_factor_size>::RangeCount
   for
   (
     auto colex_symbol {std::get<0>(colex_symbol_range)};
-    colex_symbol != std::get<1>(colex_symbol_range);
+    colex_symbol <= std::get<1>(colex_symbol_range);
     ++colex_symbol
   )
   {
@@ -1605,91 +1601,50 @@ void Index<max_factor_size>::CountWithinSlFactor
 {
   uint64_t count {};
   auto sl_factor_size {std::distance(rend, rbegin)};
-  if (sl_factor_size >= Index::kMaxFactorSize)
+  for (uint8_t k {1}; (k <= sl_factor_size) && (k <= Index::kMaxFactorSize); ++k)
   {
-    for (uint8_t k {1}; k <= Index::kMaxFactorSize; ++k)
+    auto is_not_counted {true};
+    auto rfirst {rbegin};
+    auto rlast {std::prev(rbegin, k)};
+    auto temporary_pattern_range {pattern_range};
+    auto lex_symbol_range {CalculateSymbolRange(std::next(rlast), std::next(rfirst))};
+    if (IsNotEmptyRange(lex_symbol_range))
     {
-      auto rfirst {rbegin};
-      auto rlast {std::prev(rbegin, k)};
-      auto temporary_pattern_range {pattern_range};
-      auto lex_symbol_range {CalculateSymbolRange(std::next(rlast), std::next(rfirst))};
-      if (IsNotEmptyRange(lex_symbol_range))
+      temporary_pattern_range =
       {
-        temporary_pattern_range =
-        {
-          lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
-          lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
-        };
+        lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
+        lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
+      };
+    }
+    if ((rlast != rend) && IsNotEmptyRange(temporary_pattern_range))
+    {
+      if ((sl_factor_size - k) >= Index::kMaxFactorSize)
+      {
+        rfirst = rlast;
+        rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
+        BackwardSearchPatternInfixFactors(rfirst, rlast, temporary_pattern_range);
       }
       if ((rlast != rend) && IsNotEmptyRange(temporary_pattern_range))
       {
-        if ((sl_factor_size - k) >= Index::kMaxFactorSize)
-        {
-          rfirst = rlast;
-          rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
-          BackwardSearchPatternInfixFactors(rfirst, rlast, temporary_pattern_range);
-        }
-        if ((rlast != rend) && IsNotEmptyRange(temporary_pattern_range))
-        {
-          auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
-          if (IsNotEmptyRange(colex_symbol_range))
-          {
-            count += RangeCount(temporary_pattern_range, colex_symbol_range);
-          }
-        }
-      }
-      count += RangeSize(temporary_pattern_range);
-    }
-  }
-  else
-  {
-    for (int64_t k {1}; k <= sl_factor_size; ++k)
-    {
-      {
-        auto rfirst {rbegin};
-        auto rlast {std::prev(rbegin, k)};
-        Range temporary_pattern_range {};
-        auto lex_symbol_range {CalculateSymbolRange(std::next(rlast), std::next(rfirst))};
-        // std::cout << std::get<0>(lex_symbol_range) << " " << std::get<1>(lex_symbol_range) << "\n";
-        if (IsNotEmptyRange(lex_symbol_range))
-        {
-          temporary_pattern_range =
-          {
-            lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
-            lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
-          };
-        }
-        // std::cout << std::get<0>(temporary_pattern_range) << " " << std::get<1>(temporary_pattern_range) << "\n";
-        if (IsNotEmptyRange(temporary_pattern_range))
-        {
-          if (rlast != rend)
-          {
-            auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
-            if (IsNotEmptyRange(colex_symbol_range))
-            {
-              count += RangeCount(temporary_pattern_range, colex_symbol_range);
-            }
-          }
-          else
-          {
-            count += RangeSize(temporary_pattern_range);
-            // std::cout << count << "\n";
-          }
-        }
-      }
-      if (sl_factor_size != (Index::kMaxFactorSize - 1))
-      {
-        count += sub_factor_trie_.Count(std::next(rend), std::next(rbegin));
-        // std::cout << count << "\n";
-      }
-      {
-        auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
+        auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
         if (IsNotEmptyRange(colex_symbol_range))
         {
-          count += RangeCount(Range{0, std::size(lex_bwt_) - 1}, colex_symbol_range);
+          is_not_counted = false;
+          count += RangeCount(temporary_pattern_range, colex_symbol_range);
+          if (sl_factor_size > 1) std::cout << count << "\n";
         }
       }
     }
+    if (is_not_counted)
+    {
+      count += RangeSize(temporary_pattern_range);
+      if (sl_factor_size > 1) std::cout << count << "\n";
+    }
+  }
+  if (sl_factor_size < Index::kMaxFactorSize)
+  {
+    count += sub_factor_trie_.Count(std::next(rend), std::next(rbegin));
+    if (sl_factor_size > 1) std::cout << count << "\n";
   }
   pattern_range = {1, count};
   return;
