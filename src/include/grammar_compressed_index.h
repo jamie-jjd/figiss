@@ -468,12 +468,26 @@ std::ostream& operator<< (std::ostream &out, std::pair<SubFactorTrie, bool> cons
   return out;
 }
 
+template <uint8_t s>
+class GrammarSymbolTable;
+
+template <uint8_t s>
+std::ostream& operator<< (std::ostream &out, GrammarSymbolTable<s> const &symbol_table);
+
+template <uint8_t s>
 class GrammarSymbolTable
 {
 public:
 
+  static constexpr uint8_t kS {s};
+  static constexpr uint8_t kL {1 - s};
+
   GrammarSymbolTable () = default;
-  GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers) noexcept;
+  GrammarSymbolTable
+  (
+    std::vector<uint64_t> const &sorted_factor_integers_s,
+    std::vector<uint64_t> const &sorted_factor_integers_l
+  ) noexcept;
   GrammarSymbolTable& operator= (GrammarSymbolTable &&) noexcept;
 
   uint64_t Serialize
@@ -484,41 +498,69 @@ public:
   );
   void Load (std::istream &in);
 
-  uint64_t operator[] (uint64_t const factor_integer) const noexcept;
+  uint64_t Symbol
+  (
+    uint64_t const factor_integer,
+    uint8_t const sl_type
+  ) const noexcept;
 
   std::pair<uint64_t, uint64_t> SymbolRange
   (
     uint64_t const smallest_factor_integer,
-    uint64_t const largest_factor_integer
+    uint64_t const largest_factor_integer,
+    uint8_t const sl_type
   ) const noexcept;
 
-  friend std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &symbol_table);
+  friend std::ostream& operator<< <s> (std::ostream &out, GrammarSymbolTable<s> const &symbol_table);
 
 private:
 
-  sdsl::sd_vector<> factor_integer_bits_;
-  sdsl::sd_vector<>::rank_1_type factor_integer_rank_1_;
-  sdsl::sd_vector<>::select_1_type factor_integer_select_1_;
+  uint64_t factor_integer_s_size_;
+  sdsl::sd_vector<> factor_integer_s_bits_;
+  sdsl::sd_vector<>::rank_1_type factor_integer_s_rank_1_;
+  sdsl::sd_vector<> factor_integer_l_bits_;
+  sdsl::sd_vector<>::rank_1_type factor_integer_l_rank_1_;
 
 };
 
-GrammarSymbolTable::GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers) noexcept
+template <uint8_t s>
+GrammarSymbolTable<s>::GrammarSymbolTable
+(
+  std::vector<uint64_t> const &sorted_factor_integers_s,
+  std::vector<uint64_t> const &sorted_factor_integers_l
+) noexcept
 {
-  factor_integer_bits_ = decltype(factor_integer_bits_)(std::begin(sorted_factor_integers), std::end(sorted_factor_integers));
-  factor_integer_rank_1_.set_vector(&factor_integer_bits_);
+  factor_integer_s_size_ = std::size(sorted_factor_integers_s);
+  factor_integer_s_bits_ = decltype(factor_integer_s_bits_)
+  (
+    std::begin(sorted_factor_integers_s),
+    std::end(sorted_factor_integers_s)
+  );
+  factor_integer_s_rank_1_.set_vector(&factor_integer_s_bits_);
+  factor_integer_l_bits_ = decltype(factor_integer_l_bits_)
+  (
+    std::begin(sorted_factor_integers_l),
+    std::end(sorted_factor_integers_l)
+  );
+  factor_integer_l_rank_1_.set_vector(&factor_integer_l_bits_);
 }
 
-GrammarSymbolTable& GrammarSymbolTable::operator= (GrammarSymbolTable &&grammar_symbol_table) noexcept
+template <uint8_t s>
+GrammarSymbolTable<s>& GrammarSymbolTable<s>::operator= (GrammarSymbolTable<s> &&grammar_symbol_table) noexcept
 {
   if (this != &grammar_symbol_table)
   {
-    factor_integer_bits_ = std::move(grammar_symbol_table.factor_integer_bits_);
-    factor_integer_rank_1_.set_vector(&factor_integer_bits_);
+    factor_integer_s_size_ = std::move(grammar_symbol_table.factor_integer_s_size_);
+    factor_integer_s_bits_ = std::move(grammar_symbol_table.factor_integer_s_bits_);
+    factor_integer_s_rank_1_.set_vector(&factor_integer_s_bits_);
+    factor_integer_l_bits_ = std::move(grammar_symbol_table.factor_integer_l_bits_);
+    factor_integer_l_rank_1_.set_vector(&factor_integer_l_bits_);
   }
   return *this;
 }
 
-uint64_t GrammarSymbolTable::Serialize
+template <uint8_t s>
+uint64_t GrammarSymbolTable<s>::Serialize
 (
   std::ostream &out,
   std::shared_ptr<SpaceNode> parent,
@@ -528,65 +570,128 @@ uint64_t GrammarSymbolTable::Serialize
   uint64_t size_in_bytes {};
   if (!parent)
   {
-    sdsl::serialize(factor_integer_bits_, out);
-    sdsl::serialize(factor_integer_rank_1_, out);
+    sdsl::write_member(factor_integer_s_size_, out);
+    sdsl::serialize(factor_integer_s_bits_, out);
+    sdsl::serialize(factor_integer_s_rank_1_, out);
+    sdsl::serialize(factor_integer_l_bits_, out);
+    sdsl::serialize(factor_integer_l_rank_1_, out);
   }
   else
   {
     auto node {std::make_shared<SpaceNode>(name)};
-    node->AddLeaf("factor_integer_bits_", sdsl::serialize(factor_integer_bits_, out));
-    node->AddLeaf("factor_integer_rank_1_", sdsl::serialize(factor_integer_rank_1_, out));
+    node->AddLeaf("factor_integer_s_size_", sdsl::write_member(factor_integer_s_size_, out));
+    node->AddLeaf("factor_integer_s_bits_", sdsl::serialize(factor_integer_s_bits_, out));
+    node->AddLeaf("factor_integer_s_rank_1_", sdsl::serialize(factor_integer_s_rank_1_, out));
+    node->AddLeaf("factor_integer_l_bits_", sdsl::serialize(factor_integer_s_bits_, out));
+    node->AddLeaf("factor_integer_l_rank_1_", sdsl::serialize(factor_integer_s_rank_1_, out));
     parent->AddChild(node);
     size_in_bytes = node->GetSizeInBytes();
   }
   return size_in_bytes;
 }
 
-void GrammarSymbolTable::Load (std::istream &in)
+template <uint8_t s>
+void GrammarSymbolTable<s>::Load (std::istream &in)
 {
-  factor_integer_bits_.load(in);
-  factor_integer_rank_1_.load(in);
-  factor_integer_rank_1_.set_vector(&factor_integer_bits_);
+  sdsl::read_member(factor_integer_s_size_, in);
+  factor_integer_s_bits_.load(in);
+  factor_integer_s_rank_1_.load(in);
+  factor_integer_s_rank_1_.set_vector(&factor_integer_s_bits_);
+  factor_integer_l_bits_.load(in);
+  factor_integer_l_rank_1_.load(in);
+  factor_integer_l_rank_1_.set_vector(&factor_integer_l_bits_);
   return;
 }
 
-uint64_t GrammarSymbolTable::operator[] (uint64_t const factor_integer) const noexcept
+template <uint8_t s>
+uint64_t GrammarSymbolTable<s>::Symbol
+(
+  uint64_t const factor_integer,
+  uint8_t const sl_type
+) const noexcept
 {
-  if ((factor_integer < std::size(factor_integer_bits_)) && factor_integer_bits_[factor_integer])
+  if (sl_type == GrammarSymbolTable::kS)
   {
-    return factor_integer_rank_1_(factor_integer);
+    if ((factor_integer < std::size(factor_integer_s_bits_)) && factor_integer_s_bits_[factor_integer])
+    {
+      return (1 + factor_integer_s_rank_1_(factor_integer));
+    }
+  }
+  else
+  {
+    if ((factor_integer < std::size(factor_integer_l_bits_)) && factor_integer_l_bits_[factor_integer])
+    {
+      return (1 + factor_integer_s_size_ + factor_integer_s_rank_1_(factor_integer));
+    }
   }
   return 0;
 }
 
-std::pair<uint64_t, uint64_t> GrammarSymbolTable::SymbolRange
+template <uint8_t s>
+std::pair<uint64_t, uint64_t> GrammarSymbolTable<s>::SymbolRange
 (
   uint64_t const smallest_factor_integer,
-  uint64_t const largest_factor_integer
+  uint64_t const largest_factor_integer,
+  uint8_t const sl_type
 ) const noexcept
 {
   std::pair<uint64_t, uint64_t> symbol_range {1, 0};
-  if (smallest_factor_integer < std::size(factor_integer_bits_))
+  if (sl_type == GrammarSymbolTable::kS)
   {
-    std::get<0>(symbol_range) = factor_integer_rank_1_(smallest_factor_integer);
-    if (largest_factor_integer < std::size(factor_integer_bits_))
+    if (smallest_factor_integer < std::size(factor_integer_s_bits_))
     {
-      std::get<1>(symbol_range)
-      = factor_integer_rank_1_(largest_factor_integer)
-      - (factor_integer_bits_[largest_factor_integer] == 0);
+      std::get<0>(symbol_range) = (1 + factor_integer_s_rank_1_(smallest_factor_integer));
+      if (largest_factor_integer < std::size(factor_integer_s_bits_))
+      {
+        std::get<1>(symbol_range) =
+        (
+          1 + factor_integer_s_rank_1_(largest_factor_integer)
+          - (factor_integer_s_bits_[largest_factor_integer] == 0)
+        );
+      }
+      else
+      {
+        std::get<1>(symbol_range) = factor_integer_s_rank_1_(std::size(factor_integer_s_bits_));
+      }
     }
-    else
+  }
+  else
+  {
+    if (smallest_factor_integer < std::size(factor_integer_l_bits_))
     {
-      std::get<1>(symbol_range) = factor_integer_rank_1_(std::size(factor_integer_bits_)) - 1;
+      std::get<0>(symbol_range) =
+      (
+        1 + factor_integer_s_size_
+        + factor_integer_l_rank_1_(smallest_factor_integer)
+      );
+      if (largest_factor_integer < std::size(factor_integer_l_bits_))
+      {
+        std::get<1>(symbol_range) =
+        (
+          1 + factor_integer_s_size_ + factor_integer_l_rank_1_(largest_factor_integer)
+          - (factor_integer_l_bits_[largest_factor_integer] == 0)
+        );
+      }
+      else
+      {
+        std::get<1>(symbol_range) =
+        (
+          factor_integer_s_size_
+          + factor_integer_l_rank_1_(std::size(factor_integer_l_bits_))
+        );
+      }
     }
   }
   return symbol_range;
 }
 
-std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &grammar_symbol_table)
+template <uint8_t s>
+std::ostream& operator<< (std::ostream &out, GrammarSymbolTable<s> const &grammar_symbol_table)
 {
   out << "space:\n";
-  out << "factor_integer_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_symbol_table.factor_integer_bits_)) << "B\n";
+  out << "factor_integer_s_size_: " << ProperSizeRepresentation(sizeof(grammar_symbol_table.factor_integer_s_size_)) << "B\n";
+  out << "factor_integer_s_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_symbol_table.factor_integer_s_bits_)) << "B\n";
+  out << "factor_integer_l_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_symbol_table.factor_integer_l_bits_)) << "B\n";
   return out;
 }
 
@@ -624,8 +729,8 @@ private:
 
   SymbolTable symbol_table_;
   SubFactorTrie sub_factor_trie_;
-  GrammarSymbolTable lex_symbol_table_;
-  GrammarSymbolTable colex_symbol_table_;
+  GrammarSymbolTable<kS> lex_symbol_table_;
+  GrammarSymbolTable<kS> colex_symbol_table_;
   sdsl::int_vector<> colex_to_lex_;
   sdsl::int_vector<> lex_symbol_bucket_offsets_;
   sdsl::wt_rlmn
@@ -675,7 +780,11 @@ private:
     std::map<uint64_t, uint64_t> &colex_to_lex_s,
     std::map<uint64_t, uint64_t> &colex_to_lex_l
   );
-  void CalculateLexSymbolTable (std::set<uint64_t> const &lex_factor_integers);
+  void CalculateLexSymbolTable
+  (
+    std::set<uint64_t> const &lex_factor_integers_s,
+    std::set<uint64_t> const &lex_factor_integers_l
+  );
   void CalculateLexText (sdsl::int_vector<> const &text, sdsl::int_vector<> &lex_text);
   void CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const &colex_to_lex);
   void CalculateColexToLex (std::map<uint64_t, uint64_t> const &colex_to_lex);
@@ -825,12 +934,17 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     //   std::cout << "\n";
     // }
   }
-  // uint64_t lex_text_alphabet_size {std::size(lex_factor_integers)};
-  // uint64_t lex_text_width {sdsl::bits::hi(lex_text_alphabet_size - 1) + 1};
+  // uint64_t lex_text_alphabet_size
   // {
-  //   CalculateLexSymbolTable(lex_factor_integers);
-  //   // std::cout << lex_symbol_table_;
-  // }
+  //   std::size(lex_factor_integers_s)
+  //   + std::size(lex_factor_integers_l)
+  //   + 1
+  // };
+  // uint64_t lex_text_width {sdsl::bits::hi(lex_text_alphabet_size - 1) + 1};
+  {
+    CalculateLexSymbolTable(lex_factor_integers_s, lex_factor_integers_l);
+    // std::cout << lex_symbol_table_;
+  }
   // sdsl::int_vector<> lex_text(lex_text_size, 0, lex_text_width);
   // {
   //   CalculateLexText(text, lex_text);
@@ -1219,631 +1333,648 @@ void Index<max_factor_size>::CalculateLexTextSizeAndLexFactorIntegersAndColexToL
 }
 
 template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateLexSymbolTable (std::set<uint64_t> const &lex_factor_integers)
-{
-  std::vector<uint64_t> sorted_lex_factor_integers(std::begin(lex_factor_integers), std::end(lex_factor_integers));
-  lex_symbol_table_ = decltype(lex_symbol_table_)(sorted_lex_factor_integers);
-  return;
-}
-
-template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateLexText
+void Index<max_factor_size>::CalculateLexSymbolTable
 (
-  sdsl::int_vector<> const &text,
-  sdsl::int_vector<> &lex_text
+  std::set<uint64_t> const &lex_factor_integers_s,
+  std::set<uint64_t> const &lex_factor_integers_l
 )
 {
-  auto text_prev_begin {std::prev(std::begin(text))};
-  auto text_it {std::prev(std::end(text), 3)};
-  auto next_symbol {*std::prev(std::end(text), 2)};
-  uint8_t sl_type {};
-  uint8_t next_sl_type {Index::kL};
-  auto sl_factor_end {std::prev(std::end(text))};
-  auto lex_text_it {std::prev(std::end(lex_text), 2)};
-  std::vector<uint64_t> sl_factor;
-  while (text_it != text_prev_begin)
-  {
-    if (*text_it == next_symbol)
-    {
-      sl_type = next_sl_type;
-    }
-    else if (*text_it < next_symbol)
-    {
-      sl_type = Index::kS;
-    }
-    else
-    {
-      sl_type = Index::kL;
-    }
-    if ((sl_type == Index::kL) && (next_sl_type == Index::kS))
-    {
-      auto factor_it {std::next(text_it)};
-      while (std::distance(factor_it, sl_factor_end) >= Index::kMaxFactorSize)
-      {
-        auto factor_end {std::next(factor_it, Index::kMaxFactorSize)};
-        sl_factor.emplace_back(lex_symbol_table_[SymbolsToInteger(factor_it, factor_end)]);
-        factor_it = factor_end;
-      }
-      if (std::distance(factor_it, sl_factor_end) != 0)
-      {
-        sl_factor.emplace_back(lex_symbol_table_[SymbolsToInteger(factor_it, sl_factor_end)]);
-      }
-      sl_factor_end = std::next(text_it);
-      for (auto it {std::rbegin(sl_factor)}; it != std::rend(sl_factor); ++it)
-      {
-        *lex_text_it-- = *it;
-      }
-      sl_factor.clear();
-    }
-    next_symbol = *text_it--;
-    next_sl_type = sl_type;
-  }
-  *lex_text_it = lex_symbol_table_[SymbolsToInteger(std::begin(text), sl_factor_end)];
-  *std::prev(std::end(lex_text)) = 0;
-  return;
-}
-
-template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const &colex_to_lex)
-{
-  std::vector<uint64_t> sorted_colex_factor_integers(std::size(colex_to_lex));
-  auto it {std::begin(sorted_colex_factor_integers)};
-  for (auto const &pair : colex_to_lex)
-  {
-    *it++ = std::get<0>(pair);
-  }
-  colex_symbol_table_ = decltype(colex_symbol_table_)(sorted_colex_factor_integers);
-  return;
-}
-
-template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateColexToLex (std::map<uint64_t, uint64_t> const &colex_to_lex)
-{
-  colex_to_lex_.width(sdsl::bits::hi(std::size(colex_to_lex) - 1) + 1);
-  colex_to_lex_.resize(std::size(colex_to_lex));
-  auto it {std::begin(colex_to_lex_)};
-  for (auto const &pair : colex_to_lex)
-  {
-    *it++ = lex_symbol_table_[std::get<1>(pair)];
-  }
-  return;
-}
-
-template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateLexSymbolBucketOffsets
-(
-  uint64_t const lex_text_alphabet_size,
-  sdsl::int_vector<> const &lex_text
-)
-{
-  lex_symbol_bucket_offsets_.width(sdsl::bits::hi(std::size(lex_text)) + 1);
-  lex_symbol_bucket_offsets_.resize(lex_text_alphabet_size + 1);
-  sdsl::util::set_to_value(lex_symbol_bucket_offsets_, 0);
-  for (auto const lex_symbol : lex_text)
-  {
-    ++(lex_symbol_bucket_offsets_[lex_symbol]);
-  }
-  std::partial_sum
+  std::vector<uint64_t> sorted_lex_factor_integers_s
   (
-    std::begin(lex_symbol_bucket_offsets_),
-    std::end(lex_symbol_bucket_offsets_),
-    std::begin(lex_symbol_bucket_offsets_)
+    std::begin(lex_factor_integers_s),
+    std::end(lex_factor_integers_s)
   );
-  auto it {std::prev(std::end(lex_symbol_bucket_offsets_))};
-  auto begin {std::begin(lex_symbol_bucket_offsets_)};
-  while (it != begin)
-  {
-    *it-- = *std::prev(it);
-  }
-  *begin = 0;
-  return;
-}
-
-template <uint8_t max_factor_size>
-void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text)
-{
-  sdsl::int_vector<> buffer;
-  sdsl::qsufsort::construct_sa(buffer, lex_text);
-  for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
-  {
-    if (*it != 0)
-    {
-      *it = lex_text[*it - 1];
-    }
-  }
-  sdsl::construct_im(lex_bwt_, buffer);
-  return;
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator, typename Range>
-Iterator Index<max_factor_size>::BackwardSearchPatternSuffix
-(
-  Iterator rbegin,
-  Iterator rend,
-  Range &pattern_range,
-  Range &pattern_range_ls
-)
-{
-  auto rfirst {rbegin};
-  auto rlast {ClassifyPatternSuffix(rbegin, rend)};
-  if (rlast != rend)
-  {
-    if (rlast != rbegin)
-    {
-      BackwardSearchPatternSuffixSlFactor(rfirst, rlast, pattern_range_ls);
-      CalculateSlFactor(rend, rfirst, rlast);
-      if (IsNotEmptyRange(pattern_range_ls))
-      {
-        if (rlast != rend)
-        {
-          BackwardSearchPatternInfixSlFactor(rfirst, rlast, pattern_range_ls);
-        }
-        else
-        {
-          BackwardSearchPatternPrefixSlFactor(rfirst, rlast, pattern_range_ls);
-        }
-      }
-    }
-    else
-    {
-      CalculateSlFactor(rend, rfirst, rlast);
-    }
-    if (rlast != rend)
-    {
-      BackwardSearchPatternSuffixSlFactor(rbegin, rlast, pattern_range);
-    }
-    else
-    {
-      CountWithinSlFactor(rbegin, rend, pattern_range);
-    }
-  }
-  else
-  {
-    CountWithinSlFactor(rbegin, rend, pattern_range);
-  }
-  return rlast;
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator>
-Iterator Index<max_factor_size>::ClassifyPatternSuffix (Iterator rbegin, Iterator rend)
-{
-  auto it {rbegin};
-  while ((std::prev(it) != rend) && (*std::prev(it) == *it))
-  {
-    --it;
-  }
-  if ((std::prev(it) != rend) && (*std::prev(it) < *it))
-  {
-    return rbegin;
-  }
-  return std::prev(it); // LS
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator>
-void Index<max_factor_size>::CalculateSlFactor
-(
-  Iterator const rend,
-  Iterator &rfirst,
-  Iterator &rlast
-)
-{
-  auto next_sl_type {Index::kL};
-  rfirst = rlast--;
-  while ((rlast != rend) && !((next_sl_type == Index::kS) && (*rlast > *std::next(rlast))))
-  {
-    if((next_sl_type == Index::kL) && (*rlast < *std::next(rlast)))
-    {
-      next_sl_type = Index::kS;
-    }
-    --rlast;
-  }
-  return;
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator, typename Range>
-void Index<max_factor_size>::BackwardSearchPatternSuffixSlFactor
-(
-  Iterator rbegin,
-  Iterator rend,
-  Range &pattern_range
-)
-{
-  auto rfirst {rbegin};
-  auto rlast {std::prev(rbegin, std::distance(rend, rbegin) % Index::kMaxFactorSize)};
-  if (rlast == rfirst)
-  {
-    rlast = std::prev(rbegin, Index::kMaxFactorSize);
-  }
-  auto lex_symbol_range {CalculateSymbolRange(std::next(rlast), std::next(rfirst))};
-  if (IsNotEmptyRange(lex_symbol_range))
-  {
-    pattern_range =
-    {
-      lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
-      lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
-    };
-    if (rlast != rend)
-    {
-      BackwardSearchPatternInfixFactors(rlast, rend, pattern_range);
-    }
-  }
-  return;
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator>
-std::pair<uint64_t, uint64_t> Index<max_factor_size>::CalculateSymbolRange
-(
-  Iterator begin,
-  Iterator end,
-  int8_t const step
-)
-{
-  uint64_t factor_integer {};
-  auto it {begin};
-  auto k {Index::kMaxFactorSize};
-  while (it != std::prev(end, step))
-  {
-    factor_integer += *it * (1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * ((k--) - 1)));
-    it += step;
-  }
-  auto base {1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * (k - 1))};
-  factor_integer += *it * base;
-  if (step == -1)
-  {
-    return colex_symbol_table_.SymbolRange(factor_integer, factor_integer + base - 1);
-  }
-  return lex_symbol_table_.SymbolRange(factor_integer, factor_integer + base - 1);
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator, typename Range>
-void Index<max_factor_size>::BackwardSearchPatternInfixFactors
-(
-  Iterator rbegin,
-  Iterator rend,
-  Range &pattern_range
-)
-{
-  auto rfirst {rbegin};
-  auto rlast {rbegin};
-  while ((rfirst != rend) && IsNotEmptyRange(pattern_range))
-  {
-    rlast = std::prev(rfirst, Index::kMaxFactorSize);
-    auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
-    if (lex_symbol != 0)
-    {
-      auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
-      pattern_range =
-      {
-        begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
-        begin_offset + lex_bwt_.rank(std::get<1>(pattern_range) + 1, lex_symbol) - 1
-      };
-    }
-    else
-    {
-      pattern_range = {1, 0};
-    }
-    rfirst = rlast;
-  }
-  return;
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator, typename Range>
-void Index<max_factor_size>::BackwardSearchPatternInfixSlFactor
-(
-  Iterator rbegin,
-  Iterator rend,
-  Range &pattern_range
-)
-{
-  auto rfirst {rbegin};
-  auto rlast {std::prev(rbegin, std::distance(rend, rbegin) % Index::kMaxFactorSize)};
-  if (rfirst != rlast)
-  {
-    auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
-    if (lex_symbol != 0)
-    {
-      auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
-      pattern_range =
-      {
-        begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
-        begin_offset + lex_bwt_.rank(std::get<1>(pattern_range) + 1, lex_symbol) - 1
-      };
-    }
-    else
-    {
-      pattern_range = {1, 0};
-    }
-  }
-  if (IsNotEmptyRange(pattern_range))
-  {
-    BackwardSearchPatternInfixFactors(rlast, rend, pattern_range);
-  }
-  return;
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator, typename Range>
-void Index<max_factor_size>::BackwardSearchPatternPrefixSlFactor
-(
-  Iterator rbegin,
-  Iterator rend,
-  Range &pattern_range
-)
-{
-  uint64_t count {};
-  auto sl_factor_size {std::distance(rend, rbegin)};
-  for (uint8_t k {1}; k <= Index::kMaxFactorSize; ++k)
-  {
-    auto temporary_pattern_range {pattern_range};
-    if (k != sl_factor_size)
-    {
-      auto rfirst {rbegin};
-      auto rlast {std::prev(rbegin, k)};
-      auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
-      if (lex_symbol != 0)
-      {
-        auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
-        pattern_range =
-        {
-          begin_offset + lex_bwt_.rank(std::get<0>(temporary_pattern_range), lex_symbol),
-          begin_offset + lex_bwt_.rank(std::get<1>(temporary_pattern_range) + 1, lex_symbol) - 1
-        };
-      }
-      else
-      {
-        pattern_range = {1, 0};
-      }
-      if (IsNotEmptyRange(temporary_pattern_range))
-      {
-        if (std::distance(rend, rlast) > Index::kMaxFactorSize)
-        {
-          rfirst = rlast;
-          rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
-          BackwardSearchPatternInfixFactors(rfirst, rlast, temporary_pattern_range);
-        }
-        if (IsNotEmptyRange(temporary_pattern_range))
-        {
-          auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
-          if (IsNotEmptyRange(colex_symbol_range))
-          {
-            count += RangeCount(temporary_pattern_range, colex_symbol_range);
-          }
-        }
-      }
-    }
-    else
-    {
-      auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
-      if (IsNotEmptyRange(colex_symbol_range))
-      {
-        count += RangeCount(temporary_pattern_range, colex_symbol_range);
-      }
-      break;
-    }
-  }
-  pattern_range = {1, count};
-  return;
-}
-
-template <uint8_t max_factor_size>
-template <typename Range>
-uint64_t Index<max_factor_size>::RangeCount
-(
-  Range const pattern_range,
-  Range const colex_symbol_range
-)
-{
-  uint64_t count {};
-  for
+  std::vector<uint64_t> sorted_lex_factor_integers_l
   (
-    auto colex_symbol {std::get<0>(colex_symbol_range)};
-    colex_symbol <= std::get<1>(colex_symbol_range);
-    ++colex_symbol
-  )
-  {
-    count +=
-    (
-      lex_bwt_.rank(std::get<1>(pattern_range) + 1, colex_to_lex_[colex_symbol])
-      - lex_bwt_.rank(std::get<0>(pattern_range), colex_to_lex_[colex_symbol])
-    );
-  }
-  return count;
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator, typename Range>
-void Index<max_factor_size>::CountWithinSlFactor
-(
-  Iterator rbegin,
-  Iterator rend,
-  Range &pattern_range
-)
-{
-  uint64_t count {};
-  auto sl_factor_size {std::distance(rend, rbegin)};
-  for (uint8_t k {1}; (k <= sl_factor_size) && (k <= Index::kMaxFactorSize); ++k)
-  {
-    auto is_not_counted {true};
-    auto rfirst {rbegin};
-    auto rlast {std::prev(rbegin, k)};
-    auto temporary_pattern_range {pattern_range};
-    auto lex_symbol_range {CalculateSymbolRange(std::next(rlast), std::next(rfirst))};
-    if (IsNotEmptyRange(lex_symbol_range))
-    {
-      temporary_pattern_range =
-      {
-        lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
-        lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
-      };
-    }
-    if ((rlast != rend) && IsNotEmptyRange(temporary_pattern_range))
-    {
-      if ((sl_factor_size - k) >= Index::kMaxFactorSize)
-      {
-        rfirst = rlast;
-        rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
-        BackwardSearchPatternInfixFactors(rfirst, rlast, temporary_pattern_range);
-      }
-      if ((rlast != rend) && IsNotEmptyRange(temporary_pattern_range))
-      {
-        auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
-        if (IsNotEmptyRange(colex_symbol_range))
-        {
-          is_not_counted = false;
-          count += RangeCount(temporary_pattern_range, colex_symbol_range);
-          if (sl_factor_size > 1) std::cout << count << "\n";
-        }
-      }
-    }
-    if (is_not_counted)
-    {
-      count += RangeSize(temporary_pattern_range);
-      if (sl_factor_size > 1) std::cout << count << "\n";
-    }
-  }
-  if (sl_factor_size < Index::kMaxFactorSize)
-  {
-    count += sub_factor_trie_.Count(std::next(rend), std::next(rbegin));
-    if (sl_factor_size > 1) std::cout << count << "\n";
-  }
-  pattern_range = {1, count};
+    std::begin(lex_factor_integers_l),
+    std::end(lex_factor_integers_l)
+  );
+  lex_symbol_table_ = decltype(lex_symbol_table_)
+  (
+    sorted_lex_factor_integers_s,
+    sorted_lex_factor_integers_l
+  );
   return;
 }
 
-template <uint8_t max_factor_size>
-template <typename Iterator, typename Range>
-void Index<max_factor_size>::BackwardSearchPatternInfix
-(
-  Iterator rbegin,
-  Iterator rend,
-  Range &pattern_range,
-  Range &pattern_range_ls
-)
-{
-  auto rfirst {rbegin};
-  auto rlast {std::prev(rbegin, std::distance(rend, rfirst) % Index::kMaxFactorSize)};
-  if (rfirst == rlast)
-  {
-    rlast = std::prev(rbegin, Index::kMaxFactorSize);
-  }
-  while ((rfirst != rend) && (IsNotEmptyRange(pattern_range) || IsNotEmptyRange(pattern_range_ls)))
-  {
-    auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
-    if (lex_symbol != 0)
-    {
-      auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
-      if (IsNotEmptyRange(pattern_range))
-      {
-        pattern_range =
-        {
-          begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
-          begin_offset + lex_bwt_.rank(std::get<1>(pattern_range) + 1, lex_symbol) - 1
-        };
-      }
-      if (IsNotEmptyRange(pattern_range_ls))
-      {
-        pattern_range_ls =
-        {
-          begin_offset + lex_bwt_.rank(std::get<0>(pattern_range_ls), lex_symbol),
-          begin_offset + lex_bwt_.rank(std::get<1>(pattern_range_ls) + 1, lex_symbol) - 1
-        };
-      }
-    }
-    else
-    {
-      pattern_range = pattern_range_ls = {1, 0};
-    }
-    rfirst = rlast;
-    rlast = std::prev(rlast, Index::kMaxFactorSize);
-  }
-  return;
-}
-
-template <uint8_t max_factor_size>
-template <typename Iterator, typename Range>
-void Index<max_factor_size>::BackwardSearchPatternPrefix
-(
-  Iterator rbegin,
-  Iterator rend,
-  Range &pattern_range,
-  Range &pattern_range_ls
-)
-{
-  uint64_t count {};
-  uint64_t count_ls {};
-  auto sl_factor_size {std::distance(rend, rbegin)};
-  for (uint8_t k {1}; k <= Index::kMaxFactorSize; ++k)
-  {
-    auto temporary_pattern_range {pattern_range};
-    auto temporary_pattern_range_ls {pattern_range_ls};
-    if (k != sl_factor_size)
-    {
-      auto rfirst {rbegin};
-      auto rlast {std::prev(rbegin, k)};
-      auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
-      if (lex_symbol != 0)
-      {
-        auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
-        if (IsNotEmptyRange(temporary_pattern_range))
-        {
-          temporary_pattern_range =
-          {
-            begin_offset + lex_bwt_.rank(std::get<0>(temporary_pattern_range), lex_symbol),
-            begin_offset + lex_bwt_.rank(std::get<1>(temporary_pattern_range) + 1, lex_symbol) - 1
-          };
-        }
-        if (IsNotEmptyRange(temporary_pattern_range_ls))
-        {
-          temporary_pattern_range_ls =
-          {
-            begin_offset + lex_bwt_.rank(std::get<0>(temporary_pattern_range_ls), lex_symbol),
-            begin_offset + lex_bwt_.rank(std::get<1>(temporary_pattern_range_ls) + 1, lex_symbol) - 1
-          };
-        }
-      }
-      else
-      {
-        temporary_pattern_range = temporary_pattern_range_ls = {1, 0};
-      }
-      if (IsNotEmptyRange(temporary_pattern_range) || IsNotEmptyRange(temporary_pattern_range_ls))
-      {
-        if (std::distance(rend, rlast) > Index::kMaxFactorSize)
-        {
-          rfirst = rlast;
-          rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
-          BackwardSearchPatternInfix(rfirst, rlast, temporary_pattern_range, temporary_pattern_range_ls);
-        }
-        if (IsNotEmptyRange(temporary_pattern_range) || IsNotEmptyRange(temporary_pattern_range_ls))
-        {
-          auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
-          if (IsNotEmptyRange(colex_symbol_range))
-          {
-            count += RangeCount(temporary_pattern_range, colex_symbol_range);
-            count_ls += RangeCount(temporary_pattern_range_ls, colex_symbol_range);
-          }
-        }
-      }
-    }
-    else
-    {
-      auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
-      if (IsNotEmptyRange(colex_symbol_range))
-      {
-        count += RangeCount(temporary_pattern_range, colex_symbol_range);
-        count_ls += RangeCount(temporary_pattern_range_ls, colex_symbol_range);
-      }
-      break;
-    }
-  }
-  pattern_range = {1, count};
-  pattern_range_ls = {1, count_ls};
-  return;
-}
+// template <uint8_t max_factor_size>
+// void Index<max_factor_size>::CalculateLexText
+// (
+//   sdsl::int_vector<> const &text,
+//   sdsl::int_vector<> &lex_text
+// )
+// {
+//   auto text_prev_begin {std::prev(std::begin(text))};
+//   auto text_it {std::prev(std::end(text), 3)};
+//   auto next_symbol {*std::prev(std::end(text), 2)};
+//   uint8_t sl_type {};
+//   uint8_t next_sl_type {Index::kL};
+//   auto sl_factor_end {std::prev(std::end(text))};
+//   auto lex_text_it {std::prev(std::end(lex_text), 2)};
+//   std::vector<uint64_t> sl_factor;
+//   while (text_it != text_prev_begin)
+//   {
+//     if (*text_it == next_symbol)
+//     {
+//       sl_type = next_sl_type;
+//     }
+//     else if (*text_it < next_symbol)
+//     {
+//       sl_type = Index::kS;
+//     }
+//     else
+//     {
+//       sl_type = Index::kL;
+//     }
+//     if ((sl_type == Index::kL) && (next_sl_type == Index::kS))
+//     {
+//       auto factor_it {std::next(text_it)};
+//       while (std::distance(factor_it, sl_factor_end) >= Index::kMaxFactorSize)
+//       {
+//         auto factor_end {std::next(factor_it, Index::kMaxFactorSize)};
+//         sl_factor.emplace_back(lex_symbol_table_[SymbolsToInteger(factor_it, factor_end)]);
+//         factor_it = factor_end;
+//       }
+//       if (std::distance(factor_it, sl_factor_end) != 0)
+//       {
+//         sl_factor.emplace_back(lex_symbol_table_[SymbolsToInteger(factor_it, sl_factor_end)]);
+//       }
+//       sl_factor_end = std::next(text_it);
+//       for (auto it {std::rbegin(sl_factor)}; it != std::rend(sl_factor); ++it)
+//       {
+//         *lex_text_it-- = *it;
+//       }
+//       sl_factor.clear();
+//     }
+//     next_symbol = *text_it--;
+//     next_sl_type = sl_type;
+//   }
+//   *lex_text_it = lex_symbol_table_[SymbolsToInteger(std::begin(text), sl_factor_end)];
+//   *std::prev(std::end(lex_text)) = 0;
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// void Index<max_factor_size>::CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const &colex_to_lex)
+// {
+//   std::vector<uint64_t> sorted_colex_factor_integers(std::size(colex_to_lex));
+//   auto it {std::begin(sorted_colex_factor_integers)};
+//   for (auto const &pair : colex_to_lex)
+//   {
+//     *it++ = std::get<0>(pair);
+//   }
+//   colex_symbol_table_ = decltype(colex_symbol_table_)(sorted_colex_factor_integers);
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// void Index<max_factor_size>::CalculateColexToLex (std::map<uint64_t, uint64_t> const &colex_to_lex)
+// {
+//   colex_to_lex_.width(sdsl::bits::hi(std::size(colex_to_lex) - 1) + 1);
+//   colex_to_lex_.resize(std::size(colex_to_lex));
+//   auto it {std::begin(colex_to_lex_)};
+//   for (auto const &pair : colex_to_lex)
+//   {
+//     *it++ = lex_symbol_table_[std::get<1>(pair)];
+//   }
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// void Index<max_factor_size>::CalculateLexSymbolBucketOffsets
+// (
+//   uint64_t const lex_text_alphabet_size,
+//   sdsl::int_vector<> const &lex_text
+// )
+// {
+//   lex_symbol_bucket_offsets_.width(sdsl::bits::hi(std::size(lex_text)) + 1);
+//   lex_symbol_bucket_offsets_.resize(lex_text_alphabet_size + 1);
+//   sdsl::util::set_to_value(lex_symbol_bucket_offsets_, 0);
+//   for (auto const lex_symbol : lex_text)
+//   {
+//     ++(lex_symbol_bucket_offsets_[lex_symbol]);
+//   }
+//   std::partial_sum
+//   (
+//     std::begin(lex_symbol_bucket_offsets_),
+//     std::end(lex_symbol_bucket_offsets_),
+//     std::begin(lex_symbol_bucket_offsets_)
+//   );
+//   auto it {std::prev(std::end(lex_symbol_bucket_offsets_))};
+//   auto begin {std::begin(lex_symbol_bucket_offsets_)};
+//   while (it != begin)
+//   {
+//     *it-- = *std::prev(it);
+//   }
+//   *begin = 0;
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text)
+// {
+//   sdsl::int_vector<> buffer;
+//   sdsl::qsufsort::construct_sa(buffer, lex_text);
+//   for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
+//   {
+//     if (*it != 0)
+//     {
+//       *it = lex_text[*it - 1];
+//     }
+//   }
+//   sdsl::construct_im(lex_bwt_, buffer);
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator, typename Range>
+// Iterator Index<max_factor_size>::BackwardSearchPatternSuffix
+// (
+//   Iterator rbegin,
+//   Iterator rend,
+//   Range &pattern_range,
+//   Range &pattern_range_ls
+// )
+// {
+//   auto rfirst {rbegin};
+//   auto rlast {ClassifyPatternSuffix(rbegin, rend)};
+//   if (rlast != rend)
+//   {
+//     if (rlast != rbegin)
+//     {
+//       BackwardSearchPatternSuffixSlFactor(rfirst, rlast, pattern_range_ls);
+//       CalculateSlFactor(rend, rfirst, rlast);
+//       if (IsNotEmptyRange(pattern_range_ls))
+//       {
+//         if (rlast != rend)
+//         {
+//           BackwardSearchPatternInfixSlFactor(rfirst, rlast, pattern_range_ls);
+//         }
+//         else
+//         {
+//           BackwardSearchPatternPrefixSlFactor(rfirst, rlast, pattern_range_ls);
+//         }
+//       }
+//     }
+//     else
+//     {
+//       CalculateSlFactor(rend, rfirst, rlast);
+//     }
+//     if (rlast != rend)
+//     {
+//       BackwardSearchPatternSuffixSlFactor(rbegin, rlast, pattern_range);
+//     }
+//     else
+//     {
+//       CountWithinSlFactor(rbegin, rend, pattern_range);
+//     }
+//   }
+//   else
+//   {
+//     CountWithinSlFactor(rbegin, rend, pattern_range);
+//   }
+//   return rlast;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator>
+// Iterator Index<max_factor_size>::ClassifyPatternSuffix (Iterator rbegin, Iterator rend)
+// {
+//   auto it {rbegin};
+//   while ((std::prev(it) != rend) && (*std::prev(it) == *it))
+//   {
+//     --it;
+//   }
+//   if ((std::prev(it) != rend) && (*std::prev(it) < *it))
+//   {
+//     return rbegin;
+//   }
+//   return std::prev(it); // LS
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator>
+// void Index<max_factor_size>::CalculateSlFactor
+// (
+//   Iterator const rend,
+//   Iterator &rfirst,
+//   Iterator &rlast
+// )
+// {
+//   auto next_sl_type {Index::kL};
+//   rfirst = rlast--;
+//   while ((rlast != rend) && !((next_sl_type == Index::kS) && (*rlast > *std::next(rlast))))
+//   {
+//     if((next_sl_type == Index::kL) && (*rlast < *std::next(rlast)))
+//     {
+//       next_sl_type = Index::kS;
+//     }
+//     --rlast;
+//   }
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator, typename Range>
+// void Index<max_factor_size>::BackwardSearchPatternSuffixSlFactor
+// (
+//   Iterator rbegin,
+//   Iterator rend,
+//   Range &pattern_range
+// )
+// {
+//   auto rfirst {rbegin};
+//   auto rlast {std::prev(rbegin, std::distance(rend, rbegin) % Index::kMaxFactorSize)};
+//   if (rlast == rfirst)
+//   {
+//     rlast = std::prev(rbegin, Index::kMaxFactorSize);
+//   }
+//   auto lex_symbol_range {CalculateSymbolRange(std::next(rlast), std::next(rfirst))};
+//   if (IsNotEmptyRange(lex_symbol_range))
+//   {
+//     pattern_range =
+//     {
+//       lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
+//       lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
+//     };
+//     if (rlast != rend)
+//     {
+//       BackwardSearchPatternInfixFactors(rlast, rend, pattern_range);
+//     }
+//   }
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator>
+// std::pair<uint64_t, uint64_t> Index<max_factor_size>::CalculateSymbolRange
+// (
+//   Iterator begin,
+//   Iterator end,
+//   int8_t const step
+// )
+// {
+//   uint64_t factor_integer {};
+//   auto it {begin};
+//   auto k {Index::kMaxFactorSize};
+//   while (it != std::prev(end, step))
+//   {
+//     factor_integer += *it * (1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * ((k--) - 1)));
+//     it += step;
+//   }
+//   auto base {1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * (k - 1))};
+//   factor_integer += *it * base;
+//   if (step == -1)
+//   {
+//     return colex_symbol_table_.SymbolRange(factor_integer, factor_integer + base - 1);
+//   }
+//   return lex_symbol_table_.SymbolRange(factor_integer, factor_integer + base - 1);
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator, typename Range>
+// void Index<max_factor_size>::BackwardSearchPatternInfixFactors
+// (
+//   Iterator rbegin,
+//   Iterator rend,
+//   Range &pattern_range
+// )
+// {
+//   auto rfirst {rbegin};
+//   auto rlast {rbegin};
+//   while ((rfirst != rend) && IsNotEmptyRange(pattern_range))
+//   {
+//     rlast = std::prev(rfirst, Index::kMaxFactorSize);
+//     auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
+//     if (lex_symbol != 0)
+//     {
+//       auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+//       pattern_range =
+//       {
+//         begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
+//         begin_offset + lex_bwt_.rank(std::get<1>(pattern_range) + 1, lex_symbol) - 1
+//       };
+//     }
+//     else
+//     {
+//       pattern_range = {1, 0};
+//     }
+//     rfirst = rlast;
+//   }
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator, typename Range>
+// void Index<max_factor_size>::BackwardSearchPatternInfixSlFactor
+// (
+//   Iterator rbegin,
+//   Iterator rend,
+//   Range &pattern_range
+// )
+// {
+//   auto rfirst {rbegin};
+//   auto rlast {std::prev(rbegin, std::distance(rend, rbegin) % Index::kMaxFactorSize)};
+//   if (rfirst != rlast)
+//   {
+//     auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
+//     if (lex_symbol != 0)
+//     {
+//       auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+//       pattern_range =
+//       {
+//         begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
+//         begin_offset + lex_bwt_.rank(std::get<1>(pattern_range) + 1, lex_symbol) - 1
+//       };
+//     }
+//     else
+//     {
+//       pattern_range = {1, 0};
+//     }
+//   }
+//   if (IsNotEmptyRange(pattern_range))
+//   {
+//     BackwardSearchPatternInfixFactors(rlast, rend, pattern_range);
+//   }
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator, typename Range>
+// void Index<max_factor_size>::BackwardSearchPatternPrefixSlFactor
+// (
+//   Iterator rbegin,
+//   Iterator rend,
+//   Range &pattern_range
+// )
+// {
+//   uint64_t count {};
+//   auto sl_factor_size {std::distance(rend, rbegin)};
+//   for (uint8_t k {1}; k <= Index::kMaxFactorSize; ++k)
+//   {
+//     auto temporary_pattern_range {pattern_range};
+//     if (k != sl_factor_size)
+//     {
+//       auto rfirst {rbegin};
+//       auto rlast {std::prev(rbegin, k)};
+//       auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
+//       if (lex_symbol != 0)
+//       {
+//         auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+//         pattern_range =
+//         {
+//           begin_offset + lex_bwt_.rank(std::get<0>(temporary_pattern_range), lex_symbol),
+//           begin_offset + lex_bwt_.rank(std::get<1>(temporary_pattern_range) + 1, lex_symbol) - 1
+//         };
+//       }
+//       else
+//       {
+//         pattern_range = {1, 0};
+//       }
+//       if (IsNotEmptyRange(temporary_pattern_range))
+//       {
+//         if (std::distance(rend, rlast) > Index::kMaxFactorSize)
+//         {
+//           rfirst = rlast;
+//           rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
+//           BackwardSearchPatternInfixFactors(rfirst, rlast, temporary_pattern_range);
+//         }
+//         if (IsNotEmptyRange(temporary_pattern_range))
+//         {
+//           auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
+//           if (IsNotEmptyRange(colex_symbol_range))
+//           {
+//             count += RangeCount(temporary_pattern_range, colex_symbol_range);
+//           }
+//         }
+//       }
+//     }
+//     else
+//     {
+//       auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
+//       if (IsNotEmptyRange(colex_symbol_range))
+//       {
+//         count += RangeCount(temporary_pattern_range, colex_symbol_range);
+//       }
+//       break;
+//     }
+//   }
+//   pattern_range = {1, count};
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Range>
+// uint64_t Index<max_factor_size>::RangeCount
+// (
+//   Range const pattern_range,
+//   Range const colex_symbol_range
+// )
+// {
+//   uint64_t count {};
+//   for
+//   (
+//     auto colex_symbol {std::get<0>(colex_symbol_range)};
+//     colex_symbol <= std::get<1>(colex_symbol_range);
+//     ++colex_symbol
+//   )
+//   {
+//     count +=
+//     (
+//       lex_bwt_.rank(std::get<1>(pattern_range) + 1, colex_to_lex_[colex_symbol])
+//       - lex_bwt_.rank(std::get<0>(pattern_range), colex_to_lex_[colex_symbol])
+//     );
+//   }
+//   return count;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator, typename Range>
+// void Index<max_factor_size>::CountWithinSlFactor
+// (
+//   Iterator rbegin,
+//   Iterator rend,
+//   Range &pattern_range
+// )
+// {
+//   uint64_t count {};
+//   auto sl_factor_size {std::distance(rend, rbegin)};
+//   for (uint8_t k {1}; (k <= sl_factor_size) && (k <= Index::kMaxFactorSize); ++k)
+//   {
+//     auto is_not_counted {true};
+//     auto rfirst {rbegin};
+//     auto rlast {std::prev(rbegin, k)};
+//     auto temporary_pattern_range {pattern_range};
+//     auto lex_symbol_range {CalculateSymbolRange(std::next(rlast), std::next(rfirst))};
+//     if (IsNotEmptyRange(lex_symbol_range))
+//     {
+//       temporary_pattern_range =
+//       {
+//         lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
+//         lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
+//       };
+//     }
+//     if ((rlast != rend) && IsNotEmptyRange(temporary_pattern_range))
+//     {
+//       if ((sl_factor_size - k) >= Index::kMaxFactorSize)
+//       {
+//         rfirst = rlast;
+//         rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
+//         BackwardSearchPatternInfixFactors(rfirst, rlast, temporary_pattern_range);
+//       }
+//       if ((rlast != rend) && IsNotEmptyRange(temporary_pattern_range))
+//       {
+//         auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
+//         if (IsNotEmptyRange(colex_symbol_range))
+//         {
+//           is_not_counted = false;
+//           count += RangeCount(temporary_pattern_range, colex_symbol_range);
+//           if (sl_factor_size > 1) std::cout << count << "\n";
+//         }
+//       }
+//     }
+//     if (is_not_counted)
+//     {
+//       count += RangeSize(temporary_pattern_range);
+//       if (sl_factor_size > 1) std::cout << count << "\n";
+//     }
+//   }
+//   if (sl_factor_size < Index::kMaxFactorSize)
+//   {
+//     count += sub_factor_trie_.Count(std::next(rend), std::next(rbegin));
+//     if (sl_factor_size > 1) std::cout << count << "\n";
+//   }
+//   pattern_range = {1, count};
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator, typename Range>
+// void Index<max_factor_size>::BackwardSearchPatternInfix
+// (
+//   Iterator rbegin,
+//   Iterator rend,
+//   Range &pattern_range,
+//   Range &pattern_range_ls
+// )
+// {
+//   auto rfirst {rbegin};
+//   auto rlast {std::prev(rbegin, std::distance(rend, rfirst) % Index::kMaxFactorSize)};
+//   if (rfirst == rlast)
+//   {
+//     rlast = std::prev(rbegin, Index::kMaxFactorSize);
+//   }
+//   while ((rfirst != rend) && (IsNotEmptyRange(pattern_range) || IsNotEmptyRange(pattern_range_ls)))
+//   {
+//     auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
+//     if (lex_symbol != 0)
+//     {
+//       auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+//       if (IsNotEmptyRange(pattern_range))
+//       {
+//         pattern_range =
+//         {
+//           begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
+//           begin_offset + lex_bwt_.rank(std::get<1>(pattern_range) + 1, lex_symbol) - 1
+//         };
+//       }
+//       if (IsNotEmptyRange(pattern_range_ls))
+//       {
+//         pattern_range_ls =
+//         {
+//           begin_offset + lex_bwt_.rank(std::get<0>(pattern_range_ls), lex_symbol),
+//           begin_offset + lex_bwt_.rank(std::get<1>(pattern_range_ls) + 1, lex_symbol) - 1
+//         };
+//       }
+//     }
+//     else
+//     {
+//       pattern_range = pattern_range_ls = {1, 0};
+//     }
+//     rfirst = rlast;
+//     rlast = std::prev(rlast, Index::kMaxFactorSize);
+//   }
+//   return;
+// }
+//
+// template <uint8_t max_factor_size>
+// template <typename Iterator, typename Range>
+// void Index<max_factor_size>::BackwardSearchPatternPrefix
+// (
+//   Iterator rbegin,
+//   Iterator rend,
+//   Range &pattern_range,
+//   Range &pattern_range_ls
+// )
+// {
+//   uint64_t count {};
+//   uint64_t count_ls {};
+//   auto sl_factor_size {std::distance(rend, rbegin)};
+//   for (uint8_t k {1}; k <= Index::kMaxFactorSize; ++k)
+//   {
+//     auto temporary_pattern_range {pattern_range};
+//     auto temporary_pattern_range_ls {pattern_range_ls};
+//     if (k != sl_factor_size)
+//     {
+//       auto rfirst {rbegin};
+//       auto rlast {std::prev(rbegin, k)};
+//       auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
+//       if (lex_symbol != 0)
+//       {
+//         auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+//         if (IsNotEmptyRange(temporary_pattern_range))
+//         {
+//           temporary_pattern_range =
+//           {
+//             begin_offset + lex_bwt_.rank(std::get<0>(temporary_pattern_range), lex_symbol),
+//             begin_offset + lex_bwt_.rank(std::get<1>(temporary_pattern_range) + 1, lex_symbol) - 1
+//           };
+//         }
+//         if (IsNotEmptyRange(temporary_pattern_range_ls))
+//         {
+//           temporary_pattern_range_ls =
+//           {
+//             begin_offset + lex_bwt_.rank(std::get<0>(temporary_pattern_range_ls), lex_symbol),
+//             begin_offset + lex_bwt_.rank(std::get<1>(temporary_pattern_range_ls) + 1, lex_symbol) - 1
+//           };
+//         }
+//       }
+//       else
+//       {
+//         temporary_pattern_range = temporary_pattern_range_ls = {1, 0};
+//       }
+//       if (IsNotEmptyRange(temporary_pattern_range) || IsNotEmptyRange(temporary_pattern_range_ls))
+//       {
+//         if (std::distance(rend, rlast) > Index::kMaxFactorSize)
+//         {
+//           rfirst = rlast;
+//           rlast = std::next(rend, (sl_factor_size - k) % Index::kMaxFactorSize);
+//           BackwardSearchPatternInfix(rfirst, rlast, temporary_pattern_range, temporary_pattern_range_ls);
+//         }
+//         if (IsNotEmptyRange(temporary_pattern_range) || IsNotEmptyRange(temporary_pattern_range_ls))
+//         {
+//           auto colex_symbol_range {CalculateSymbolRange(rlast, rend, -1)};
+//           if (IsNotEmptyRange(colex_symbol_range))
+//           {
+//             count += RangeCount(temporary_pattern_range, colex_symbol_range);
+//             count_ls += RangeCount(temporary_pattern_range_ls, colex_symbol_range);
+//           }
+//         }
+//       }
+//     }
+//     else
+//     {
+//       auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
+//       if (IsNotEmptyRange(colex_symbol_range))
+//       {
+//         count += RangeCount(temporary_pattern_range, colex_symbol_range);
+//         count_ls += RangeCount(temporary_pattern_range_ls, colex_symbol_range);
+//       }
+//       break;
+//     }
+//   }
+//   pattern_range = {1, count};
+//   pattern_range_ls = {1, count_ls};
+//   return;
+// }
 }
