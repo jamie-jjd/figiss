@@ -62,12 +62,6 @@ Patterns::Patterns
     std::cout << "warning: pattern size is replaced with text size\n";
     unit_size_ = std::size(text);
   }
-  {
-    std::cout
-    << "generate " << amount_
-    << " random patterns of size " << unit_size_
-    << " from " << std::filesystem::canonical(text_path) << "\n";
-  }
   std::mt19937 engine {std::random_device{}()};
   std::uniform_int_distribution<uint64_t> dist_text {0, std::size(text) - unit_size_};
   std::uniform_int_distribution<uint64_t> dist_pattern {0, unit_size_ - 1};
