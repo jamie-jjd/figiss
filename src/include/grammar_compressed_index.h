@@ -686,11 +686,18 @@ private:
   }
 
   template <typename Iterator>
+  void CalculatePattern
+  (
+    Iterator rbegin,
+    Iterator rend,
+    sdsl::int_vector<> &pattern,
+    bool &is_valid,
+    bool &is_within_sl_factor
+  );
+  template <typename Iterator>
   void CalculateSlFactor (Iterator const rend, Iterator &rfirst, Iterator &rlast);
-
   template <typename Iterator>
   Iterator ClassifyPatternSuffix (Iterator rbegin, Iterator rend);
-
   template <typename Iterator, typename Range>
   Iterator BackwardSearchPatternSuffix
   (
@@ -699,10 +706,8 @@ private:
     Range &pattern_range,
     Range &pattern_range_ls
   );
-
   template <typename Iterator, typename Range>
   void BackwardSearchPatternSuffixSlFactor (Iterator rbegin, Iterator rend, Range &pattern_range);
-
   template <typename Iterator>
   std::pair<uint64_t, uint64_t> CalculateSymbolRange
   (
@@ -710,26 +715,20 @@ private:
     Iterator end,
     int8_t const step = 1
   );
-
   template <typename Iterator, typename Range>
   void BackwardSearchPatternInfixFactors (Iterator rbegin, Iterator rend, Range &pattern_range);
-
   template <typename Range>
   uint64_t RangeCount
   (
     Range const pattern_range,
     Range const colex_symbol_range
   );
-
   template <typename Iterator, typename Range>
   void BackwardSearchPatternInfixSlFactor (Iterator rbegin, Iterator rend, Range &pattern_range);
-
   template <typename Iterator, typename Range>
   void BackwardSearchPatternPrefixSlFactor (Iterator rbegin, Iterator rend, Range &pattern_range);
-
   template <typename Iterator, typename Range>
   void CountWithinSlFactor (Iterator rbegin, Iterator rend, Range &pattern_range);
-
   template <typename Iterator, typename Range>
   void BackwardSearchPatternInfix
   (
@@ -738,7 +737,6 @@ private:
     Range &pattern_range,
     Range &pattern_range_ls
   );
-
   template <typename Iterator, typename Range>
   void BackwardSearchPatternPrefix
   (
@@ -860,41 +858,43 @@ template <typename Iterator>
 uint64_t Index<max_factor_size>::Count (Iterator begin, Iterator end)
 {
   sdsl::int_vector<> pattern;
+  bool is_valid {};
+  bool is_within_sl_factor {};
   {
-    pattern.width(symbol_table_.GetEffectiveAlphabetWidth());
-    pattern.resize(std::distance(begin, end));
-    auto pattern_it {std::begin(pattern)};
-    for (auto it {begin}; it != end; ++it, ++pattern_it)
-    {
-      *pattern_it = symbol_table_.ToSymbol(*it);
-      if (*pattern_it == 0)
-      {
-        return 0;
-      }
-    }
+    CalculatePattern(std::prev(end), std::prev(begin), pattern, is_valid, is_within_sl_factor);
+    // Print(pattern, std::cout);
   }
-  // Print(pattern, std::cout);
   std::pair<uint64_t, uint64_t> pattern_range {1, 0};
   std::pair<uint64_t, uint64_t> pattern_range_ls {1, 0};
-  auto rbegin {std::prev(std::end(pattern))};
-  auto rend {std::prev(std::begin(pattern))};
-  auto rfirst {rbegin};
-  auto rlast {rbegin};
-  rlast = BackwardSearchPatternSuffix(rbegin, rend, pattern_range, pattern_range_ls);
-  if (rlast != rend)
+  if (is_valid)
   {
-    while (IsNotEmptyRange(pattern_range) || IsNotEmptyRange(pattern_range_ls))
+    auto rbegin {std::prev(std::end(pattern))};
+    auto rend {std::prev(std::begin(pattern))};
+    if (!is_within_sl_factor)
     {
-      CalculateSlFactor(rend, rfirst, rlast);
+      auto rfirst {rbegin};
+      auto rlast {rbegin};
+      rlast = BackwardSearchPatternSuffix(rbegin, rend, pattern_range, pattern_range_ls);
       if (rlast != rend)
       {
-        BackwardSearchPatternInfix(rfirst, rlast, pattern_range, pattern_range_ls);
+        while (IsNotEmptyRange(pattern_range) || IsNotEmptyRange(pattern_range_ls))
+        {
+          CalculateSlFactor(rend, rfirst, rlast);
+          if (rlast != rend)
+          {
+            BackwardSearchPatternInfix(rfirst, rlast, pattern_range, pattern_range_ls);
+          }
+          else
+          {
+            BackwardSearchPatternPrefix(rfirst, rlast, pattern_range, pattern_range_ls);
+            break;
+          }
+        }
       }
-      else
-      {
-        BackwardSearchPatternPrefix(rfirst, rlast, pattern_range, pattern_range_ls);
-        break;
-      }
+    }
+    else
+    {
+      CountWithinSlFactor(rbegin, rend, pattern_range);
     }
   }
   return (RangeSize(pattern_range) + RangeSize(pattern_range_ls));
@@ -1273,6 +1273,69 @@ void Index<max_factor_size>::CalculateLexBwt (sdsl::int_vector<> const &lex_text
 }
 
 template <uint8_t max_factor_size>
+template <typename Iterator>
+void Index<max_factor_size>::CalculatePattern
+(
+  Iterator rbegin,
+  Iterator rend,
+  sdsl::int_vector<> &pattern,
+  bool &is_valid,
+  bool &is_within_sl_factor
+)
+{
+  {
+    is_valid = true;
+    is_within_sl_factor = true;
+  }
+  pattern.width(symbol_table_.GetEffectiveAlphabetWidth());
+  pattern.resize(std::distance(rend, rbegin));
+  auto pattern_it {std::prev(std::end(pattern))};
+  auto it {rbegin};
+  {
+    *pattern_it = symbol_table_.ToSymbol(*it);
+    if (*pattern_it == 0)
+    {
+      is_valid = false;
+      return;
+    }
+    --pattern_it;
+    --it;
+  }
+  uint8_t next_symbol {*rbegin};
+  uint8_t sl_type {};
+  uint8_t next_sl_type {Index::kL};
+  while (it != rend)
+  {
+    if (*it == next_symbol)
+    {
+      sl_type = next_sl_type;
+    }
+    else if (*it < next_symbol)
+    {
+      sl_type = Index::kS;
+    }
+    else
+    {
+      sl_type = Index::kL;
+    }
+    if ((sl_type == Index::kL) && (next_sl_type == Index::kS))
+    {
+      is_within_sl_factor = false;
+    }
+    *pattern_it = symbol_table_.ToSymbol(*it);
+    if (*pattern_it == 0)
+    {
+      is_valid = false;
+      return;
+    }
+    next_symbol = *it--;
+    next_sl_type = sl_type;
+    --pattern_it;
+  }
+  return;
+}
+
+template <uint8_t max_factor_size>
 template <typename Iterator, typename Range>
 Iterator Index<max_factor_size>::BackwardSearchPatternSuffix
 (
@@ -1347,13 +1410,13 @@ void Index<max_factor_size>::CalculateSlFactor
   Iterator &rlast
 )
 {
-  auto prev_sl_type {Index::kL};
+  auto next_sl_type {Index::kL};
   rfirst = rlast--;
-  while ((rlast != rend) && !((prev_sl_type == Index::kS) && (*rlast > *std::next(rlast))))
+  while ((rlast != rend) && !((next_sl_type == Index::kS) && (*rlast > *std::next(rlast))))
   {
-    if((prev_sl_type == Index::kL) && (*rlast < *std::next(rlast)))
+    if((next_sl_type == Index::kL) && (*rlast < *std::next(rlast)))
     {
-      prev_sl_type = Index::kS;
+      next_sl_type = Index::kS;
     }
     --rlast;
   }
