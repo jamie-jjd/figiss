@@ -69,8 +69,8 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
   SetUpSdslIndex(text_path, rlfm);
   SetUpIndex(text_path, index);
   {
-    uint64_t amount {1UL << 13};
-    uint64_t max_unit_size {1UL << 13};
+    uint64_t amount {1UL << 12};
+    uint64_t max_unit_size {1UL << 10};
     std::cout << "test pattern counting\namount\tsize\n";
     for (uint64_t unit_size {1}; unit_size <= max_unit_size; unit_size <<= 1)
     {
@@ -91,9 +91,9 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
             std::string pattern {begin, end};
             throw std::runtime_error
             (
-              "\033[31mfailed at pattern: " + pattern
-              + ", real count: " + std::to_string(rlfm_count)
-              + ", count: " + std::to_string(index_count)
+              "\033[31mfailed at pattern:" + pattern
+              + ", real count:" + std::to_string(rlfm_count)
+              + ", count:" + std::to_string(index_count)
               + "\033[0m");
           }
         }

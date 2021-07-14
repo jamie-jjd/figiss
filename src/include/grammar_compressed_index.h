@@ -902,13 +902,20 @@ uint64_t Index<max_factor_size>::Count (Iterator begin, Iterator end)
     }
     {
       count += RangeSize(pattern_range_s);
-      // std::cout << count << "\n";
       count += RangeSize(pattern_range_l);
-      // std::cout << count << "\n";
-      if (std::distance(begin, end) < Index::kMaxFactorSize)
+      auto size {std::distance(begin, end)};
+      if (size < (Index::kMaxFactorSize - 1))
       {
-        count += sub_factor_trie_.Count(std::begin(pattern), std::end(pattern));
-        // std::cout << count << "\n";
+        count += sub_factor_trie_.Count(std::next(rend), std::next(rbegin));
+      }
+      if (size < Index::kMaxFactorSize)
+      {
+        auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
+        std::get<0>(colex_symbol_range) += (colex_symbol_table_[SymbolsToInteger(rbegin, rend, -1)] != 0);
+        if (IsNotEmptyRange(colex_symbol_range))
+        {
+          count += RangeCount({0, std::size(lex_bwt_) - 1}, colex_symbol_range);
+        }
       }
     }
   }
@@ -1034,12 +1041,11 @@ void Index<max_factor_size>::InsertSubFactorsInSlFactor (Iterator begin, Iterato
   }
   while (rfirst != rend)
   {
-    if (std::distance(rlast, rfirst) > 1)
+    if (std::distance(rlast, rfirst) > 2)
     {
-      auto last {std::next(rfirst)};
-      for (auto it {std::next(rlast, 2)}; it != last; ++it)
+      for (auto it {std::next(rlast, 2)}; it != rfirst; ++it)
       {
-        trie.Insert(it, last);
+        trie.Insert(it, rfirst);
       }
     }
     rfirst = rlast;
