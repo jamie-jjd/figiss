@@ -69,20 +69,15 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
   SetUpSdslIndex(text_path, rlfm);
   SetUpIndex(text_path, index);
   {
-    uint64_t text_size {};
-    {
-      sdsl::int_vector<8> text;
-      sdsl::load_vector_from_file(text, text_path);
-      text_size = std::size(text);
-    }
-    uint64_t max_unit_size {std::min(text_size, (1UL << 20))};
+    uint64_t amount {1UL << 13};
+    uint64_t max_unit_size {1UL << 13};
     std::cout << "test pattern counting\namount\tsize\n";
-    for (uint64_t unit_size {1}; unit_size <= max_unit_size; ++unit_size)
+    for (uint64_t unit_size {1}; unit_size <= max_unit_size; unit_size <<= 1)
     {
-      uint64_t amount {std::min(max_unit_size / unit_size, (1UL << 13))};
+      Patterns patterns;
       for (uint8_t is_mutated {}; is_mutated != 2; ++is_mutated)
       {
-        auto patterns {Patterns(text_path, amount, unit_size, is_mutated)};
+        patterns = Patterns(text_path, amount, unit_size, is_mutated);
         auto begin {std::begin(patterns)};
         auto end {begin};
         for (uint64_t i {}; i != patterns.GetAmount(); ++i)
@@ -104,8 +99,8 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
         }
       }
       std::cout
-      << std::to_string(amount) << "\t"
-      << std::to_string(unit_size) << "\t\033[32msucceed\033[0m\n";
+      << std::to_string(patterns.GetAmount()) << "\t"
+      << std::to_string(patterns.GetUnitSize()) << "\t\033[32msucceed\033[0m\n";
     }
   }
   return;

@@ -11,6 +11,7 @@ class Patterns
 {
 public:
 
+  Patterns () = default;
   Patterns
   (
     std::filesystem::path const &text_path,
@@ -59,7 +60,6 @@ Patterns::Patterns
   sdsl::load_vector_from_file(text, text_path);
   if (unit_size_ > std::size(text))
   {
-    std::cout << "warning: pattern size is replaced with text size\n";
     unit_size_ = std::size(text);
   }
   std::mt19937 engine {std::random_device{}()};
