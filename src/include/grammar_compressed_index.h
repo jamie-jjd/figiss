@@ -16,8 +16,8 @@ class SymbolTable
 public:
 
   SymbolTable () = default;
-  SymbolTable (sdsl::int_vector<8> const &byte_text) noexcept;
-  SymbolTable& operator= (SymbolTable &&) noexcept;
+  SymbolTable (sdsl::int_vector<8> const &byte_text);
+  SymbolTable& operator= (SymbolTable &&);
 
   uint64_t Serialize
   (
@@ -27,17 +27,17 @@ public:
   );
   void Load (std::istream &in);
 
-  inline uint16_t GetEffectiveAlphabetSize () const noexcept
+  inline uint16_t GetEffectiveAlphabetSize () const
   {
     return effective_alphabet_size_;
   }
 
-  inline uint8_t GetEffectiveAlphabetWidth () const noexcept
+  inline uint8_t GetEffectiveAlphabetWidth () const
   {
     return effective_alphabet_width_;
   }
 
-  inline uint64_t ToSymbol (uint64_t const byte) const noexcept
+  inline uint64_t ToSymbol (uint64_t const byte) const
   {
     if ((byte < std::size(alphabet_bits_)) && alphabet_bits_[byte])
     {
@@ -46,7 +46,7 @@ public:
     return 0;
   }
 
-  inline uint64_t ToByte (uint64_t const symbol) const noexcept
+  inline uint64_t ToByte (uint64_t const symbol) const
   {
     if (symbol < effective_alphabet_size_)
     {
@@ -67,7 +67,7 @@ private:
 
 };
 
-SymbolTable::SymbolTable (sdsl::int_vector<8> const &byte_text) noexcept
+SymbolTable::SymbolTable (sdsl::int_vector<8> const &byte_text)
 {
   alphabet_bits_.resize(*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1);
   sdsl::util::set_to_value(alphabet_bits_, 0);
@@ -81,7 +81,7 @@ SymbolTable::SymbolTable (sdsl::int_vector<8> const &byte_text) noexcept
   symbol_to_byte_ = decltype(symbol_to_byte_)(&alphabet_bits_);
 }
 
-SymbolTable& SymbolTable::operator= (SymbolTable &&symbol_table) noexcept
+SymbolTable& SymbolTable::operator= (SymbolTable &&symbol_table)
 {
   if (this != &symbol_table)
   {
@@ -179,7 +179,7 @@ public:
   template <typename Iterator>
   void Insert (Iterator it, Iterator last);
 
-  inline auto GetRoot () const noexcept
+  inline auto GetRoot () const
   {
     return root_;
   }
@@ -261,9 +261,9 @@ class SubFactorTrie
 public:
 
   SubFactorTrie () = default;
-  SubFactorTrie (Trie const &trie) noexcept;
+  SubFactorTrie (Trie const &trie);
   SubFactorTrie (SubFactorTrie const &) = default;
-  SubFactorTrie& operator= (SubFactorTrie &&) noexcept;
+  SubFactorTrie& operator= (SubFactorTrie &&);
 
   uint64_t Serialize
   (
@@ -287,7 +287,7 @@ private:
 
 };
 
-SubFactorTrie::SubFactorTrie (Trie const &trie) noexcept
+SubFactorTrie::SubFactorTrie (Trie const &trie)
 {
   std::vector<bool> level_order_bits;
   std::vector<uint8_t> labels;
@@ -327,7 +327,7 @@ SubFactorTrie::SubFactorTrie (Trie const &trie) noexcept
   return;
 }
 
-SubFactorTrie& SubFactorTrie::operator= (SubFactorTrie &&sub_factor_trie) noexcept
+SubFactorTrie& SubFactorTrie::operator= (SubFactorTrie &&sub_factor_trie)
 {
   if (this != &sub_factor_trie)
   {
@@ -472,8 +472,8 @@ class GrammarSymbolTable
 public:
 
   GrammarSymbolTable () = default;
-  GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers) noexcept;
-  GrammarSymbolTable& operator= (GrammarSymbolTable &&) noexcept;
+  GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers);
+  GrammarSymbolTable& operator= (GrammarSymbolTable &&);
 
   uint64_t Serialize
   (
@@ -483,13 +483,13 @@ public:
   );
   void Load (std::istream &in);
 
-  uint64_t operator[] (uint64_t const factor_integer) const noexcept;
+  uint64_t operator[] (uint64_t const factor_integer) const;
 
   std::pair<uint64_t, uint64_t> SymbolRange
   (
     uint64_t const smallest_factor_integer,
     uint64_t const largest_factor_integer
-  ) const noexcept;
+  ) const;
 
   friend std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &symbol_table);
 
@@ -501,13 +501,13 @@ private:
 
 };
 
-GrammarSymbolTable::GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers) noexcept
+GrammarSymbolTable::GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers)
 {
   factor_integer_bits_ = decltype(factor_integer_bits_)(std::begin(sorted_factor_integers), std::end(sorted_factor_integers));
   factor_integer_rank_1_.set_vector(&factor_integer_bits_);
 }
 
-GrammarSymbolTable& GrammarSymbolTable::operator= (GrammarSymbolTable &&grammar_symbol_table) noexcept
+GrammarSymbolTable& GrammarSymbolTable::operator= (GrammarSymbolTable &&grammar_symbol_table)
 {
   if (this != &grammar_symbol_table)
   {
@@ -549,7 +549,7 @@ void GrammarSymbolTable::Load (std::istream &in)
   return;
 }
 
-uint64_t GrammarSymbolTable::operator[] (uint64_t const factor_integer) const noexcept
+uint64_t GrammarSymbolTable::operator[] (uint64_t const factor_integer) const
 {
   if ((factor_integer < std::size(factor_integer_bits_)) && factor_integer_bits_[factor_integer])
   {
@@ -562,7 +562,7 @@ std::pair<uint64_t, uint64_t> GrammarSymbolTable::SymbolRange
 (
   uint64_t const smallest_factor_integer,
   uint64_t const largest_factor_integer
-) const noexcept
+) const
 {
   std::pair<uint64_t, uint64_t> symbol_range {1, 0};
   if (smallest_factor_integer < std::size(factor_integer_bits_))
@@ -590,6 +590,102 @@ std::ostream& operator<< (std::ostream &out, GrammarSymbolTable const &grammar_s
   out << "space:\n";
   out << "factor_integer_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_symbol_table.factor_integer_bits_)) << "B\n";
   return out;
+}
+
+class SymbolBucketOffsets
+{
+public:
+
+  SymbolBucketOffsets () = default;
+  SymbolBucketOffsets (sdsl::int_vector<> const &offsets);
+  SymbolBucketOffsets& operator= (SymbolBucketOffsets &&);
+
+  uint64_t Serialize
+  (
+    std::ostream &out,
+    std::shared_ptr<SpaceNode> parent = nullptr,
+    std::string const name = ""
+  );
+  void Load (std::istream &in);
+
+  uint64_t operator[] (uint64_t const symbol) const;
+
+  friend std::ostream& operator<< (std::ostream &out, SymbolBucketOffsets const &symbol_bucket_offsets);
+
+private:
+
+  sdsl::sd_vector<> offset_bits_;
+  sdsl::sd_vector<>::select_1_type offset_select_1_;
+
+};
+
+SymbolBucketOffsets::SymbolBucketOffsets (sdsl::int_vector<> const &offsets)
+{
+  offset_bits_ = decltype(offset_bits_)(std::begin(offsets), std::end(offsets));
+  offset_select_1_.set_vector(&offset_bits_);
+}
+
+SymbolBucketOffsets& SymbolBucketOffsets::operator= (SymbolBucketOffsets &&symbol_bucket_offsets)
+{
+  if (this != &symbol_bucket_offsets)
+  {
+    offset_bits_ = std::move(symbol_bucket_offsets.offset_bits_);
+    offset_select_1_.set_vector(&offset_bits_);
+  }
+  return *this;
+}
+
+uint64_t SymbolBucketOffsets::operator[] (uint64_t const symbol) const
+{
+  if (symbol < std::size(offset_bits_))
+  {
+    return offset_select_1_(symbol);
+  }
+  return std::size(offset_bits_);
+}
+
+std::ostream& operator<< (std::ostream &out, SymbolBucketOffsets const &symbol_bucket_offsets)
+{
+  for (uint64_t i {1}, offset {}; offset != (std::size(symbol_bucket_offsets.offset_bits_) - 1); ++i)
+  {
+    offset = symbol_bucket_offsets.offset_select_1_(i);
+    out << offset << ((offset != (std::size(symbol_bucket_offsets.offset_bits_) - 1)) ? " " : "\n");
+  }
+  out << "space:\n";
+  out << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_bucket_offsets.offset_bits_)) << "B\n";
+  return out;
+}
+
+uint64_t SymbolBucketOffsets::Serialize
+(
+  std::ostream &out,
+  std::shared_ptr<SpaceNode> parent,
+  std::string const name
+)
+{
+  uint64_t size_in_bytes {};
+  if (!parent)
+  {
+    sdsl::serialize(offset_bits_, out);
+    sdsl::serialize(offset_select_1_, out);
+  }
+  else
+  {
+    auto node {std::make_shared<SpaceNode>(name)};
+    node->AddLeaf("offset_bits_", sdsl::serialize(offset_bits_, out));
+    node->AddLeaf("offset_select_1_", sdsl::serialize(offset_select_1_, out));
+    parent->AddChild(node);
+    size_in_bytes = node->GetSizeInBytes();
+  }
+  return size_in_bytes;
+}
+
+void SymbolBucketOffsets::Load (std::istream &in)
+{
+  offset_bits_.load(in);
+  offset_select_1_.load(in);
+  offset_select_1_.set_vector(&offset_bits_);
+  return;
 }
 
 template <uint8_t max_factor_size>
@@ -629,7 +725,7 @@ private:
   GrammarSymbolTable lex_symbol_table_;
   GrammarSymbolTable colex_symbol_table_;
   sdsl::int_vector<> colex_to_lex_;
-  sdsl::int_vector<> lex_symbol_bucket_offsets_;
+  SymbolBucketOffsets lex_symbol_bucket_offsets_;
   sdsl::wt_rlmn
   <
     sdsl::sd_vector<>,
@@ -686,13 +782,13 @@ private:
   void CalculateLexBwt (sdsl::int_vector<> const &lex_text);
 
   template <typename Range> // [,]
-  inline bool IsNotEmptyRange (Range const &range) const noexcept
+  inline bool IsNotEmptyRange (Range const &range) const
   {
     return (std::get<0>(range) <= std::get<1>(range));
   }
 
   template <typename Range> // [,]
-  inline uint64_t RangeSize (Range const &range) const noexcept
+  inline uint64_t RangeSize (Range const &range) const
   {
     if (std::get<0>(range) <= std::get<1>(range))
     {
@@ -824,7 +920,7 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
   }
   {
     CalculateLexSymbolBucketOffsets(lex_text_alphabet_size, lex_text);
-    // Print(lex_symbol_bucket_offsets_, std::cout);
+    // std::cout << lex_symbol_bucket_offsets_;
   }
   {
     CalculateLexBwt(lex_text);
@@ -850,7 +946,7 @@ uint64_t Index<max_factor_size>::Serialize
     lex_symbol_table_.Serialize(index_file);
     colex_symbol_table_.Serialize(index_file);;
     sdsl::serialize(colex_to_lex_, index_file);
-    sdsl::serialize(lex_symbol_bucket_offsets_, index_file);
+    lex_symbol_bucket_offsets_.Serialize(index_file);
     sdsl::serialize(lex_bwt_, index_file);
   }
   else
@@ -861,11 +957,32 @@ uint64_t Index<max_factor_size>::Serialize
     root->AccumalateSizeInBytes(lex_symbol_table_.Serialize(index_file, root, "lex_symbol_table_"));
     root->AccumalateSizeInBytes(colex_symbol_table_.Serialize(index_file, root, "colex_symbol_table_"));
     root->AddLeaf("colex_to_lex_", sdsl::serialize(colex_to_lex_, index_file));
-    root->AddLeaf("lex_symbol_bucket_offsets_", sdsl::serialize(lex_symbol_bucket_offsets_, index_file));
+    root->AccumalateSizeInBytes(lex_symbol_bucket_offsets_.Serialize(index_file, root, "lex_symbol_bucket_offsets_"));
     root->AddLeaf("lex_bwt_", sdsl::serialize(lex_bwt_, index_file));
     size_in_bytes = root->GetSizeInBytes();
   }
   return size_in_bytes;
+}
+
+template <uint8_t max_factor_size>
+void Index<max_factor_size>::Load (std::filesystem::path const &index_path)
+{
+  std::ifstream index_file {index_path};
+  std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
+  uint8_t loaded_max_factor_size {};
+  sdsl::read_member(loaded_max_factor_size, index_file);
+  if (loaded_max_factor_size != kMaxFactorSize)
+  {
+    throw std::runtime_error("wrong max_factor_size");
+  }
+  symbol_table_.Load(index_file);
+  sub_factor_trie_.Load(index_file);
+  lex_symbol_table_.Load(index_file);
+  colex_symbol_table_.Load(index_file);
+  colex_to_lex_.load(index_file);
+  lex_symbol_bucket_offsets_.Load(index_file);
+  lex_bwt_.load(index_file);
+  return;
 }
 
 template <uint8_t max_factor_size>
@@ -920,27 +1037,6 @@ uint64_t Index<max_factor_size>::Count (Iterator begin, Iterator end)
     }
   }
   return count;
-}
-
-template <uint8_t max_factor_size>
-void Index<max_factor_size>::Load (std::filesystem::path const &index_path)
-{
-  std::ifstream index_file {index_path};
-  std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
-  uint8_t loaded_max_factor_size {};
-  sdsl::read_member(loaded_max_factor_size, index_file);
-  if (loaded_max_factor_size != kMaxFactorSize)
-  {
-    throw std::runtime_error("wrong max_factor_size");
-  }
-  symbol_table_.Load(index_file);
-  sub_factor_trie_.Load(index_file);
-  lex_symbol_table_.Load(index_file);
-  colex_symbol_table_.Load(index_file);
-  colex_to_lex_.load(index_file);
-  lex_symbol_bucket_offsets_.load(index_file);
-  lex_bwt_.load(index_file);
-  return;
 }
 
 template <uint8_t max_factor_size>
@@ -1283,26 +1379,18 @@ void Index<max_factor_size>::CalculateLexSymbolBucketOffsets
   sdsl::int_vector<> const &lex_text
 )
 {
-  lex_symbol_bucket_offsets_.width(sdsl::bits::hi(std::size(lex_text)) + 1);
-  lex_symbol_bucket_offsets_.resize(lex_text_alphabet_size + 1);
-  sdsl::util::set_to_value(lex_symbol_bucket_offsets_, 0);
+  sdsl::int_vector<> offsets
+  (
+    lex_text_alphabet_size + 1,
+    0,
+    sdsl::bits::hi(std::size(lex_text)) + 1
+  );
   for (auto const lex_symbol : lex_text)
   {
-    ++(lex_symbol_bucket_offsets_[lex_symbol]);
+    ++offsets[lex_symbol];
   }
-  std::partial_sum
-  (
-    std::begin(lex_symbol_bucket_offsets_),
-    std::end(lex_symbol_bucket_offsets_),
-    std::begin(lex_symbol_bucket_offsets_)
-  );
-  auto it {std::prev(std::end(lex_symbol_bucket_offsets_))};
-  auto begin {std::begin(lex_symbol_bucket_offsets_)};
-  while (it != begin)
-  {
-    *it-- = *std::prev(it);
-  }
-  *begin = 0;
+  std::partial_sum(std::begin(offsets), std::end(offsets), std::begin(offsets));
+  lex_symbol_bucket_offsets_ = decltype(lex_symbol_bucket_offsets_)(offsets);
   return;
 }
 
