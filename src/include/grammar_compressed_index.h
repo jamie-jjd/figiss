@@ -1691,7 +1691,11 @@ Iterator Index<max_factor_size>::BackwardSearchSuffix
       }
       else
       {
-        auto duplicate_factor_size {(suffix_s_size % 4) ? (suffix_s_size % 4) : 4};
+        auto duplicate_factor_size {suffix_s_size % Index::kMaxFactorSize};
+        if (duplicate_factor_size == 0)
+        {
+          duplicate_factor_size = Index::kMaxFactorSize;
+        }
         CountWithinSlFactor(rbegin, rend, duplicate_factor_size, pattern_range_l);
       }
     }
