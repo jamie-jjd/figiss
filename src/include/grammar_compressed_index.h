@@ -7,163 +7,11 @@
 
 #include <sdsl/wavelet_trees.hpp>
 
+#include "symbol_table.h"
 #include "utility.h"
 
 namespace project
 {
-class SymbolTable
-{
-public:
-
-  SymbolTable () = default;
-  SymbolTable (sdsl::int_vector<8> const &byte_text);
-  SymbolTable& operator= (SymbolTable &&);
-
-  uint64_t Serialize
-  (
-    std::ostream &out,
-    std::shared_ptr<SpaceNode> parent = nullptr,
-    std::string const name = ""
-  );
-  void Load (std::istream &in);
-
-  inline uint16_t GetEffectiveAlphabetSize () const
-  {
-    return effective_alphabet_size_;
-  }
-
-  inline uint8_t GetEffectiveAlphabetWidth () const
-  {
-    return effective_alphabet_width_;
-  }
-
-  inline uint64_t ToSymbol (uint64_t const byte) const
-  {
-    if ((byte < std::size(alphabet_bits_)) && alphabet_bits_[byte])
-    {
-      return byte_to_symbol_(byte);
-    }
-    return 0;
-  }
-
-  inline uint64_t ToByte (uint64_t const symbol) const
-  {
-    if (symbol < effective_alphabet_size_)
-    {
-      return symbol_to_byte_(symbol + 1);
-    }
-    return 0;
-  }
-
-  friend std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table);
-
-private:
-
-  uint16_t effective_alphabet_size_;
-  uint8_t effective_alphabet_width_;
-  sdsl::bit_vector alphabet_bits_;
-  sdsl::bit_vector::rank_1_type byte_to_symbol_;
-  sdsl::bit_vector::select_1_type symbol_to_byte_;
-
-};
-
-SymbolTable::SymbolTable (sdsl::int_vector<8> const &byte_text)
-{
-  alphabet_bits_.resize(*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1);
-  sdsl::util::set_to_value(alphabet_bits_, 0);
-  for (auto const byte : byte_text)
-  {
-    alphabet_bits_[byte] = 1;
-  }
-  byte_to_symbol_ = decltype(byte_to_symbol_)(&alphabet_bits_);
-  effective_alphabet_size_ = byte_to_symbol_(std::size(alphabet_bits_));
-  effective_alphabet_width_ = sdsl::bits::hi(effective_alphabet_size_ - 1) + 1;
-  symbol_to_byte_ = decltype(symbol_to_byte_)(&alphabet_bits_);
-}
-
-SymbolTable& SymbolTable::operator= (SymbolTable &&symbol_table)
-{
-  if (this != &symbol_table)
-  {
-    effective_alphabet_size_ = std::move(symbol_table.effective_alphabet_size_);
-    effective_alphabet_width_ = std::move(symbol_table.effective_alphabet_width_);
-    alphabet_bits_ = std::move(symbol_table.alphabet_bits_);
-    byte_to_symbol_ = std::move(symbol_table.byte_to_symbol_);
-    byte_to_symbol_.set_vector(&alphabet_bits_);
-    symbol_to_byte_ = std::move(symbol_table.symbol_to_byte_);
-    symbol_to_byte_.set_vector(&alphabet_bits_);
-  }
-  return *this;
-}
-
-uint64_t SymbolTable::Serialize
-(
-  std::ostream &out,
-  std::shared_ptr<SpaceNode> parent,
-  std::string const name
-)
-{
-  uint64_t size_in_bytes {};
-  if (!parent)
-  {
-    sdsl::write_member(effective_alphabet_size_, out);
-    sdsl::write_member(effective_alphabet_width_, out);
-    sdsl::serialize(alphabet_bits_, out);
-    sdsl::serialize(byte_to_symbol_, out);
-    sdsl::serialize(symbol_to_byte_, out);
-  }
-  else
-  {
-    auto node {std::make_shared<SpaceNode>(name)};
-    node->AddLeaf("effective_alphabet_size_", sdsl::write_member(effective_alphabet_size_, out));
-    node->AddLeaf("effective_alphabet_width_", sdsl::write_member(effective_alphabet_width_, out));
-    node->AddLeaf("alphabet_bits_", sdsl::serialize(alphabet_bits_, out));
-    node->AddLeaf("byte_to_symbol_", sdsl::serialize(byte_to_symbol_, out));
-    node->AddLeaf("symbol_to_byte_", sdsl::serialize(symbol_to_byte_, out));
-    parent->AddChild(node);
-    size_in_bytes = node->GetSizeInBytes();
-  }
-  return size_in_bytes;
-}
-
-void SymbolTable::Load (std::istream &in)
-{
-  sdsl::read_member(effective_alphabet_size_, in);
-  sdsl::read_member(effective_alphabet_width_, in);
-  alphabet_bits_.load(in);
-  byte_to_symbol_.load(in);
-  byte_to_symbol_.set_vector(&alphabet_bits_);
-  symbol_to_byte_.load(in);
-  symbol_to_byte_.set_vector(&alphabet_bits_);
-  return;
-}
-
-std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table)
-{
-  {
-    out << "value:\n";
-    out << "effective_alphabet_size_:\n";
-    out << static_cast<uint64_t>(symbol_table.effective_alphabet_size_) << "\n";
-    out << "effective_alphabet_width_:\n";
-    out << static_cast<uint64_t>(symbol_table.effective_alphabet_width_) << "\n";
-    out << "byte alphabet:\n";
-    for (uint16_t symbol {}; symbol != symbol_table.effective_alphabet_size_; ++symbol)
-    {
-      out << symbol_table.ToByte(symbol);
-      out << ((symbol != (symbol_table.effective_alphabet_size_ - 1)) ? " " : "\n");
-    }
-  }
-  {
-    out << "space:\n";
-    out << "effective_alphabet_size_: " << sizeof(symbol_table.effective_alphabet_size_) << "B\n";
-    out << "effective_alphabet_width_: " << sizeof(symbol_table.effective_alphabet_width_) << "B\n";
-    out << "alphabet_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_table.alphabet_bits_)) << "B\n";
-    out << "byte_to_symbol_: " << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_table.byte_to_symbol_)) << "B\n";
-    out << "symbol_to_byte_: " << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_table.symbol_to_byte_)) << "B\n";
-  }
-  return out;
-}
-
 class Trie
 {
 public:
@@ -1082,7 +930,7 @@ void Index<max_factor_size>::CalculateSymbolTableAndText
     std::begin(text),
     [&] (auto const byte)
     {
-      return symbol_table_.ToSymbol(byte);
+      return symbol_table_[byte];
     }
   );
   // Print(text, std::cout);
@@ -1419,7 +1267,7 @@ bool Index<max_factor_size>::CalculatePattern (Iterator begin, Iterator end, sds
   auto pattern_it {std::begin(pattern)};
   for (auto it {begin}; it != end; ++it, ++pattern_it)
   {
-    *pattern_it = symbol_table_.ToSymbol(*it);
+    *pattern_it = symbol_table_[*it];
     if (*pattern_it == 0)
     {
       return false;
