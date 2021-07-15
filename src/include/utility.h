@@ -10,7 +10,7 @@
 
 #include <sdsl/csa_wt.hpp>
 
-namespace project
+namespace gciis
 {
 template <typename File, typename Container>
 void Print
@@ -66,35 +66,6 @@ void Print
   return;
 }
 
-std::filesystem::path CreateParentDirectoryByCategory
-(
-  std::string const &category,
-  std::filesystem::path const &path
-)
-{
-  std::filesystem::path parent_category_path
-  {
-    std::string{"../data/"}
-    + category + "/"
-    + path.parent_path().filename().string()
-  };
-  if (!std::filesystem::exists(parent_category_path))
-  {
-    std::filesystem::create_directories(parent_category_path);
-  }
-  return parent_category_path;
-}
-
-std::filesystem::path CreatePath
-(
-  std::filesystem::path const &parent_path,
-  std::string const &filename,
-  std::string const &extensions = ""
-)
-{
-  return (parent_path / (filename + extensions));
-}
-
 void GeneratePrefix
 (
   std::filesystem::path const &text_path,
@@ -103,28 +74,18 @@ void GeneratePrefix
 {
   sdsl::int_vector<8> text;
   sdsl::load_vector_from_file(text, text_path);
-  auto parent_prefix_path
+  auto path
   {
-    std::string{"../data/corpus/"}
-    + std::to_string(size_in_megabytes) + "mb"
+    std::filesystem::path
+    {
+      text_path.filename().string()
+      + "." + std::to_string(size_in_megabytes) + "mb"
+    }
   };
-  if (!std::filesystem::exists(parent_prefix_path))
+  std::fstream fout {path, std::ios_base::out | std::ios_base::trunc};
+  for (uint64_t i {}; i != (size_in_megabytes * (1ULL << 20)); ++i)
   {
-    std::filesystem::create_directories(parent_prefix_path);
-  }
-  auto prefix_path
-  {
-    CreatePath
-    (
-      parent_prefix_path,
-      text_path.filename().string(),
-      std::string{"."} + std::to_string(size_in_megabytes) + "mb"
-    )
-  };
-  std::fstream prefix_file(prefix_path, std::ios_base::out | std::ios_base::trunc);
-  for (uint64_t i {}; i != (size_in_megabytes * 1024 * 1024); ++i)
-  {
-    prefix_file << text[i];
+    fout << text[i];
   }
   return;
 }
@@ -319,7 +280,7 @@ std::string ProperSizeRepresentation (Size const size)
     stringstream << static_cast<double>(size);
     return stringstream.str();
   }
-  return "0.00";
+  return "0";
 }
 
 std::string ProperTimeRepresentation (double const nanoseconds)
@@ -346,7 +307,7 @@ std::string ProperTimeRepresentation (double const nanoseconds)
     stringstream << nanoseconds;
     return (stringstream.str() + "ns");
   }
-  return "0.00";
+  return "0";
 }
 
 class SpaceNode
@@ -354,13 +315,13 @@ class SpaceNode
 public:
 
   SpaceNode () = default;
-  SpaceNode (std::string const &name, uint64_t const size_in_bytes = 0) noexcept;
+  SpaceNode (std::string const &name, uint64_t const size_in_bytes = 0);
 
   void AccumalateSizeInBytes (uint64_t const size_in_bytes);
   void AddChild (std::shared_ptr<SpaceNode> child);
   void AddLeaf (std::string const &name, uint64_t const size_in_bytes);
 
-  inline uint64_t GetSizeInBytes () const noexcept
+  inline uint64_t GetSizeInBytes () const
   {
     return size_in_bytes_;
   }
@@ -375,7 +336,7 @@ private:
 
 };
 
-SpaceNode::SpaceNode (std::string const &name, uint64_t const size_in_bytes) noexcept
+SpaceNode::SpaceNode (std::string const &name, uint64_t const size_in_bytes)
 : name_ {name},
   size_in_bytes_ {size_in_bytes},
   children_ {}
@@ -423,55 +384,51 @@ std::ostream& operator<< (std::ostream &out, std::shared_ptr<SpaceNode> root)
 }
 
 template <typename Index>
-void PrintSpace (Index &index, std::filesystem::path const &text_path)
+void PrintIndexSpace
+(
+  std::filesystem::path const &text_path,
+  Index &index
+)
 {
-  auto parent_space_path {CreateParentDirectoryByCategory("space", text_path)};
-  auto space_path {CreatePath(parent_space_path, text_path.filename().string())};
-  std::fstream space_file {space_path, std::ios_base::out | std::ios_base::trunc};
-  std::cout << "write space information to " << std::filesystem::canonical(space_path) << "\n";
+  std::filesystem::path output_path
   {
-    auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
-    auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".index")};
-    Index index {text_path};
+    std::string{"../data/space/"}
+    + std::to_string(Index::kMaxFactorSize) + "/"
+    + text_path.filename().string()
+  };
+  if (!std::filesystem::exists(output_path.parent_path()))
+  {
+    std::filesystem::create_directories(output_path.parent_path());
+  }
+  std::fstream fout {output_path, std::ios_base::out | std::ios_base::trunc};
+  std::cout << "write space information to " << std::filesystem::canonical(output_path) << "\n";
+  {
+    index = Index{text_path};
     auto root {std::make_shared<SpaceNode>("index")};
-    index.Serialize(index_path, root);
-    space_file << root;
+    index.Serialize(std::filesystem::path{"_.index"}, root);
+    fout << root;
+    std::cout << "remove " << std::filesystem::canonical(std::filesystem::path("_.index")) << "\n";
+    std::filesystem::remove("_.index");
   }
-  {
-    auto parent_index_path {CreateParentDirectoryByCategory("index", text_path)};
-    auto index_path {CreatePath(parent_index_path, text_path.filename().string(), ".rlfm")};
-    sdsl::int_vector<8> text;
-    sdsl::load_vector_from_file(text, text_path);
-    sdsl::csa_wt
-    <
-      sdsl::wt_rlmn<>,
-      std::numeric_limits<int32_t>::max(),
-      std::numeric_limits<int32_t>::max()
-    >
-    rlfm;
-    sdsl::construct_im(rlfm, text);
-    std::fstream index_file {index_path, std::ios_base::out | std::ios_base::trunc};
-    space_file << ProperSizeRepresentation(sdsl::serialize(rlfm, index_file)) << "\n";
-  }
-  space_file << ProperSizeRepresentation(std::filesystem::file_size(text_path)) << "\n";
   return;
 }
 
-template <typename Times>
-void PrintTime
+void PrintCountingTime
 (
-  std::string const &category,
-  std::filesystem::path const &text_path,
-  Times const &times
+  std::filesystem::path const &output_path,
+  std::vector<std::pair<uint64_t, double>> time
 )
 {
-  auto parent_path {CreateParentDirectoryByCategory(category, text_path)};
-  auto path {CreatePath(parent_path, text_path.filename().string())};
-  std::fstream file {path, std::ios_base::out | std::ios_base::trunc};
-  file << std::fixed << std::setprecision(2);
-  for (auto pair : times)
+  if (!std::filesystem::exists(output_path.parent_path()))
   {
-    file
+    std::filesystem::create_directories(output_path.parent_path());
+  }
+  std::fstream fout {output_path, std::ios_base::out | std::ios_base::trunc};
+  std::cout << "write time information to " << std::filesystem::canonical(output_path) << "\n";
+  fout << std::fixed << std::setprecision(2);
+  for (auto const &pair : time)
+  {
+    fout
     << std::get<0>(pair) << ","
     << ProperTimeRepresentation(std::get<1>(pair)) << "/char"
     << "\n";
