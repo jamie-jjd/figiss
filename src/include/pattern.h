@@ -7,6 +7,8 @@
 
 #include <sdsl/int_vector.hpp>
 
+namespace gciis
+{
 class Patterns
 {
 public:
@@ -88,8 +90,8 @@ void Patterns::Serialize (std::filesystem::path const &path)
 {
   if (std::size(labels_) == (amount_ * unit_size_))
   {
-    std::cout << "serialize patterns to " << std::filesystem::canonical(path) << "\n";
     std::ofstream fout {path, std::ios_base::out | std::ios_base::trunc};
+    std::cout << "serialize patterns to " << std::filesystem::canonical(path) << "\n";
     sdsl::write_member(amount_, fout);
     sdsl::write_member(unit_size_, fout);
     sdsl::serialize(labels_, fout);
@@ -115,4 +117,5 @@ auto Patterns::begin () noexcept
 auto Patterns::end () noexcept
 {
   return std::end(labels_);
+}
 }

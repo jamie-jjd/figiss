@@ -13,7 +13,7 @@
 #include "symbol_table.h"
 #include "utility.h"
 
-namespace project
+namespace gciis
 {
 template <uint8_t max_factor_size>
 class Index;

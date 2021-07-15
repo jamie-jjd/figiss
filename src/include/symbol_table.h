@@ -2,7 +2,7 @@
 
 #include "utility.h"
 
-namespace project
+namespace gciis
 {
 class SymbolTable
 {
