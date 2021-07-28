@@ -24,8 +24,8 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
     index = Index {text_path};
   }
   {
-    uint64_t amount {1ULL << 10};
-    uint64_t max_unit_size {1ULL << 14};
+    uint64_t amount {1ULL << 12};
+    uint64_t max_unit_size {1ULL << 16};
     std::cout << "test pattern counting\namount\tsize\n";
     for (uint64_t unit_size {1}; unit_size <= max_unit_size; unit_size <<= 1)
     {
@@ -65,9 +65,7 @@ template <typename Index>
 void MeasureIndexCountingTime
 (
   std::filesystem::path const &text_path,
-  std::vector<std::filesystem::path> const &pattern_paths,
-  Index &index,
-  std::vector<std::pair<uint64_t, double>> &time
+  Index &index
 )
 {
   auto index_path {std::filesystem::path("_.index")};
@@ -75,10 +73,12 @@ void MeasureIndexCountingTime
     index = Index{text_path};
     index.Serialize(index_path);
   }
-  for (auto const &path : pattern_paths)
+  std::vector<std::pair<uint64_t, double>> time;
+  uint64_t amount {1ULL << 12};
+  for (uint64_t unit_size {1ULL << 8}; unit_size <= (1ULL << 16); unit_size <<= 1)
   {
-    Patterns patterns;
-    patterns.Load(path);
+    std::cout << "pattern size: " << unit_size << "\n";
+    auto patterns {Patterns(text_path, amount, unit_size)};
     index.Load(index_path);
     {
       auto begin {std::begin(patterns)};
@@ -98,52 +98,54 @@ void MeasureIndexCountingTime
         index.Count(begin, end);
         begin = end;
       }
-      time.emplace_back
-      (
-        patterns.GetUnitSize(),
-        (
-          static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())
-          / patterns.GetAmount()
-          / patterns.GetUnitSize()
-        )
-      );
+      auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
+      time.emplace_back(patterns.GetUnitSize(), duration / patterns.GetAmount() / patterns.GetUnitSize());
     }
   }
+  PrintCountingTime
+  (
+    std::filesystem::path
+    {
+      std::string("../data/time/")
+      + std::to_string(Index::kMaxFactorSize) + "/"
+      + text_path.filename().string()
+    },
+    time
+  );
   std::filesystem::remove(index_path);
   return;
 }
 
-template <typename SdslIndex>
-void MeasureSdslIndexCountingTime
-(
-  std::filesystem::path const &text_path,
-  std::vector<std::filesystem::path> const &pattern_paths,
-  SdslIndex &sdsl_index,
-  std::vector<std::pair<uint64_t, double>> &time
-)
+void MeasureRlfmCountingTime (std::filesystem::path const &text_path)
 {
-  auto index_path {std::filesystem::path("_.sdsl")};
+  auto index_path {std::filesystem::path("_.rlfm")};
+  sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
   {
     sdsl::int_vector<8> text;
     sdsl::load_vector_from_file(text, text_path);
-    sdsl::construct_im(sdsl_index, text);
+    std::cout << "construct rlfm of " << std::filesystem::canonical(text_path) << "\n";
+    sdsl::construct_im(rlfm, text);
     std::ofstream fout {index_path, std::ios_base::out | std::ios_base::trunc};
-    sdsl::serialize(sdsl_index, fout);
+    sdsl::serialize(rlfm, fout);
+    std::cout << "serialize rlfm to " << std::filesystem::canonical(index_path) << "\n";
   }
-  for (auto const &path : pattern_paths)
+  std::vector<std::pair<uint64_t, double>> time;
+  uint64_t amount {1ULL << 12};
+  for (uint64_t unit_size {1ULL << 8}; unit_size <= (1ULL << 16); unit_size <<= 1)
   {
-    Patterns patterns;
-    patterns.Load(path);
+    std::cout << "pattern size: " << unit_size << "\n";
+    auto patterns {Patterns(text_path, amount, unit_size)};
     {
       std::ifstream in {index_path};
-      sdsl_index.load(in);
+      rlfm.load(in);
+      std::cout << "load rlfm from " << std::filesystem::canonical(index_path) << "\n";
     }
     {
       auto begin {std::begin(patterns)};
       while (begin != std::end(patterns))
       {
         auto end {std::next(begin, patterns.GetUnitSize())};
-        sdsl::count(sdsl_index, begin, end);
+        sdsl::count(rlfm, begin, end);
         begin = end;
       }
     }
@@ -153,80 +155,24 @@ void MeasureSdslIndexCountingTime
       while (begin != std::end(patterns))
       {
         auto end {std::next(begin, patterns.GetUnitSize())};
-        sdsl::count(sdsl_index, begin, end);
+        sdsl::count(rlfm, begin, end);
         begin = end;
       }
-      time.emplace_back
-      (
-        patterns.GetUnitSize(),
-        (
-          static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())
-          / patterns.GetAmount()
-          / patterns.GetUnitSize()
-        )
-      );
+      auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
+      time.emplace_back(patterns.GetUnitSize(), duration / patterns.GetAmount() / patterns.GetUnitSize());
     }
   }
+  PrintCountingTime
+  (
+    std::filesystem::path
+    {
+      std::string("../data/time/")
+      + "rlfm/"
+      + text_path.filename().string()
+    },
+    time
+  );
   std::filesystem::remove(index_path);
-  return;
-}
-
-template <typename Index, typename SdslIndex>
-void MeasureCountingTime
-(
-  std::filesystem::path const &text_path,
-  Index &index,
-  SdslIndex &sdsl_index
-)
-{
-  std::vector<std::filesystem::path> pattern_paths;
-  uint64_t amount {1ULL << 14};
-  for (uint64_t unit_size {1}; unit_size <= (1ULL << 14); unit_size <<= 1)
-  {
-    auto patterns {Patterns(text_path, amount, unit_size)};
-    pattern_paths.emplace_back
-    (
-      std::filesystem::path
-      (
-        text_path.filename().string() + "_" +
-        std::to_string(patterns.GetAmount()) + "_" +
-        std::to_string(patterns.GetUnitSize())
-      )
-    );
-    patterns.Serialize(pattern_paths.back());
-  }
-  {
-    std::vector<std::pair<uint64_t, double>> time;
-    MeasureIndexCountingTime(text_path, pattern_paths, index, time);
-    PrintCountingTime
-    (
-      std::filesystem::path
-      {
-        std::string("../data/time/")
-        + std::to_string(Index::kMaxFactorSize) + "/"
-        + text_path.filename().string()
-      },
-      time
-    );
-  }
-  {
-    std::vector<std::pair<uint64_t, double>> time;
-    MeasureSdslIndexCountingTime(text_path, pattern_paths, sdsl_index, time);
-    PrintCountingTime
-    (
-      std::filesystem::path
-      {
-        std::string("../data/time/")
-        + "rlfm/"
-        + text_path.filename().string()
-      },
-      time
-    );
-  }
-  for (auto const path : pattern_paths)
-  {
-    std::filesystem::remove(path);
-  }
   return;
 }
 }
