@@ -61,6 +61,34 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
   return;
 }
 
+void PrintCountingTime
+(
+  std::filesystem::path const &output_path,
+  std::vector<std::pair<uint64_t, double>> time,
+  bool const is_proper = true
+)
+{
+  if (!std::filesystem::exists(output_path.parent_path()))
+  {
+    std::filesystem::create_directories(output_path.parent_path());
+  }
+  std::fstream fout {output_path, std::ios_base::out | std::ios_base::trunc};
+  std::cout << "write time information to " << std::filesystem::canonical(output_path) << "\n";
+  for (auto const &pair : time)
+  {
+    if (is_proper)
+    {
+      fout << std::fixed << std::setprecision(2);
+      fout << std::get<0>(pair) << "," << ProperTimeRepresentation(std::get<1>(pair)) << "\n";
+    }
+    else
+    {
+      fout << std::get<0>(pair) << "," << std::get<1>(pair) << "\n";
+    }
+  }
+  return;
+}
+
 template <typename Index>
 void MeasureIndexCountingTime
 (
@@ -99,7 +127,7 @@ void MeasureIndexCountingTime
         begin = end;
       }
       auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
-      time.emplace_back(patterns.GetUnitSize(), duration / patterns.GetAmount() / patterns.GetUnitSize());
+      time.emplace_back(patterns.GetUnitSize(), duration / patterns.GetAmount());
     }
   }
   PrintCountingTime
@@ -159,7 +187,7 @@ void MeasureRlfmCountingTime (std::filesystem::path const &text_path)
         begin = end;
       }
       auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
-      time.emplace_back(patterns.GetUnitSize(), duration / patterns.GetAmount() / patterns.GetUnitSize());
+      time.emplace_back(patterns.GetUnitSize(), duration / patterns.GetAmount());
     }
   }
   PrintCountingTime

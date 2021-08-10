@@ -412,27 +412,4 @@ void PrintIndexSpace
   }
   return;
 }
-
-void PrintCountingTime
-(
-  std::filesystem::path const &output_path,
-  std::vector<std::pair<uint64_t, double>> time
-)
-{
-  if (!std::filesystem::exists(output_path.parent_path()))
-  {
-    std::filesystem::create_directories(output_path.parent_path());
-  }
-  std::fstream fout {output_path, std::ios_base::out | std::ios_base::trunc};
-  std::cout << "write time information to " << std::filesystem::canonical(output_path) << "\n";
-  fout << std::fixed << std::setprecision(2);
-  for (auto const &pair : time)
-  {
-    fout
-    << std::get<0>(pair) << ","
-    << ProperTimeRepresentation(std::get<1>(pair)) << "/char"
-    << "\n";
-  }
-  return;
-}
 }
