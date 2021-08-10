@@ -326,7 +326,11 @@ public:
     return size_in_bytes_;
   }
 
-  friend std::ostream& operator<< (std::ostream &out, std::shared_ptr<SpaceNode> root);
+  friend std::ostream& operator<<
+  (
+    std::ostream &out,
+    std::pair<std::shared_ptr<SpaceNode>, bool> pair
+  );
 
 private:
 
@@ -364,9 +368,15 @@ void SpaceNode::AddLeaf (std::string const &name, uint64_t const size_in_bytes)
   return;
 }
 
-std::ostream& operator<< (std::ostream &out, std::shared_ptr<SpaceNode> root)
+std::ostream& operator<<
+(
+  std::ostream &out,
+  std::pair<std::shared_ptr<SpaceNode>, bool> pair
+)
 {
   std::deque<std::pair<std::shared_ptr<SpaceNode>, uint64_t>> nodes;
+  auto root {std::get<0>(pair)};
+  auto is_proper {std::get<1>(pair)};
   nodes.emplace_back(root, 0);
   while (!nodes.empty())
   {
@@ -374,7 +384,16 @@ std::ostream& operator<< (std::ostream &out, std::shared_ptr<SpaceNode> root)
     auto const depth {std::get<1>(nodes.back())};
     nodes.pop_back();
     std::string whitespaces(depth * 2, ' ');
-    out << whitespaces << node->name_ << ": " << ProperSizeRepresentation(node->size_in_bytes_) << "\n";
+    out << whitespaces << node->name_ << ": ";
+    if (is_proper)
+    {
+      out << ProperSizeRepresentation(node->size_in_bytes_);
+    }
+    else
+    {
+      out << node->size_in_bytes_;
+    }
+    out << "\n";
     for (auto it {std::rbegin(node->children_)}; it != std::rend(node->children_); ++it)
     {
       nodes.emplace_back(*it, depth + 1);
@@ -387,7 +406,8 @@ template <typename Index>
 void PrintIndexSpace
 (
   std::filesystem::path const &text_path,
-  Index &index
+  Index &index,
+  bool const is_proper_representation = false
 )
 {
   std::filesystem::path output_path
@@ -406,9 +426,38 @@ void PrintIndexSpace
     index = Index{text_path};
     auto root {std::make_shared<SpaceNode>("index")};
     index.Serialize(std::filesystem::path{"_.index"}, root);
-    fout << root;
+    fout << std::make_pair(root, is_proper_representation);
     std::cout << "remove " << std::filesystem::canonical(std::filesystem::path("_.index")) << "\n";
     std::filesystem::remove("_.index");
+  }
+  return;
+}
+
+void PrintRlfmSpace (std::filesystem::path const &text_path, bool const is_proper_representation = false)
+{
+  auto output_path {std::filesystem::path{std::string{"../data/space/rlfm/"} + text_path.filename().string()}};
+  if (!std::filesystem::exists(output_path.parent_path()))
+  {
+    std::filesystem::create_directories(output_path.parent_path());
+  }
+  std::fstream fout {output_path, std::ios_base::out | std::ios_base::trunc};
+  std::cout << "write space information to " << std::filesystem::canonical(output_path) << "\n";
+  {
+    sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
+    {
+      sdsl::int_vector<8> text;
+      sdsl::load_vector_from_file(text, text_path);
+      std::cout << "construct rlfm of " << std::filesystem::canonical(text_path) << "\n";
+      sdsl::construct_im(rlfm, text);
+      if (is_proper_representation)
+      {
+        fout << ProperSizeRepresentation(sdsl::size_in_bytes(rlfm)) << "\n";
+      }
+      else
+      {
+        fout << sdsl::size_in_bytes(rlfm) << "\n";
+      }
+    }
   }
   return;
 }

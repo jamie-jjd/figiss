@@ -65,7 +65,7 @@ void PrintCountingTime
 (
   std::filesystem::path const &output_path,
   std::vector<std::pair<uint64_t, double>> time,
-  bool const is_proper = true
+  bool const is_proper_representation = false
 )
 {
   if (!std::filesystem::exists(output_path.parent_path()))
@@ -76,7 +76,7 @@ void PrintCountingTime
   std::cout << "write time information to " << std::filesystem::canonical(output_path) << "\n";
   for (auto const &pair : time)
   {
-    if (is_proper)
+    if (is_proper_representation)
     {
       fout << std::fixed << std::setprecision(2);
       fout << std::get<0>(pair) << "," << ProperTimeRepresentation(std::get<1>(pair)) << "\n";
@@ -93,7 +93,8 @@ template <typename Index>
 void MeasureIndexCountingTime
 (
   std::filesystem::path const &text_path,
-  Index &index
+  Index &index,
+  bool const is_proper_representation = false
 )
 {
   auto index_path {std::filesystem::path("_.index")};
@@ -103,7 +104,7 @@ void MeasureIndexCountingTime
   }
   std::vector<std::pair<uint64_t, double>> time;
   uint64_t amount {1ULL << 12};
-  for (uint64_t unit_size {1ULL << 8}; unit_size <= (1ULL << 16); unit_size <<= 1)
+  for (uint64_t unit_size {1ULL << 0}; unit_size <= (1ULL << 6); unit_size <<= 1)
   {
     std::cout << "pattern size: " << unit_size << "\n";
     auto patterns {Patterns(text_path, amount, unit_size)};
@@ -138,13 +139,18 @@ void MeasureIndexCountingTime
       + std::to_string(Index::kMaxFactorSize) + "/"
       + text_path.filename().string()
     },
-    time
+    time,
+    is_proper_representation
   );
   std::filesystem::remove(index_path);
   return;
 }
 
-void MeasureRlfmCountingTime (std::filesystem::path const &text_path)
+void MeasureRlfmCountingTime
+(
+  std::filesystem::path const &text_path,
+  bool const is_proper_representation = false
+)
 {
   auto index_path {std::filesystem::path("_.rlfm")};
   sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
@@ -159,7 +165,7 @@ void MeasureRlfmCountingTime (std::filesystem::path const &text_path)
   }
   std::vector<std::pair<uint64_t, double>> time;
   uint64_t amount {1ULL << 12};
-  for (uint64_t unit_size {1ULL << 8}; unit_size <= (1ULL << 16); unit_size <<= 1)
+  for (uint64_t unit_size {1ULL << 0}; unit_size <= (1ULL << 6); unit_size <<= 1)
   {
     std::cout << "pattern size: " << unit_size << "\n";
     auto patterns {Patterns(text_path, amount, unit_size)};
@@ -198,7 +204,8 @@ void MeasureRlfmCountingTime (std::filesystem::path const &text_path)
       + "rlfm/"
       + text_path.filename().string()
     },
-    time
+    time,
+    is_proper_representation
   );
   std::filesystem::remove(index_path);
   return;
