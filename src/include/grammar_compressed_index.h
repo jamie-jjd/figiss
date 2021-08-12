@@ -262,6 +262,10 @@ uint64_t Index<max_factor_size>::Serialize
   std::shared_ptr<SpaceNode> root
 )
 {
+  if (!std::filesystem::exists(index_path.parent_path()))
+  {
+    std::filesystem::create_directories(index_path.parent_path());
+  }
   std::fstream index_file {index_path, std::ios_base::out | std::ios_base::trunc};
   std::cout << "serialize index to " << std::filesystem::canonical(index_path) << "\n";
   uint64_t size_in_bytes {};
