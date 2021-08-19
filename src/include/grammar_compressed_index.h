@@ -262,7 +262,11 @@ uint64_t Index<max_factor_size>::Serialize
   std::shared_ptr<SpaceNode> root
 )
 {
-  if (!std::filesystem::exists(index_path.parent_path()))
+  if
+  (
+    !index_path.parent_path().filename().string().empty()
+    && !std::filesystem::exists(index_path.parent_path())
+  )
   {
     std::filesystem::create_directories(index_path.parent_path());
   }
