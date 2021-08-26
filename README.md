@@ -1,22 +1,34 @@
+### Prequisites
+
+We assume that you have installed sdsl-lite and g++ with c++17 support.
+
 ### Compilation
 
+The following generates the executable `gciis`.
+
 ```bash:
+cd src
 make
 ```
 
-This would generete executable `gciis`.
 
 ### Execution
+ 
+Construction:
+
+ - construct index of text at [text path] and serialize it to [index path]
+ - k must be an integer in [1..8]
 
 ```bash:
-# construct index of text at [text path] and serialize it to [index path]
-# k can only be integer in [1, 8]
 ./gciis cs [k] [text path] [index path]
 ```
 
+Matching:
+
+ - load index from [index path] and report number of occurences of pattern at [pattern path]
+ - the same k as during the construction must be used
+
 ```bash:
-# load index from [index path] and report number of occurences of pattern at [pattern path]
-# k must be matched with the k of index
 ./gciis lc [k] [text path] [index path]  
 ```
 
