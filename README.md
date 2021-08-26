@@ -1,36 +1,60 @@
-### Prequisites
+# 🗂️  GCIIS: FM-Indexing Grammars Induced by Suffix Sorting for Long Patterns
 
-We assume that you have installed sdsl-lite and g++ with c++17 support.
+The GCIIS index is a full-text self-index capable of counting the occurrences of patterns. 
+The index is the FM index built upon the Burrows-Wheeler transform on the right hand side of the start symbol of a grammar.
+In our case, this grammar (see the refernces) is based on the SA-IS algorithm, but it can be exchanged with other grammars that have locally consistent properties.
 
-### Compilation
+## Usage
 
-The following generates the executable `gciis`.
+### 🚀 Prequisites
+
+To compile this project, you need the following tools:
+
+ - `make`
+ - a recent `g++` with C++17 support
+ - [sdsl-lite](https://github.com/simongog/sdsl-lite)
+
+
+###  ⚙️ Compilation
+
+The GCIIS index consists in a single executable called `gciis`.
+It can be compiled with:
 
 ```bash:
+git clone https://github.com/jamie-jjd/gciis
 cd src
 make
 ```
 
+### 🏗️ Index Construction
 
-### Execution
- 
-Construction:
 
- - construct index of text at [text path] and serialize it to [index path]
- - k must be an integer in [1..8]
+Syntax:
 
 ```bash:
 ./gciis cs [k] [text path] [index path]
 ```
 
-Matching:
+ - constructs the index of the text at `[text path]` and serializes it to `[index path]`
+ - `k` must be an integer in [1..8] as described in the paper. Good choices are `4` and `7`.
 
- - load index from [index path] and report number of occurences of pattern at [pattern path]
- - the same k as during the construction must be used
+### 🔎 Counting Query
 
 ```bash:
 ./gciis lc [k] [text path] [index path]  
 ```
+
+ - loads the index from `[index path]` and report number of occurences of pattern at `[pattern path]`
+ - the same `k` as during the construction must be used
+
+## 📚 References
+
+- Daniel Saad Nogueira Nunes, Felipe A. Louza, Simon Gog, Mauricio Ayala-Rincón, Gonzalo Navarro: [A Grammar Compression Algorithm Based on Induced Suffix Sorting. DCC 2018: 42-51](https://doi.org/10.1109/DCC.2018.00012)
+
+
+## Using as a Library
+
+You can also use GCIIS as a library in the following way:
 
 ### Sample Code for Constructing Index
 
