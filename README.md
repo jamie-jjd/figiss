@@ -6,7 +6,21 @@ In our case, this grammar (see the references) is based on the SA-IS algorithm, 
 
 ## Usage
 
-### 🚀 Prerequisites
+### 🚀 Complete Test Run
+
+A complete test-run of our index is done with the following lines:
+
+```bash:
+cd figiss/src
+make
+./figiss cs 4 ../data/text.txt ../data/index
+./figiss lc 4 ../data/index ../data/pattern.txt
+```
+
+The output should be `21`, which is the number of occurrences of `../data/pattern.txt` in `../data/text.txt`.
+
+
+### ✔️ Prerequisites
 
 To compile this project, you need the following tools:
 
@@ -15,21 +29,19 @@ To compile this project, you need the following tools:
  - [sdsl-lite](https://github.com/simongog/sdsl-lite)
 
 
-###  ⚙️ Compilation
+### ⚙️ Compilation
 
 The FIGISS index consists in a single executable called `figiss`.
 It can be compiled with:
 
 ```bash:
-git clone https://github.com/jamie-jjd/figiss
-cd src
+cd figiss/src
 make
 ```
 
 Counting query testing can be done by an executable called `test`.
 It can be compiled with:
 ```bash:
-git clone https://github.com/jamie-jjd/figiss
 cd src
 make test
 ```
@@ -77,7 +89,7 @@ Example:
 Output:
 
 ```bash:
-load index from "/home/jamie/nthu_cs/research/figiss/data/index"
+load index from ".../figiss/data/index"
 21
 ```
 
