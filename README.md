@@ -1,6 +1,6 @@
-# 🗂️  GCIIS: FM-Indexing Grammars Induced by Suffix Sorting for Long Patterns
+# 🗂️  FIGISS: FM-Indexing Grammars Induced by Suffix Sorting for Long Patterns
 
-The GCIIS index is a full-text self-index capable of counting the occurrences of patterns. 
+The FIGISS index is a full-text self-index capable of counting the occurrences of patterns.
 The index is the FM index built upon the Burrows-Wheeler transform on the right hand side of the start symbol of a grammar.
 In our case, this grammar (see the refernces) is based on the SA-IS algorithm, but it can be exchanged with other grammars that have locally consistent properties.
 
@@ -17,11 +17,11 @@ To compile this project, you need the following tools:
 
 ###  ⚙️ Compilation
 
-The GCIIS index consists in a single executable called `gciis`.
+The FIGISS index consists in a single executable called `figiss`.
 It can be compiled with:
 
 ```bash:
-git clone https://github.com/jamie-jjd/gciis
+git clone https://github.com/jamie-jjd/figiss
 cd src
 make
 ```
@@ -32,7 +32,7 @@ make
 Syntax:
 
 ```bash:
-./gciis cs [k] [text path] [index path]
+./figiss cs [k] [text path] [index path]
 ```
 
  - constructs the index of the text at `[text path]` and serializes it to `[index path]`
@@ -41,7 +41,7 @@ Syntax:
 ### 🔎 Counting Query
 
 ```bash:
-./gciis lc [k] [index path] [pattern path]
+./figiss lc [k] [index path] [pattern path]
 ```
 
  - loads the index from `[index path]` and report number of occurences of pattern at `[pattern path]`
@@ -55,7 +55,7 @@ Syntax:
 
 ## Using as a Library
 
-You can also use GCIIS as a library in the following way:
+You can also use FIGISS as a library in the following way:
 
 ### Sample Code for Constructing Index
 
@@ -63,10 +63,10 @@ You can also use GCIIS as a library in the following way:
 #include "grammar_compressed_index.h"
 int main (int argc, char **argv)
 {  
-  if (argc == 2) 
+  if (argc == 2)
   {
     auto text_path {std::filesystem::path{argv[1]}};
-    gciis::Index<> index {text_path}; // gciis::Index<?>, ? can be replaced by 1 ~ 8 (by default 4)  
+    figiss::Index<> index {text_path}; // figiss::Index<?>, ? can be replaced by 1 ~ 8 (by default 4)  
   }
   return 0;
 }
@@ -82,7 +82,7 @@ int main (int argc, char **argv)
   {
     auto text_path {std::filesystem::path{argv[1]}};
     auto index_path {std::filesystem::path{argv[2]}};
-    gciis::Index<> index {text_path};
+    figiss::Index<> index {text_path};
     index.Serialize(index_path);
   }
   return 0;
@@ -98,7 +98,7 @@ int main (int argc, char **argv)
   if (argc == 2)
   {
     auto index_path {std::filesystem::path{argv[1]}};
-    gciis::Index<> index; // parameter should be matched
+    figiss::Index<> index; // parameter should be matched
     index.Load(index_path);
   }
   return 0;
@@ -114,7 +114,7 @@ int main (int argc, char **argv)
   if (argc == 2)
   {
     auto text_path {std::filesystem::path{argv[1]}};
-    gciis::Index<> index {text_path};
+    figiss::Index<> index {text_path};
     std::string pattern {"your favorite pattern"};
     std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
   }
