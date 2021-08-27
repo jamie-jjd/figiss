@@ -148,7 +148,7 @@ int main (int argc, char **argv)
   if (argc == 2)
   {
     auto text_path {std::filesystem::path{argv[1]}};
-    figiss::Index<> index; figiss::Index<?>, ? can be replaced by [1..8] (by default 4)
+    figiss::Index<> index; // figiss::Index<?>, ? can be replaced by [1..8] (by default 4)
     figiss::TestCount(text_path, index);
   }
   return 0;
