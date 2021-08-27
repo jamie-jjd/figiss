@@ -96,6 +96,7 @@ load index from ".../figiss/data/index"
 ### Testing Counting Query
 
 ```bash:
+make test
 ./test [k] [text path]
 ```
 
