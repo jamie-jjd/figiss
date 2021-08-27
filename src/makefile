@@ -7,9 +7,9 @@ WARNING_ERROR_FLAGS	:= -Wall -Wextra -Wpedantic -Werror -Wfatal-errors
 LIBS 								:= -ldivsufsort -ldivsufsort64 -lm -lsdsl -lstdc++fs
 
 all: main.cc
-	${CC} ${CXX_FLAGS} ${INCLUDE_PATH} ${LIB_PATH} ${DEBUG_FLAGS} ${WARNING_ERROR_FLAGS} $^ -o gciis ${LIBS}
+	${CC} ${CXX_FLAGS} ${INCLUDE_PATH} ${LIB_PATH} ${DEBUG_FLAGS} ${WARNING_ERROR_FLAGS} $^ -o figiss ${LIBS}
 
 clean:
-	rm -f gciis
+	rm -f figiss
 
 .PHONY: all clean

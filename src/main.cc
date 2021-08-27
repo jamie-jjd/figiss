@@ -3,7 +3,7 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "grammar_compressed_index.h"
+#include "index.h"
 
 void Usage ()
 {
