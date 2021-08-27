@@ -61,7 +61,7 @@ Syntax:
 ./test [k] [text path]
 ```
 
-- constructs index of text at [text path] with parameter [k] and tests correctness of conunting query on pattern of size being power of 2 <= text size.
+- constructs index of text at `[text path]` with parameter `k` and tests correctness of conunting query on pattern of size being power of 2 <= text size.
 - `k` must be an integer in [1..8] as described in the paper. 
 
 ## 📚 References
@@ -76,13 +76,13 @@ You can also use FIGISS as a library in the following way:
 ### Sample Code for Constructing Index
 
 ```c++:
-#include "grammar_compressed_index.h"
+#include "index.h"
 int main (int argc, char **argv)
 {  
   if (argc == 2)
   {
     auto text_path {std::filesystem::path{argv[1]}};
-    figiss::Index<> index {text_path}; // figiss::Index<?>, ? can be replaced by 1 ~ 8 (by default 4)  
+    figiss::Index<> index {text_path}; // figiss::Index<?>, ? can be replaced by [1..8] (by default 4)  
   }
   return 0;
 }
@@ -91,7 +91,7 @@ int main (int argc, char **argv)
 ### Sample Code for Serializing Index
 
 ```c++:
-#include "grammar_compressed_index.h"
+#include "index.h"
 int main (int argc, char **argv)
 {
   if (argc == 3)
@@ -108,7 +108,7 @@ int main (int argc, char **argv)
 ### Sample Code for Loading Index
 
 ```c++:
-#include "grammar_compressed_index.h"
+#include "index.h"
 int main (int argc, char **argv)
 {
   if (argc == 2)
@@ -124,7 +124,7 @@ int main (int argc, char **argv)
 ### Sample Code for Counting
 
 ```c++:
-#include "grammar_compressed_index.h"
+#include "index.h"
 int main (int argc, char **argv)
 {
   if (argc == 2)
@@ -133,6 +133,23 @@ int main (int argc, char **argv)
     figiss::Index<> index {text_path};
     std::string pattern {"your favorite pattern"};
     std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
+  }
+  return 0;
+}
+```
+
+### Sample Code for Testing Counting
+
+```c++:
+#include "benchmark.h"
+#include "index.h"
+int main (int argc, char **argv)
+{
+  if (argc == 2)
+  {
+    auto text_path {std::filesystem::path{argv[1]}};
+    figiss::Index<> index; figiss::Index<?>, ? can be replaced by [1..8] (by default 4)
+    figiss::TestCount(text_path, index);
   }
   return 0;
 }
