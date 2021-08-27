@@ -26,8 +26,15 @@ cd src
 make
 ```
 
-### 🏗️ Index Construction
+Counting query testing can be done by an executable called `test`.
+It can be compiled with:
+```bash:
+git clone https://github.com/jamie-jjd/figiss
+cd src
+make test
+```
 
+### 🏗️ Index Construction
 
 Syntax:
 
@@ -47,6 +54,15 @@ Syntax:
  - loads the index from `[index path]` and report number of occurences of pattern at `[pattern path]`
  - ⚠️ the same `k` as during the construction must be used
  - ⚠️ all characters of the file `[pattern path]` are considered, even if the file ends with a new line character (which is commonly appended by text editors!)
+
+### Testing Counting Query
+
+```bash:
+./test [k] [text path]
+```
+
+- constructs index of text at [text path] with parameter [k] and tests correctness of conunting query on pattern of size being power of 2 <= text size.
+- `k` must be an integer in [1..8] as described in the paper. 
 
 ## 📚 References
 
