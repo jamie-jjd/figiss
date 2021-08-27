@@ -5,7 +5,7 @@
 #include <sdsl/csa_wt.hpp>
 #include <sdsl/suffix_array_algorithm.hpp>
 
-#include "grammar_compressed_index.h"
+#include "index.h"
 #include "pattern.h"
 #include "utility.h"
 
@@ -33,6 +33,10 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
       for (uint8_t is_mutated {}; is_mutated != 2; ++is_mutated)
       {
         patterns = Patterns(text_path, amount, unit_size, is_mutated);
+        if (patterns.GetUnitSize() < unit_size)
+        {
+          return;
+        }
         auto begin {std::begin(patterns)};
         auto end {begin};
         for (uint64_t i {}; i != patterns.GetAmount(); ++i)

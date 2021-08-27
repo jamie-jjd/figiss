@@ -9,7 +9,10 @@ LIBS 								:= -ldivsufsort -ldivsufsort64 -lm -lsdsl -lstdc++fs
 all: main.cc
 	${CC} ${CXX_FLAGS} ${INCLUDE_PATH} ${LIB_PATH} ${DEBUG_FLAGS} ${WARNING_ERROR_FLAGS} $^ -o figiss ${LIBS}
 
+test: test.cc
+	${CC} ${CXX_FLAGS} ${INCLUDE_PATH} ${LIB_PATH} ${DEBUG_FLAGS} ${WARNING_ERROR_FLAGS} $^ -o test ${LIBS}
+
 clean:
-	rm -f figiss
+	rm -f figiss test
 
 .PHONY: all clean
