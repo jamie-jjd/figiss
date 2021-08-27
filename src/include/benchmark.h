@@ -9,7 +9,7 @@
 #include "pattern.h"
 #include "utility.h"
 
-namespace gciis
+namespace figiss
 {
 template <typename Index>
 void TestCount (std::filesystem::path const &text_path, Index &index)

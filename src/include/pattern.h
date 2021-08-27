@@ -7,7 +7,7 @@
 
 #include <sdsl/int_vector.hpp>
 
-namespace gciis
+namespace figiss
 {
 class Patterns
 {

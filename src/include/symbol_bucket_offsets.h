@@ -2,7 +2,7 @@
 
 #include "utility.h"
 
-namespace gciis
+namespace figiss
 {
 class SymbolBucketOffsets
 {

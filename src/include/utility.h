@@ -10,7 +10,7 @@
 
 #include <sdsl/csa_wt.hpp>
 
-namespace gciis
+namespace figiss
 {
 template <typename File, typename Container>
 void Print

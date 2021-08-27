@@ -7,7 +7,7 @@
 
 void Usage ()
 {
-  std::cout << "Usage: ./gciis\n"
+  std::cout << "Usage: ./figiss\n"
   << "cs [k] [text path] [index path]\n"
   << "\tconstruct index of text at [text path] and serialize it to [index path]\n"
   << "\tk can only be integer in [1, 8]\n"
@@ -46,42 +46,42 @@ int main (int argc, char **argv)
         }
         else if (k == 1)
         {
-          gciis::Index<1> index {text_path};
+          figiss::Index<1> index {text_path};
           index.Serialize(index_path);
         }
         else if (k == 2)
         {
-          gciis::Index<2> index {text_path};
+          figiss::Index<2> index {text_path};
           index.Serialize(index_path);
         }
         else if (k == 3)
         {
-          gciis::Index<3> index {text_path};
+          figiss::Index<3> index {text_path};
           index.Serialize(index_path);
         }
         else if (k == 4)
         {
-          gciis::Index<> index {text_path};
+          figiss::Index<> index {text_path};
           index.Serialize(index_path);
         }
         else if (k == 5)
         {
-          gciis::Index<5> index {text_path};
+          figiss::Index<5> index {text_path};
           index.Serialize(index_path);
         }
         else if (k == 6)
         {
-          gciis::Index<6> index {text_path};
+          figiss::Index<6> index {text_path};
           index.Serialize(index_path);
         }
         else if (k == 7)
         {
-          gciis::Index<7> index {text_path};
+          figiss::Index<7> index {text_path};
           index.Serialize(index_path);
         }
         else if (k == 8)
         {
-          gciis::Index<8> index {text_path};
+          figiss::Index<8> index {text_path};
           index.Serialize(index_path);
         }
       }
@@ -107,49 +107,49 @@ int main (int argc, char **argv)
         }
         if (k == 1)
         {
-          gciis::Index<1> index;
+          figiss::Index<1> index;
           index.Load(index_path);
           std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
         }
         else if (k == 2)
         {
-          gciis::Index<2> index;
+          figiss::Index<2> index;
           index.Load(index_path);
           std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
         }
         else if (k == 3)
         {
-          gciis::Index<3> index;
+          figiss::Index<3> index;
           index.Load(index_path);
           std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
         }
         else if (k == 4)
         {
-          gciis::Index<> index;
+          figiss::Index<> index;
           index.Load(index_path);
           std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
         }
         else if (k == 5)
         {
-          gciis::Index<5> index;
+          figiss::Index<5> index;
           index.Load(index_path);
           std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
         }
         else if (k == 6)
         {
-          gciis::Index<6> index;
+          figiss::Index<6> index;
           index.Load(index_path);
           std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
         }
         else if (k == 7)
         {
-          gciis::Index<7> index;
+          figiss::Index<7> index;
           index.Load(index_path);
           std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
         }
         else if (k == 8)
         {
-          gciis::Index<8> index;
+          figiss::Index<8> index;
           index.Load(index_path);
           std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
         }
