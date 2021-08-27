@@ -2,11 +2,11 @@
 
 The FIGISS index is a full-text self-index capable of counting the occurrences of patterns.
 The index is the FM index built upon the Burrows-Wheeler transform on the right hand side of the start symbol of a grammar.
-In our case, this grammar (see the refernces) is based on the SA-IS algorithm, but it can be exchanged with other grammars that have locally consistent properties.
+In our case, this grammar (see the references) is based on the SA-IS algorithm, but it can be exchanged with other grammars that have locally consistent properties.
 
 ## Usage
 
-### 🚀 Prequisites
+### 🚀 Prerequisites
 
 To compile this project, you need the following tools:
 
@@ -64,7 +64,7 @@ serialize index to "/figiss/data/index
 ./figiss lc [k] [index path] [pattern path]
 ```
 
- - loads the index from `[index path]` and report number of occurences of pattern at `[pattern path]`
+ - loads the index from `[index path]` and report number of occurrences of pattern at `[pattern path]`
  - ⚠️ the same `k` as during the construction must be used
  - ⚠️ all characters of the file `[pattern path]` are considered, even if the file ends with a new line character (which is commonly appended by text editors!)
 
@@ -88,7 +88,7 @@ load index from "/home/jamie/nthu_cs/research/figiss/data/index"
 ```
 
 - constructs index of text at `[text path]` with parameter `k` and tests correctness of conunting query on pattern of size being power of 2 <= text size.
-- `k` must be an integer in [1..8] as described in the paper. 
+- `k` must be an integer in [1..8] as described in the paper.
 
 ## 📚 References
 
