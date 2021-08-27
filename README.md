@@ -45,6 +45,19 @@ Syntax:
  - constructs the index of the text at `[text path]` and serializes it to `[index path]`
  - `k` must be an integer in [1..8] as described in the paper. Good choices are `4` and `7`.
 
+Example:
+
+```bash:
+./figiss cs 4 ../data/text.txt ../data/index
+```
+
+Output:
+
+```bash:
+construct index of "/figiss/data/text.txt"
+serialize index to "/figiss/data/index
+```
+
 ### 🔎 Counting Query
 
 ```bash:
@@ -54,6 +67,19 @@ Syntax:
  - loads the index from `[index path]` and report number of occurences of pattern at `[pattern path]`
  - ⚠️ the same `k` as during the construction must be used
  - ⚠️ all characters of the file `[pattern path]` are considered, even if the file ends with a new line character (which is commonly appended by text editors!)
+
+Example:
+
+```bash:
+./figiss lc 4 ../data/index ../data/pattern.txt
+```
+
+Output:
+
+```bash:
+load index from "/home/jamie/nthu_cs/research/figiss/data/index"
+21
+```
 
 ### Testing Counting Query
 
