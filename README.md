@@ -41,11 +41,12 @@ Syntax:
 ### 🔎 Counting Query
 
 ```bash:
-./gciis lc [k] [text path] [index path]  
+./gciis lc [k] [index path] [pattern path]
 ```
 
  - loads the index from `[index path]` and report number of occurences of pattern at `[pattern path]`
- - the same `k` as during the construction must be used
+ - ⚠️ the same `k` as during the construction must be used
+ - ⚠️ all characters of the file `[pattern path]` are considered, even if the file ends with a new line character (which is commonly appended by text editors!)
 
 ## 📚 References
 
