@@ -38,7 +38,7 @@ public:
 
 private:
 
-  // uint64_t length_width_;
+  uint64_t length_width_;
   ByteAlphabet byte_alphabet_;
   // SymbolBucketOffsets lex_symbol_bucket_offsets_;
   // sdsl::wt_rlmn
@@ -50,7 +50,11 @@ private:
   // >
   // lex_bwt_;
 
-  void CalculateByteAlphabet (std::filesystem::path const &byte_text_path);
+  void CalculateRunLengthText
+  (
+    sdsl::int_vector<8> const &byte_text,
+    sdsl::int_vector<> &run_length_text
+  );
   // void CalculateSubFactorTrie (sdsl::int_vector<> const &text, Trie &trie);
   // template <typename Iterator>
   // void InsertSubFactorsInSlFactor (Iterator begin, Iterator end, Trie &trie);
@@ -168,8 +172,32 @@ private:
 Index::Index (std::filesystem::path const &byte_text_path)
 {
   std::cout << "construct index of " << std::filesystem::canonical(byte_text_path) << "\n";
-  CalculateByteAlphabet(byte_text_path);
-  // sdsl::int_vector<> run_length_text;
+  sdsl::int_vector<8> byte_text;
+  sdsl::load_vector_from_file(byte_text, byte_text_path);
+  {
+    for (auto const byte : byte_text)
+    {
+      if (byte == 0)
+      {
+        throw std::runtime_error("byte_text contains 0");
+      }
+    }
+    sdsl::append_zero_symbol(byte_text);
+  }
+  byte_alphabet_ = decltype(byte_alphabet_)(byte_text);
+  // std::cout << byte_alphabet_;
+  sdsl::int_vector<> run_length_text;
+  CalculateRunLengthText(byte_text, run_length_text);
+  // {
+  //   auto it {std::begin(run_length_text)};
+  //   uint64_t divisor {1ULL << length_width_};
+  //   while (it != std::end(run_length_text))
+  //   {
+  //     std::cout << "(" << (*it / divisor) << "," << (*it % divisor) << ")";
+  //     ++it;
+  //   }
+  //   std::cout << "\n";
+  // }
   // {
   //   Trie trie;
   //   CalculateSubFactorTrie(text, trie);
@@ -357,23 +385,50 @@ Index::Index (std::filesystem::path const &byte_text_path)
 //   return out;
 // }
 
-void Index::CalculateByteAlphabet (std::filesystem::path const &byte_text_path)
+void Index::CalculateRunLengthText
+(
+  sdsl::int_vector<8> const &byte_text,
+  sdsl::int_vector<> &run_length_text
+)
 {
-  sdsl::int_vector<8> byte_text;
-  sdsl::load_vector_from_file(byte_text, byte_text_path);
+  uint8_t prev_byte {byte_text[0]};
+  uint64_t run_length_text_size {1};
+  uint64_t length {};
+  uint64_t max_length {1};
+  for (auto const byte : byte_text)
   {
+    if (prev_byte != byte)
+    {
+      if (max_length < length)
+      {
+        max_length = length;
+      }
+      prev_byte = byte;
+      length = 0;
+      ++run_length_text_size;
+    }
+    ++length;
+  }
+  {
+    length_width_ = sdsl::bits::hi(max_length) + 1;
+    run_length_text.width(byte_alphabet_.GetEffectiveAlphabetWidth() + length_width_);
+    run_length_text.resize(run_length_text_size);
+    auto it {std::begin(run_length_text)};
+    uint64_t divisor {1ULL << length_width_};
+    prev_byte = byte_text[0];
+    length = 0;
     for (auto const byte : byte_text)
     {
-      if (byte == 0)
+      if (prev_byte != byte)
       {
-        throw std::runtime_error("byte_text contains 0");
+        *it++ = (byte_alphabet_.GetRank(prev_byte) * divisor) + length;
+        prev_byte = byte;
+        length = 0;
       }
+      ++length;
     }
-    sdsl::append_zero_symbol(byte_text);
+    *it = 0;
   }
-  byte_alphabet_ = decltype(byte_alphabet_)(byte_text);
-  // std::cout << byte_alphabet_;
-  return;
 }
 
 // void Index::CalculateSubFactorTrie (sdsl::int_vector<> const &text, Trie &trie)
