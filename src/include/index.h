@@ -8,7 +8,7 @@
 // #include <sdsl/wavelet_trees.hpp>
 
 #include "byte_alphabet.h"
-// #include "grammar_xbwt_trie.h"
+#include "grammar_xbwt_trie.h"
 // #include "symbol_bucket_offsets.h"
 // #include "utility.h"
 
@@ -18,8 +18,8 @@ class Index
 {
 public:
 
-  // static constexpr uint8_t kS {1};
-  // static constexpr uint8_t kL {0};
+  static constexpr uint8_t kS {1};
+  static constexpr uint8_t kL {0};
 
   Index () = default;
   Index (std::filesystem::path const &byte_text_path);
@@ -55,9 +55,11 @@ private:
     sdsl::int_vector<8> const &byte_text,
     sdsl::int_vector<> &run_length_text
   );
-  // void CalculateSubFactorTrie (sdsl::int_vector<> const &text, Trie &trie);
-  // template <typename Iterator>
-  // void InsertSubFactorsInSlFactor (Iterator begin, Iterator end, Trie &trie);
+  void CalculateGrammarTrie
+  (
+    sdsl::int_vector<> const &run_length_text,
+    GrammarTrie &grammar_trie
+  );
   // template <typename Iterator>
   // void CalculateLexTextSizeAndLexFactorIntegersAndTempColexToLex
   // (
@@ -198,13 +200,13 @@ Index::Index (std::filesystem::path const &byte_text_path)
   //   }
   //   std::cout << "\n";
   // }
-  // {
-  //   Trie trie;
-  //   CalculateSubFactorTrie(text, trie);
-  //   // std::cout << std::make_pair(trie, /*is_level_order=*/true);
-  //   sub_factor_trie_ = decltype(sub_factor_trie_)(trie);
-  //   // std::cout << std::make_pair(sub_factor_trie_, /*is_level_order=*/true);
-  // }
+  {
+    GrammarTrie grammar_trie {length_width_};
+    CalculateGrammarTrie(run_length_text, grammar_trie);
+    // std::cout << grammar_trie;
+    // grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie);
+    // std::cout << grammar_xbwt_trie_;
+  }
   // uint64_t lex_text_size {};
   // std::set<uint64_t> lex_factor_integers;
   // std::map<uint64_t, uint64_t> temp_colex_to_lex;
@@ -431,40 +433,45 @@ void Index::CalculateRunLengthText
   }
 }
 
-// void Index::CalculateSubFactorTrie (sdsl::int_vector<> const &text, Trie &trie)
-// {
-//   auto text_rend {std::prev(std::begin(text))};
-//   auto text_it {std::prev(std::end(text), 3)};
-//   auto next_symbol {*std::prev(std::end(text), 2)};
-//   uint8_t sl_type {};
-//   uint8_t next_sl_type {Index::kL};
-//   auto sl_factor_end {std::prev(std::end(text))};
-//   while (text_it != text_rend)
-//   {
-//     if (*text_it == next_symbol)
-//     {
-//       sl_type = next_sl_type;
-//     }
-//     else if (*text_it < next_symbol)
-//     {
-//       sl_type = Index::kS;
-//     }
-//     else
-//     {
-//       sl_type = Index::kL;
-//     }
-//     if ((sl_type == Index::kL) && (next_sl_type == Index::kS))
-//     {
-//       auto sl_factor_begin {std::next(text_it)};
-//       InsertSubFactorsInSlFactor(sl_factor_begin, sl_factor_end, trie);
-//       sl_factor_end = sl_factor_begin;
-//     }
-//     next_symbol = *text_it--;
-//     next_sl_type = sl_type;
-//   }
-//   InsertSubFactorsInSlFactor(std::begin(text), sl_factor_end, trie);
-//   return;
-// }
+void Index::CalculateGrammarTrie
+(
+  sdsl::int_vector<> const &run_length_text,
+  GrammarTrie &grammar_trie
+)
+{
+  auto text_rend {std::prev(std::begin(run_length_text))};
+  auto text_it {std::prev(std::end(run_length_text), 3)};
+  auto next_symbol {*std::prev(std::end(run_length_text), 2)};
+  uint8_t sl_type {};
+  uint8_t next_sl_type {Index::kL};
+  auto sl_factor_end {std::prev(std::end(run_length_text))};
+  while (text_it != text_rend)
+  {
+    if (*text_it == next_symbol)
+    {
+      sl_type = next_sl_type;
+    }
+    else if (*text_it < next_symbol)
+    {
+      sl_type = Index::kS;
+    }
+    else
+    {
+      sl_type = Index::kL;
+    }
+    if ((sl_type == Index::kL) && (next_sl_type == Index::kS))
+    {
+      auto sl_factor_begin {std::next(text_it)};
+      grammar_trie.Insert(sl_factor_begin, sl_factor_end);
+      sl_factor_end = sl_factor_begin;
+    }
+    next_symbol = *text_it--;
+    next_sl_type = sl_type;
+  }
+  grammar_trie.Insert(std::begin(run_length_text), sl_factor_end);
+  // grammar_trie.CalculateCumulativeCountAndRankRange();
+  return;
+}
 
 // template <typename Iterator>
 // void Index::InsertSubFactorsInSlFactor (Iterator begin, Iterator end, Trie &trie)
