@@ -16,14 +16,14 @@ public:
   Patterns () = default;
   Patterns
   (
-    std::filesystem::path const &text_path,
+    std::filesystem::path const& text_path,
     uint64_t const amount,
     uint64_t const unit_size,
     bool const is_mutated = false
   );
 
-  void Serialize (std::filesystem::path const &path);
-  void Load (std::filesystem::path const &path);
+  void Serialize (std::filesystem::path const& path);
+  void Load (std::filesystem::path const& path);
 
   auto begin () noexcept;
   auto end () noexcept;
@@ -48,7 +48,7 @@ private:
 
 Patterns::Patterns
 (
-  std::filesystem::path const &text_path,
+  std::filesystem::path const& text_path,
   uint64_t const amount,
   uint64_t const unit_size,
   bool const is_mutated
@@ -86,7 +86,7 @@ Patterns::Patterns
   return;
 }
 
-void Patterns::Serialize (std::filesystem::path const &path)
+void Patterns::Serialize (std::filesystem::path const& path)
 {
   if (std::size(labels_) == (amount_ * unit_size_))
   {
@@ -99,7 +99,7 @@ void Patterns::Serialize (std::filesystem::path const &path)
   return;
 }
 
-void Patterns::Load (std::filesystem::path const &path)
+void Patterns::Load (std::filesystem::path const& path)
 {
   std::ifstream fin {path};
   std::cout << "load patterns from " << std::filesystem::canonical(path) << "\n";

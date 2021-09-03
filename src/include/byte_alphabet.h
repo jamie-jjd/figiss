@@ -9,16 +9,16 @@ class ByteAlphabet
 public:
 
   ByteAlphabet () = default;
-  ByteAlphabet (sdsl::int_vector<8> const &byte_text);
-  ByteAlphabet& operator= (ByteAlphabet &&);
+  ByteAlphabet (sdsl::int_vector<8> const& byte_text);
+  ByteAlphabet& operator= (ByteAlphabet&&);
 
   uint64_t Serialize
   (
-    std::ostream &out,
+    std::ostream& out,
     std::shared_ptr<SpaceNode> parent = nullptr,
     std::string const name = ""
   );
-  void Load (std::istream &in);
+  void Load (std::istream& in);
 
   inline uint8_t GetEffectiveAlphabetWidth () const
   {
@@ -34,7 +34,7 @@ public:
     return 0;
   }
 
-  friend std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet);
+  friend std::ostream& operator<< (std::ostream& out, ByteAlphabet const& byte_alphabet);
 
 private:
 
@@ -44,7 +44,7 @@ private:
 
 };
 
-ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const &byte_text)
+ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const& byte_text)
 {
   std::set<uint8_t> effective_alphabet;
   for (auto const byte : byte_text)
@@ -61,9 +61,9 @@ ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const &byte_text)
   effective_alphabet_width_ = sdsl::bits::hi(std::size(effective_alphabet) - 1) + 1;
 }
 
-ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet &&byte_alphabet)
+ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet&& byte_alphabet)
 {
-  if (this != &byte_alphabet)
+  if (this !=& byte_alphabet)
   {
     effective_alphabet_width_ = std::move(byte_alphabet.effective_alphabet_width_);
     effective_alphabet_bits_ = std::move(byte_alphabet.effective_alphabet_bits_);
@@ -75,7 +75,7 @@ ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet &&byte_alphabet)
 
 uint64_t ByteAlphabet::Serialize
 (
-  std::ostream &out,
+  std::ostream& out,
   std::shared_ptr<SpaceNode> parent,
   std::string const name
 )
@@ -99,7 +99,7 @@ uint64_t ByteAlphabet::Serialize
   return size_in_bytes;
 }
 
-void ByteAlphabet::Load (std::istream &in)
+void ByteAlphabet::Load (std::istream& in)
 {
   sdsl::read_member(effective_alphabet_width_, in);
   effective_alphabet_bits_.load(in);
@@ -108,7 +108,7 @@ void ByteAlphabet::Load (std::istream &in)
   return;
 }
 
-std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet)
+std::ostream& operator<< (std::ostream& out, ByteAlphabet const& byte_alphabet)
 {
   {
     out << "value:\n";

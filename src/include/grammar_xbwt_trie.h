@@ -50,7 +50,7 @@ public:
     return length_width_;
   }
 
-  friend std::ostream& operator<< (std::ostream &out, GrammarTrie const &grammar_trie);
+  friend std::ostream& operator<< (std::ostream& out, GrammarTrie const& grammar_trie);
 
 private:
 
@@ -86,7 +86,7 @@ void GrammarTrie::CalculateCumulativeCountAndRankRange ()
   while (!nodes.empty())
   {
     auto node {std::get<0>(nodes.back())};
-    auto &is_forward {std::get<1>(nodes.back())};
+    auto& is_forward {std::get<1>(nodes.back())};
     if (is_forward)
     {
       is_forward = false;
@@ -103,7 +103,7 @@ void GrammarTrie::CalculateCumulativeCountAndRankRange ()
     {
       if (!node->children.empty())
       {
-        for (auto const &pair : node->children)
+        for (auto const& pair : node->children)
         {
           node->count += std::get<1>(pair)->count;
         }
@@ -121,7 +121,7 @@ void GrammarTrie::CalculateCumulativeCountAndRankRange ()
   return;
 }
 
-std::ostream& operator<< (std::ostream &out, GrammarTrie const &grammar_trie)
+std::ostream& operator<< (std::ostream& out, GrammarTrie const& grammar_trie)
 {
   out << "depth:(byte_rank,length)(count)[leftmost_rank:rightmost_rank]\n";
   std::deque<std::pair<std::shared_ptr<GrammarTrie::Node>, uint64_t>> nodes;
@@ -157,29 +157,29 @@ public:
   static constexpr uint64_t kSpecialSymbol {1};
 
   GrammarXbwtTrie () = default;
-  GrammarXbwtTrie (GrammarTrie const &grammar_trie);
-  GrammarXbwtTrie& operator= (GrammarXbwtTrie &&);
+  GrammarXbwtTrie (GrammarTrie const& grammar_trie);
+  GrammarXbwtTrie& operator= (GrammarXbwtTrie&&);
 
   // uint64_t Serialize
   // (
-  //   std::ostream &out,
+  //   std::ostream& out,
   //   std::shared_ptr<SpaceNode> parent = nullptr,
   //   std::string const name = ""
   // );
-  // void Load (std::istream &in);
+  // void Load (std::istream& in);
 
   // template <typename Iterator>
   // uint64_t Count (Iterator it, Iterator end);
 
-  // friend std::ostream& operator<< (std::ostream &out, GrammarXbwtTrie const &grammar_xbwt_trie);
+  // friend std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& grammar_xbwt_trie);
 
 private:
 
   void CalculateReverseGrammarRulesAndGrammarTrieNodePointers
   (
-    GrammarTrie const &grammar_trie,
-    sdsl::int_vector<> &reverse_grammar_rules,
-    std::deque<std::shared_ptr<GrammarTrie::Node>> &grammar_trie_node_pointers
+    GrammarTrie const& grammar_trie,
+    sdsl::int_vector<>& reverse_grammar_rules,
+    std::deque<std::shared_ptr<GrammarTrie::Node>>& grammar_trie_node_pointers
   );
 
   sdsl::bit_vector trie_bits_;
@@ -199,7 +199,7 @@ private:
 
 };
 
-GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const &grammar_trie)
+GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie)
 {
   grammar_trie.GetLengthWidth();
   sdsl::int_vector<> reverse_grammar_rules;
@@ -212,7 +212,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const &grammar_trie)
   );
 }
 
-GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie &&grammar_xbwt_trie)
+GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie&& grammar_xbwt_trie)
 {
   if (this != &grammar_xbwt_trie)
   {
@@ -231,7 +231,7 @@ GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie &&grammar_xbwt_trie
 
 // uint64_t GrammarXbwtTrie::Serialize
 // (
-//   std::ostream &out,
+//   std::ostream& out,
 //   std::shared_ptr<SpaceNode> parent,
 //   std::string const name
 // )
@@ -257,7 +257,7 @@ GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie &&grammar_xbwt_trie
 //   return size_in_bytes;
 // }
 
-// void GrammarXbwtTrie::Load (std::istream &in)
+// void GrammarXbwtTrie::Load (std::istream& in)
 // {
 //   level_order_bits_.load(in);
 //   level_order_select_1_.load(in);
@@ -272,16 +272,16 @@ GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie &&grammar_xbwt_trie
 // {
 // }
 
-// std::ostream& operator<< (std::ostream &out, GrammarTrie const &grammar_trie)
+// std::ostream& operator<< (std::ostream& out, GrammarTrie const& grammar_trie)
 // {
 //   return out;
 // }
 
 void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodePointers
 (
-  GrammarTrie const &grammar_trie,
-  sdsl::int_vector<> &reverse_grammar_rules,
-  std::deque<std::shared_ptr<GrammarTrie::Node>> &grammar_trie_node_pointers
+  GrammarTrie const& grammar_trie,
+  sdsl::int_vector<>& reverse_grammar_rules,
+  std::deque<std::shared_ptr<GrammarTrie::Node>>& grammar_trie_node_pointers
 )
 {
   std::deque<std::pair<std::shared_ptr<GrammarTrie::Node>, bool>> nodes;
@@ -295,7 +295,7 @@ void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodePointers
   while (!nodes.empty())
   {
     auto node {std::get<0>(nodes.back())};
-    auto &is_forward {std::get<1>(nodes.back())};
+    auto& is_forward {std::get<1>(nodes.back())};
     if (is_forward)
     {
       is_forward = false;
@@ -336,7 +336,7 @@ void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodePointers
   );
   {
     uint64_t divisor {1ULL << grammar_trie.GetLengthWidth()};
-    for (auto const &symbol : reverse_grammar_rules)
+    for (auto const& symbol : reverse_grammar_rules)
     {
       std::cout << "(" << (symbol / divisor) << "," << (symbol % divisor) << ")";
     }

@@ -15,11 +15,11 @@ namespace figiss
 template <typename File, typename Container>
 void Print
 (
-  Container const &container,
-  File &file,
+  Container const& container,
+  File& file,
   int8_t const step = 1,
-  std::string const &separator = " ",
-  std::string const &endmarker = "\n"
+  std::string const& separator = " ",
+  std::string const& endmarker = "\n"
 )
 {
   if (std::size(container) != 0)
@@ -46,10 +46,10 @@ void Print
 (
   Iterator first,
   Iterator last,
-  File &file,
+  File& file,
   int8_t const step = 1,
-  std::string const &separator = " ",
-  std::string const &endmarker = "\n"
+  std::string const& separator = " ",
+  std::string const& endmarker = "\n"
 )
 {
   if (std::distance(first, last) * step > 0)
@@ -68,7 +68,7 @@ void Print
 
 void GeneratePrefix
 (
-  std::filesystem::path const &text_path,
+  std::filesystem::path const& text_path,
   uint64_t const size_in_megabytes
 )
 {
@@ -91,7 +91,7 @@ void GeneratePrefix
 }
 
 template <typename Text>
-double CalculateZerothEmpiricalEntropy (Text const &text)
+double CalculateZerothEmpiricalEntropy (Text const& text)
 {
   std::map<uint64_t, uint64_t> alphabet_count;
   auto text_it {std::begin(text)};
@@ -110,7 +110,7 @@ double CalculateZerothEmpiricalEntropy (Text const &text)
   }
   double zeroth_empirical_entropy {};
   auto lg_size {std::log2(std::size(text))};
-  for (auto const &character_count : alphabet_count)
+  for (auto const& character_count : alphabet_count)
   {
     auto count {static_cast<double>(std::get<1>(character_count))};
     zeroth_empirical_entropy += (count * (lg_size - std::log2(count)));
@@ -147,7 +147,7 @@ struct KmerTrie
 
   KmerTrie
   (
-    Text const &text,
+    Text const& text,
     uint64_t const k
   )
   : root {std::make_shared<Node>()},
@@ -315,11 +315,11 @@ class SpaceNode
 public:
 
   SpaceNode () = default;
-  SpaceNode (std::string const &name, uint64_t const size_in_bytes = 0);
+  SpaceNode (std::string const& name, uint64_t const size_in_bytes = 0);
 
   void AccumalateSizeInBytes (uint64_t const size_in_bytes);
   void AddChild (std::shared_ptr<SpaceNode> child);
-  void AddLeaf (std::string const &name, uint64_t const size_in_bytes);
+  void AddLeaf (std::string const& name, uint64_t const size_in_bytes);
 
   inline uint64_t GetSizeInBytes () const
   {
@@ -328,7 +328,7 @@ public:
 
   friend std::ostream& operator<<
   (
-    std::ostream &out,
+    std::ostream& out,
     std::pair<std::shared_ptr<SpaceNode>, bool> pair
   );
 
@@ -340,7 +340,7 @@ private:
 
 };
 
-SpaceNode::SpaceNode (std::string const &name, uint64_t const size_in_bytes)
+SpaceNode::SpaceNode (std::string const& name, uint64_t const size_in_bytes)
 : name_ {name},
   size_in_bytes_ {size_in_bytes},
   children_ {}
@@ -360,7 +360,7 @@ void SpaceNode::AddChild (std::shared_ptr<SpaceNode> child)
   return;
 }
 
-void SpaceNode::AddLeaf (std::string const &name, uint64_t const size_in_bytes)
+void SpaceNode::AddLeaf (std::string const& name, uint64_t const size_in_bytes)
 {
   auto node {std::make_shared<SpaceNode>(name, size_in_bytes)};
   children_.emplace_back(node);
@@ -370,7 +370,7 @@ void SpaceNode::AddLeaf (std::string const &name, uint64_t const size_in_bytes)
 
 std::ostream& operator<<
 (
-  std::ostream &out,
+  std::ostream& out,
   std::pair<std::shared_ptr<SpaceNode>, bool> pair
 )
 {
@@ -405,8 +405,8 @@ std::ostream& operator<<
 template <typename Index>
 void PrintIndexSpace
 (
-  std::filesystem::path const &text_path,
-  Index &index,
+  std::filesystem::path const& text_path,
+  Index& index,
   bool const is_proper_representation = false
 )
 {
@@ -433,7 +433,7 @@ void PrintIndexSpace
   return;
 }
 
-void PrintRlfmSpace (std::filesystem::path const &text_path, bool const is_proper_representation = false)
+void PrintRlfmSpace (std::filesystem::path const& text_path, bool const is_proper_representation = false)
 {
   auto output_path {std::filesystem::path{std::string{"../data/space/rlfm/"} + text_path.filename().string()}};
   if (!std::filesystem::exists(output_path.parent_path()))

@@ -22,52 +22,52 @@ public:
   static constexpr uint8_t kL {0};
 
   Index () = default;
-  Index (std::filesystem::path const &byte_text_path);
+  Index (std::filesystem::path const& byte_text_path);
 
   // uint64_t Serialize
   // (
-  //   std::filesystem::path const &index_path,
+  //   std::filesystem::path const& index_path,
   //   std::shared_ptr<SpaceNode> root = nullptr
   // );
-  // void Load (std::filesystem::path const &index_path);
+  // void Load (std::filesystem::path const& index_path);
   //
   // template <typename Iterator>
   // uint64_t Count (Iterator begin, Iterator end);
   //
-  // friend std::ostream& operator<< (std::ostream &out, Index const &index);
+  // friend std::ostream& operator<< (std::ostream& out, Index const& index);
 
 private:
 
   void CalculateRunLengthText
   (
-    sdsl::int_vector<8> const &byte_text,
-    sdsl::int_vector<> &run_length_text,
-    uint64_t &length_width
+    sdsl::int_vector<8> const& byte_text,
+    sdsl::int_vector<>& run_length_text,
+    uint64_t& length_width
   );
   void CalculateGrammarTrie
   (
-    sdsl::int_vector<> const &run_length_text,
-    GrammarTrie &grammar_trie
+    sdsl::int_vector<> const& run_length_text,
+    GrammarTrie& grammar_trie
   );
   // template <typename Iterator>
   // void CalculateLexTextSizeAndLexFactorIntegersAndTempColexToLex
   // (
-  //   sdsl::int_vector<> const &text,
-  //   uint64_t &lex_text_size,
-  //   std::set<uint64_t> &lex_factor_integers,
-  //   std::map<uint64_t, uint64_t> &temp_colex_to_lex
+  //   sdsl::int_vector<> const& text,
+  //   uint64_t& lex_text_size,
+  //   std::set<uint64_t>& lex_factor_integers,
+  //   std::map<uint64_t, uint64_t>& temp_colex_to_lex
   // );
   // template <typename Iterator>
   // void CalculateLexTextSizeAndLexFactorIntegersAndTempColexToLexInSlFactor
   // (
   //   Iterator rbegin,
   //   Iterator rend,
-  //   uint64_t &lex_text_size,
-  //   std::set<uint64_t> &lex_factor_integers,
-  //   std::map<uint64_t, uint64_t> &temp_colex_to_lex
+  //   uint64_t& lex_text_size,
+  //   std::set<uint64_t>& lex_factor_integers,
+  //   std::map<uint64_t, uint64_t>& temp_colex_to_lex
   // );
-  // void CalculateLexSymbolTable (std::set<uint64_t> const &lex_factor_integers);
-  // void CalculateLexText (sdsl::int_vector<> const &text, sdsl::int_vector<> &lex_text);
+  // void CalculateLexSymbolTable (std::set<uint64_t> const& lex_factor_integers);
+  // void CalculateLexText (sdsl::int_vector<> const& text, sdsl::int_vector<>& lex_text);
   // template <typename TextIterator, typename LexTextIterator>
   // LexTextIterator CalculateLexTextInSlFactor
   // (
@@ -75,23 +75,23 @@ private:
   //   TextIterator rend,
   //   LexTextIterator lex_text_it
   // );
-  // void CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const &temp_colex_to_lex);
-  // void CalculateColexToLex (std::map<uint64_t, uint64_t> const &temp_colex_to_lex);
+  // void CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const& temp_colex_to_lex);
+  // void CalculateColexToLex (std::map<uint64_t, uint64_t> const& temp_colex_to_lex);
   // void CalculateLexSymbolBucketOffsets
   // (
   //   uint64_t const lex_text_alphabet_size,
-  //   sdsl::int_vector<> const &lex_text
+  //   sdsl::int_vector<> const& lex_text
   // );
-  // void CalculateLexBwt (sdsl::int_vector<> const &lex_text);
+  // void CalculateLexBwt (sdsl::int_vector<> const& lex_text);
   //
   // template <typename Range> // [,]
-  // inline bool IsNotEmptyRange (Range const &range) const
+  // inline bool IsNotEmptyRange (Range const& range) const
   // {
   //   return (std::get<0>(range) <= std::get<1>(range));
   // }
   //
   // template <typename Range> // [,]
-  // inline uint64_t RangeSize (Range const &range) const
+  // inline uint64_t RangeSize (Range const& range) const
   // {
   //   if (std::get<0>(range) <= std::get<1>(range))
   //   {
@@ -101,48 +101,48 @@ private:
   // }
   //
   // template <typename Iterator>
-  // bool CalculatePattern (Iterator begin, Iterator end, sdsl::int_vector<> &pattern);
+  // bool CalculatePattern (Iterator begin, Iterator end, sdsl::int_vector<>& pattern);
   // template <typename Iterator, typename Range>
   // Iterator BackwardSearchSuffix
   // (
   //   Iterator rbegin,
   //   Iterator rend,
-  //   Range &pattern_range_s,
-  //   Range &pattern_range_l
+  //   Range& pattern_range_s,
+  //   Range& pattern_range_l
   // );
   // template <typename Iterator, typename Range>
   // void BackwardSearchInfix
   // (
   //   Iterator rbegin,
   //   Iterator rend,
-  //   Range &pattern_range_s,
-  //   Range &pattern_range_l
+  //   Range& pattern_range_s,
+  //   Range& pattern_range_l
   // );
   // template <typename Iterator, typename Range>
   // void BackwardSearchPrefix
   // (
   //   Iterator rbegin,
   //   Iterator rend,
-  //   Range &pattern_range_s,
-  //   Range &pattern_range_l
+  //   Range& pattern_range_s,
+  //   Range& pattern_range_l
   // );
   // template <typename Iterator>
   // Iterator ClassifySuffix (Iterator rbegin, Iterator rend);
   // template <typename Iterator>
-  // void CalculateSlFactor (Iterator const rend, Iterator &rfirst, Iterator &rlast);
+  // void CalculateSlFactor (Iterator const rend, Iterator& rfirst, Iterator& rlast);
   // template <typename Iterator, typename Range>
-  // void BackwardSearchSuffixSlFactor (Iterator rbegin, Iterator rend, Range &pattern_range);
+  // void BackwardSearchSuffixSlFactor (Iterator rbegin, Iterator rend, Range& pattern_range);
   // template <typename Iterator, typename Range>
-  // void BackwardSearchInfixFactors (Iterator rbegin, Iterator rend, Range &pattern_range);
+  // void BackwardSearchInfixFactors (Iterator rbegin, Iterator rend, Range& pattern_range);
   // template <typename Iterator, typename Range>
-  // void BackwardSearchPrefixSlFactor (Iterator rbegin, Iterator rend, Range &pattern_range);
+  // void BackwardSearchPrefixSlFactor (Iterator rbegin, Iterator rend, Range& pattern_range);
   // template <typename Iterator, typename Range>
   // void CountWithinSlFactor
   // (
   //   Iterator rbegin,
   //   Iterator rend,
   //   uint64_t const duplicate_factor_size,
-  //   Range &pattern_range
+  //   Range& pattern_range
   // );
   // template <typename Iterator>
   // std::pair<uint64_t, uint64_t> CalculateSymbolRange
@@ -172,7 +172,7 @@ private:
 
 };
 
-Index::Index (std::filesystem::path const &byte_text_path)
+Index::Index (std::filesystem::path const& byte_text_path)
 {
   std::cout << "construct index of " << std::filesystem::canonical(byte_text_path) << "\n";
   sdsl::int_vector<8> byte_text;
@@ -194,7 +194,7 @@ Index::Index (std::filesystem::path const &byte_text_path)
   CalculateRunLengthText(byte_text, run_length_text, length_width);
   // {
   //   uint64_t divisor {1ULL << length_width};
-  //   for (auto const &symbol : run_length_text)
+  //   for (auto const& symbol : run_length_text)
   //   {
   //     std::cout << "(" << (symbol / divisor) << "," << (symbol % divisor) << ")";
   //   }
@@ -222,13 +222,13 @@ Index::Index (std::filesystem::path const &byte_text_path)
   //   // std::cout << "|lex_factor_integers|: " << std::size(lex_factor_integers) << "\n";
   //   // std::cout << "lex_factor_integers:\n";
   //   // uint64_t i {};
-  //   // for (auto const &factor : lex_factor_integers)
+  //   // for (auto const& factor : lex_factor_integers)
   //   // {
   //   //   std::cout << i++ << ":";
   //   //   Print(IntegerToSymbols(factor), std::cout);
   //   // }
   //   // std::cout << "temp_colex_to_lex:\n";
-  //   // for (auto const &pair : temp_colex_to_lex)
+  //   // for (auto const& pair : temp_colex_to_lex)
   //   // {
   //   //   Print(IntegerToSymbols(std::get<0>(pair)), std::cout, 1, " ", "");
   //   //   std::cout << ":";
@@ -267,7 +267,7 @@ Index::Index (std::filesystem::path const &byte_text_path)
 
 // uint64_t Index::Serialize
 // (
-//   std::filesystem::path const &index_path,
+//   std::filesystem::path const& index_path,
 //   std::shared_ptr<SpaceNode> root
 // )
 // {
@@ -308,7 +308,7 @@ Index::Index (std::filesystem::path const &byte_text_path)
 //   return size_in_bytes;
 // }
 
-// void Index::Load (std::filesystem::path const &index_path)
+// void Index::Load (std::filesystem::path const& index_path)
 // {
 //   std::ifstream index_file {index_path};
 //   std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
@@ -375,7 +375,7 @@ Index::Index (std::filesystem::path const &byte_text_path)
 //   return count;
 // }
 
-// std::ostream& operator<< (std::ostream &out, Index const &index)
+// std::ostream& operator<< (std::ostream& out, Index const& index)
 // {
 //   out << index.symbol_table_;
 //   out << std::make_pair(index.sub_factor_trie_, true);
@@ -389,9 +389,9 @@ Index::Index (std::filesystem::path const &byte_text_path)
 
 void Index::CalculateRunLengthText
 (
-  sdsl::int_vector<8> const &byte_text,
-  sdsl::int_vector<> &run_length_text,
-  uint64_t &length_width
+  sdsl::int_vector<8> const& byte_text,
+  sdsl::int_vector<>& run_length_text,
+  uint64_t& length_width
 )
 {
   uint8_t prev_byte {byte_text[0]};
@@ -436,8 +436,8 @@ void Index::CalculateRunLengthText
 
 void Index::CalculateGrammarTrie
 (
-  sdsl::int_vector<> const &run_length_text,
-  GrammarTrie &grammar_trie
+  sdsl::int_vector<> const& run_length_text,
+  GrammarTrie& grammar_trie
 )
 {
   auto text_rend {std::prev(std::begin(run_length_text))};
@@ -476,7 +476,7 @@ void Index::CalculateGrammarTrie
 }
 
 // template <typename Iterator>
-// void Index::InsertSubFactorsInSlFactor (Iterator begin, Iterator end, Trie &trie)
+// void Index::InsertSubFactorsInSlFactor (Iterator begin, Iterator end, Trie& trie)
 // {
 //   auto rend {std::prev(begin)};
 //   auto rfirst {std::prev(end)};
@@ -502,10 +502,10 @@ void Index::CalculateGrammarTrie
 
 // void Index::CalculateLexTextSizeAndLexFactorIntegersAndTempColexToLex
 // (
-//   sdsl::int_vector<> const &text,
-//   uint64_t &lex_text_size,
-//   std::set<uint64_t> &lex_factor_integers,
-//   std::map<uint64_t, uint64_t> &temp_colex_to_lex
+//   sdsl::int_vector<> const& text,
+//   uint64_t& lex_text_size,
+//   std::set<uint64_t>& lex_factor_integers,
+//   std::map<uint64_t, uint64_t>& temp_colex_to_lex
 // )
 // {
 //   {
@@ -565,9 +565,9 @@ void Index::CalculateGrammarTrie
 // (
 //   Iterator rbegin,
 //   Iterator rend,
-//   uint64_t &lex_text_size,
-//   std::set<uint64_t> &lex_factor_integers,
-//   std::map<uint64_t, uint64_t> &temp_colex_to_lex
+//   uint64_t& lex_text_size,
+//   std::set<uint64_t>& lex_factor_integers,
+//   std::map<uint64_t, uint64_t>& temp_colex_to_lex
 // )
 // {
 //   auto rfirst {rbegin};
@@ -589,7 +589,7 @@ void Index::CalculateGrammarTrie
 //   return;
 // }
 
-// void Index::CalculateLexSymbolTable (std::set<uint64_t> const &lex_factor_integers)
+// void Index::CalculateLexSymbolTable (std::set<uint64_t> const& lex_factor_integers)
 // {
 //   std::vector<uint64_t> sorted_lex_factor_integers(std::begin(lex_factor_integers), std::end(lex_factor_integers));
 //   lex_symbol_table_ = decltype(lex_symbol_table_)(sorted_lex_factor_integers);
@@ -598,8 +598,8 @@ void Index::CalculateGrammarTrie
 
 // void Index::CalculateLexText
 // (
-//   sdsl::int_vector<> const &text,
-//   sdsl::int_vector<> &lex_text
+//   sdsl::int_vector<> const& text,
+//   sdsl::int_vector<>& lex_text
 // )
 // {
 //   auto text_rend {std::prev(std::begin(text))};
@@ -659,11 +659,11 @@ void Index::CalculateGrammarTrie
 //   return lex_text_it;
 // }
 
-// void Index::CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const &temp_colex_to_lex)
+// void Index::CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const& temp_colex_to_lex)
 // {
 //   std::vector<uint64_t> sorted_colex_factor_integers(std::size(temp_colex_to_lex));
 //   auto it {std::begin(sorted_colex_factor_integers)};
-//   for (auto const &pair : temp_colex_to_lex)
+//   for (auto const& pair : temp_colex_to_lex)
 //   {
 //     *it++ = std::get<0>(pair);
 //   }
@@ -671,12 +671,12 @@ void Index::CalculateGrammarTrie
 //   return;
 // }
 
-// void Index::CalculateColexToLex (std::map<uint64_t, uint64_t> const &temp_colex_to_lex)
+// void Index::CalculateColexToLex (std::map<uint64_t, uint64_t> const& temp_colex_to_lex)
 // {
 //   colex_to_lex_.width(sdsl::bits::hi(std::size(temp_colex_to_lex) - 1) + 1);
 //   colex_to_lex_.resize(std::size(temp_colex_to_lex));
 //   auto it {std::begin(colex_to_lex_)};
-//   for (auto const &pair : temp_colex_to_lex)
+//   for (auto const& pair : temp_colex_to_lex)
 //   {
 //     *it++ = lex_symbol_table_[std::get<1>(pair)];
 //   }
@@ -686,7 +686,7 @@ void Index::CalculateGrammarTrie
 // void Index::CalculateLexSymbolBucketOffsets
 // (
 //   uint64_t const lex_text_alphabet_size,
-//   sdsl::int_vector<> const &lex_text
+//   sdsl::int_vector<> const& lex_text
 // )
 // {
 //   sdsl::int_vector<> offsets
@@ -704,7 +704,7 @@ void Index::CalculateGrammarTrie
 //   return;
 // }
 
-// void Index::CalculateLexBwt (sdsl::int_vector<> const &lex_text)
+// void Index::CalculateLexBwt (sdsl::int_vector<> const& lex_text)
 // {
 //   sdsl::int_vector<> buffer;
 //   sdsl::qsufsort::construct_sa(buffer, lex_text);
@@ -720,7 +720,7 @@ void Index::CalculateGrammarTrie
 // }
 
 // template <typename Iterator>
-// bool Index::CalculatePattern (Iterator begin, Iterator end, sdsl::int_vector<> &pattern)
+// bool Index::CalculatePattern (Iterator begin, Iterator end, sdsl::int_vector<>& pattern)
 // {
 //   pattern.width(symbol_table_.GetEffectiveAlphabetWidth());
 //   pattern.resize(std::distance(begin, end));
@@ -742,7 +742,7 @@ void Index::CalculateGrammarTrie
 //   Iterator rbegin,
 //   Iterator rend,
 //   uint64_t const duplicate_factor_size,
-//   Range &pattern_range
+//   Range& pattern_range
 // )
 // {
 //   uint64_t count {};
@@ -825,7 +825,7 @@ void Index::CalculateGrammarTrie
 // (
 //   Iterator rbegin,
 //   Iterator rend,
-//   Range &pattern_range
+//   Range& pattern_range
 // )
 // {
 //   auto rfirst {rbegin};
@@ -868,7 +868,7 @@ void Index::CalculateGrammarTrie
 // (
 //   Iterator rbegin,
 //   Iterator rend,
-//   Range &pattern_range
+//   Range& pattern_range
 // )
 // {
 //   uint64_t count {};
@@ -959,8 +959,8 @@ void Index::CalculateGrammarTrie
 // (
 //   Iterator rbegin,
 //   Iterator rend,
-//   Range &pattern_range_s,
-//   Range &pattern_range_l
+//   Range& pattern_range_s,
+//   Range& pattern_range_l
 // )
 // {
 //   auto rfirst {rbegin};
@@ -1039,8 +1039,8 @@ void Index::CalculateGrammarTrie
 // void Index::CalculateSlFactor
 // (
 //   Iterator const rend,
-//   Iterator &rfirst,
-//   Iterator &rlast
+//   Iterator& rfirst,
+//   Iterator& rlast
 // )
 // {
 //   auto next_sl_type {Index::kL};
@@ -1061,7 +1061,7 @@ void Index::CalculateGrammarTrie
 // (
 //   Iterator rbegin,
 //   Iterator rend,
-//   Range &pattern_range
+//   Range& pattern_range
 // )
 // {
 //   auto rfirst {rbegin};
@@ -1091,8 +1091,8 @@ void Index::CalculateGrammarTrie
 // (
 //   Iterator rbegin,
 //   Iterator rend,
-//   Range &pattern_range_s,
-//   Range &pattern_range_l
+//   Range& pattern_range_s,
+//   Range& pattern_range_l
 // )
 // {
 //   auto rfirst {rbegin};
@@ -1139,8 +1139,8 @@ void Index::CalculateGrammarTrie
 // (
 //   Iterator rbegin,
 //   Iterator rend,
-//   Range &pattern_range_s,
-//   Range &pattern_range_l
+//   Range& pattern_range_s,
+//   Range& pattern_range_l
 // )
 // {
 //   uint64_t count_s {};

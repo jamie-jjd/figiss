@@ -12,7 +12,7 @@
 namespace figiss
 {
 template <typename Index>
-void TestCount (std::filesystem::path const &text_path, Index &index)
+void TestCount (std::filesystem::path const& text_path, Index& index)
 {
   sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
   {
@@ -67,7 +67,7 @@ void TestCount (std::filesystem::path const &text_path, Index &index)
 
 void PrintCountingTime
 (
-  std::filesystem::path const &output_path,
+  std::filesystem::path const& output_path,
   std::vector<std::pair<uint64_t, double>> time,
   bool const is_proper_representation = false
 )
@@ -78,7 +78,7 @@ void PrintCountingTime
   }
   std::fstream fout {output_path, std::ios_base::out | std::ios_base::trunc};
   std::cout << "write time information to " << std::filesystem::canonical(output_path) << "\n";
-  for (auto const &pair : time)
+  for (auto const& pair : time)
   {
     if (is_proper_representation)
     {
@@ -96,8 +96,8 @@ void PrintCountingTime
 template <typename Index>
 void MeasureIndexCountingTime
 (
-  std::filesystem::path const &text_path,
-  Index &index,
+  std::filesystem::path const& text_path,
+  Index& index,
   bool const is_proper_representation = false
 )
 {
@@ -161,7 +161,7 @@ void MeasureIndexCountingTime
 
 void MeasureRlfmCountingTime
 (
-  std::filesystem::path const &text_path,
+  std::filesystem::path const& text_path,
   bool const is_proper_representation = false
 )
 {
