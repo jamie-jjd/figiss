@@ -38,22 +38,11 @@ public:
 
 private:
 
-  uint64_t length_width_;
-  ByteAlphabet byte_alphabet_;
-  // SymbolBucketOffsets lex_symbol_bucket_offsets_;
-  // sdsl::wt_rlmn
-  // <
-  //   sdsl::sd_vector<>,
-  //   typename sdsl::sd_vector<>::rank_1_type,
-  //   typename sdsl::sd_vector<>::select_1_type,
-  //   sdsl::wt_ap<>
-  // >
-  // lex_bwt_;
-
   void CalculateRunLengthText
   (
     sdsl::int_vector<8> const &byte_text,
-    sdsl::int_vector<> &run_length_text
+    sdsl::int_vector<> &run_length_text,
+    uint64_t &length_width
   );
   void CalculateGrammarTrie
   (
@@ -169,6 +158,18 @@ private:
   //   Range const colex_symbol_range
   // );
 
+  ByteAlphabet byte_alphabet_;
+  // GrammarXbwtTrie grammar_xbwt_trie_;
+  // SymbolBucketOffsets lex_symbol_bucket_offsets_;
+  // sdsl::wt_rlmn
+  // <
+  //   sdsl::sd_vector<>,
+  //   typename sdsl::sd_vector<>::rank_1_type,
+  //   typename sdsl::sd_vector<>::select_1_type,
+  //   sdsl::wt_ap<>
+  // >
+  // lex_bwt_;
+
 };
 
 Index::Index (std::filesystem::path const &byte_text_path)
@@ -188,20 +189,19 @@ Index::Index (std::filesystem::path const &byte_text_path)
   }
   byte_alphabet_ = decltype(byte_alphabet_)(byte_text);
   // std::cout << byte_alphabet_;
+  uint64_t length_width {};
   sdsl::int_vector<> run_length_text;
-  CalculateRunLengthText(byte_text, run_length_text);
+  CalculateRunLengthText(byte_text, run_length_text, length_width);
   // {
-  //   auto it {std::begin(run_length_text)};
-  //   uint64_t divisor {1ULL << length_width_};
-  //   while (it != std::end(run_length_text))
+  //   uint64_t divisor {1ULL << length_width};
+  //   for (auto const &symbol : run_length_text)
   //   {
-  //     std::cout << "(" << (*it / divisor) << "," << (*it % divisor) << ")";
-  //     ++it;
+  //     std::cout << "(" << (symbol / divisor) << "," << (symbol % divisor) << ")";
   //   }
   //   std::cout << "\n";
   // }
   {
-    GrammarTrie grammar_trie {length_width_};
+    GrammarTrie grammar_trie {byte_alphabet_.GetEffectiveAlphabetWidth(), length_width};
     CalculateGrammarTrie(run_length_text, grammar_trie);
     // std::cout << grammar_trie;
     // grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie);
@@ -390,7 +390,8 @@ Index::Index (std::filesystem::path const &byte_text_path)
 void Index::CalculateRunLengthText
 (
   sdsl::int_vector<8> const &byte_text,
-  sdsl::int_vector<> &run_length_text
+  sdsl::int_vector<> &run_length_text,
+  uint64_t &length_width
 )
 {
   uint8_t prev_byte {byte_text[0]};
@@ -412,11 +413,11 @@ void Index::CalculateRunLengthText
     ++length;
   }
   {
-    length_width_ = sdsl::bits::hi(max_length) + 1;
-    run_length_text.width(byte_alphabet_.GetEffectiveAlphabetWidth() + length_width_);
+    length_width = sdsl::bits::hi(max_length) + 1;
+    run_length_text.width(byte_alphabet_.GetEffectiveAlphabetWidth() + length_width);
     run_length_text.resize(run_length_text_size);
     auto it {std::begin(run_length_text)};
-    uint64_t divisor {1ULL << length_width_};
+    uint64_t divisor {1ULL << length_width};
     prev_byte = byte_text[0];
     length = 0;
     for (auto const byte : byte_text)
@@ -469,7 +470,8 @@ void Index::CalculateGrammarTrie
     next_sl_type = sl_type;
   }
   grammar_trie.Insert(std::begin(run_length_text), sl_factor_end);
-  // grammar_trie.CalculateCumulativeCountAndRankRange();
+  // std::cout << grammar_trie;
+  grammar_trie.CalculateCumulativeCountAndRankRange();
   return;
 }
 
