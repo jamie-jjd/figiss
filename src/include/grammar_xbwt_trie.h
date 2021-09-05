@@ -175,11 +175,17 @@ public:
 
 private:
 
-  void CalculateReverseGrammarRulesAndGrammarTrieNodePointers
+  void CalculateReverseGrammarRulesAndGrammarTrieNodes
   (
     GrammarTrie const& grammar_trie,
     sdsl::int_vector<>& reverse_grammar_rules,
-    std::deque<std::shared_ptr<GrammarTrie::Node>>& grammar_trie_node_pointers
+    std::deque<std::shared_ptr<GrammarTrie::Node>>& grammar_trie_nodes
+  );
+  void CalculateReducedCommomPrefixLengths
+  (
+    sdsl::int_vector<> const& reverse_grammar_rules,
+    sdsl::int_vector<> const& suffix_array,
+    sdsl::int_vector<>& reduced_commom_prefix_lengths
   );
 
   sdsl::bit_vector trie_bits_;
@@ -203,13 +209,49 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie)
 {
   grammar_trie.GetLengthWidth();
   sdsl::int_vector<> reverse_grammar_rules;
-  std::deque<std::shared_ptr<GrammarTrie::Node>> grammar_trie_node_pointers;
-  CalculateReverseGrammarRulesAndGrammarTrieNodePointers
+  std::deque<std::shared_ptr<GrammarTrie::Node>> grammar_trie_nodes;
+  CalculateReverseGrammarRulesAndGrammarTrieNodes
   (
     grammar_trie,
     reverse_grammar_rules,
-    grammar_trie_node_pointers
+    grammar_trie_nodes
   );
+  // {
+  //   uint64_t divisor {1ULL << grammar_trie.GetLengthWidth()};
+  //   for (auto const& symbol : reverse_grammar_rules)
+  //   {
+  //     std::cout << "(" << (symbol / divisor) << "," << (symbol % divisor) << ")";
+  //   }
+  //   std::cout << "\n";
+  //   std::cout << "(byte_rank,length)(count)[leftmost_rank:rightmost_rank]\n";
+  //   for (auto node : grammar_trie_nodes)
+  //   {
+  //     std::cout
+  //     << "(" << (node->label / divisor) << "," << (node->label % divisor) << ")"
+  //     << "(" << node->count << ")"
+  //     << "[" << std::get<0>(node->rank_range) << "," << std::get<1>(node->rank_range) << "]\n";
+  //   }
+  // }
+  sdsl::int_vector<> suffix_array;
+  sdsl::qsufsort::construct_sa(suffix_array, reverse_grammar_rules);
+  sdsl::int_vector<> reduced_commom_prefix_lengths;
+  CalculateReducedCommomPrefixLengths(reverse_grammar_rules, suffix_array, reduced_commom_prefix_lengths);
+  // {
+  //   std::cout << "i\tRCP\tSA\tT[i:]\n";
+  //   for (uint64_t i {}; i != std::size(suffix_array); ++i)
+  //   {
+  //     auto it {std::next(std::begin(reverse_grammar_rules), suffix_array[i])};
+  //     std::cout
+  //     << i << "\t"
+  //     << reduced_commom_prefix_lengths[i] << "\t"
+  //     << suffix_array[i] << "\t";
+  //     while (it != std::end(reverse_grammar_rules))
+  //     {
+  //       std::cout << *it++ << " ";
+  //     }
+  //     std::cout << "\n";
+  //   }
+  // }
 }
 
 GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie&& grammar_xbwt_trie)
@@ -277,11 +319,11 @@ GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie&& grammar_xbwt_trie
 //   return out;
 // }
 
-void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodePointers
+void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodes
 (
   GrammarTrie const& grammar_trie,
   sdsl::int_vector<>& reverse_grammar_rules,
-  std::deque<std::shared_ptr<GrammarTrie::Node>>& grammar_trie_node_pointers
+  std::deque<std::shared_ptr<GrammarTrie::Node>>& grammar_trie_nodes
 )
 {
   std::deque<std::pair<std::shared_ptr<GrammarTrie::Node>, bool>> nodes;
@@ -310,10 +352,10 @@ void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodePointers
         for (auto it {std::rbegin(ancestors)}; it != std::rend(ancestors); ++it)
         {
           temp_reverse_grammar_rules.push_back((*it)->label);
-          grammar_trie_node_pointers.push_back(*it);
+          grammar_trie_nodes.push_back(*it);
         }
         temp_reverse_grammar_rules.push_back(GrammarXbwtTrie::kSpecialSymbol);
-        grammar_trie_node_pointers.push_back(node);
+        grammar_trie_nodes.push_back(node);
       }
       for (auto it {std::rbegin(node->children)}; it != std::rend(node->children); ++it)
       {
@@ -328,20 +370,48 @@ void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodePointers
   }
   reverse_grammar_rules.width(grammar_trie.GetEffectiveAlphabetWidth() + grammar_trie.GetLengthWidth());
   reverse_grammar_rules.resize(std::size(temp_reverse_grammar_rules) + 1);
-  std::copy
-  (
-    std::begin(temp_reverse_grammar_rules),
-    std::end(temp_reverse_grammar_rules),
-    std::begin(reverse_grammar_rules)
-  );
+  std::copy(std::begin(temp_reverse_grammar_rules), std::end(temp_reverse_grammar_rules), std::begin(reverse_grammar_rules));
+  return;
+}
+
+void GrammarXbwtTrie::CalculateReducedCommomPrefixLengths
+(
+  sdsl::int_vector<> const& reverse_grammar_rules,
+  sdsl::int_vector<> const& suffix_array,
+  sdsl::int_vector<>& reduced_commom_prefix_lengths
+)
+{
+  sdsl::int_vector<> inverse_suffix_array(std::size(suffix_array));
+  for (uint64_t i {}; i != std::size(inverse_suffix_array); ++i)
   {
-    uint64_t divisor {1ULL << grammar_trie.GetLengthWidth()};
-    for (auto const& symbol : reverse_grammar_rules)
+    inverse_suffix_array[suffix_array[i]] = i;
+  }
+  {
+    reduced_commom_prefix_lengths.resize(std::size(suffix_array));
+    *std::prev(std::end(reduced_commom_prefix_lengths)) = 0;
+    uint64_t length {};
+    for (uint64_t i {}; i != (std::size(reverse_grammar_rules) - 1); ++i)
     {
-      std::cout << "(" << (symbol / divisor) << "," << (symbol % divisor) << ")";
+      if (length) { --length; }
+      auto suffix_it {std::next(std::begin(reverse_grammar_rules), i + length)};
+      uint64_t j {suffix_array[inverse_suffix_array[i] - 1]};
+      auto prev_suffix_it {std::next(std::begin(reverse_grammar_rules), j + length)};
+      while
+      (
+        (suffix_it != std::end(reverse_grammar_rules))
+        && (prev_suffix_it != std::end(reverse_grammar_rules))
+        && (*suffix_it == *prev_suffix_it)
+        && (*suffix_it != GrammarXbwtTrie::kSpecialSymbol)
+      )
+      {
+        ++length;
+        ++suffix_it;
+        ++prev_suffix_it;
+      }
+      reduced_commom_prefix_lengths[inverse_suffix_array[i]] = length;
     }
-    std::cout << "\n";
   }
   return;
 }
+
 }
