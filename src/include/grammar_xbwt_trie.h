@@ -56,6 +56,11 @@ public:
     return length_width_;
   }
 
+  inline uint64_t GetLabelWidth () const
+  {
+    return effective_alphabet_width_ + length_width_;
+  }
+
   friend std::ostream& operator<< (std::ostream& out, GrammarTrie const& grammar_trie);
 
 private:
@@ -143,6 +148,8 @@ std::ostream& operator<< (std::ostream& out, GrammarTrie const& grammar_trie)
     }
   }
   out << "|nodes|:" << (size - 1) << "\n";
+  out << "label_width:" << grammar_trie.GetLabelWidth() << "\n";
+  out << "length_width:" << grammar_trie.GetLengthWidth() << "\n";
   return out;
 }
 
@@ -167,7 +174,7 @@ public:
   // template <typename Iterator>
   // uint64_t Count (Iterator it, Iterator end);
 
-  // friend std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& grammar_xbwt_trie);
+  friend std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& grammar_xbwt_trie);
 
 private:
 
@@ -187,14 +194,7 @@ private:
   sdsl::bit_vector trie_bits_;
   sdsl::bit_vector::rank_1_type trie_rank_1_;
   sdsl::bit_vector::select_1_type trie_select_1_;
-  sdsl::wt_rlmn
-  <
-    sdsl::sd_vector<>,
-    typename sdsl::sd_vector<>::rank_1_type,
-    typename sdsl::sd_vector<>::select_1_type,
-    sdsl::wt_ap<>
-  >
-  child_labels_;
+  sdsl::wm_int<> child_labels_;
   SparsePrefixSum label_bucket_offsets_;
   SparsePrefixSum cumulative_counts_;
   sdsl::int_vector<> colex_to_lex_rank_;
@@ -330,7 +330,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie)
     }
     {
       child_labels.push_back(reverse_grammar_rules[*std::prev(std::end(suffix_array)) - 1]);
-      sdsl::int_vector<> temp_child_labels(std::size(child_labels));
+      sdsl::int_vector<> temp_child_labels(std::size(child_labels), 0, grammar_trie.GetLabelWidth());
       std::copy(std::begin(child_labels), std::end(child_labels), std::begin(temp_child_labels));
       sdsl::construct_im(child_labels_, temp_child_labels);
       // {
@@ -441,10 +441,21 @@ void GrammarXbwtTrie::Load (std::istream& in)
 // {
 // }
 
-// std::ostream& operator<< (std::ostream& out, GrammarTrie const& grammar_trie)
-// {
-//   return out;
-// }
+std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& grammar_xbwt_trie)
+{
+  // out << "xbwt_trie:\n";
+  // out << "space:\n";
+  // out << "trie_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_xbwt_trie.trie_bits_)) << "B\n";
+  // out << "trie_rank_1_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_xbwt_trie.trie_rank_1_)) << "B\n";
+  // out << "trie_select_1_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_xbwt_trie.trie_select_1_)) << "B\n";
+  // out << "child_labels_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_xbwt_trie.child_labels_)) << "B\n";
+  // out << "label_bucket_offsets_:\n";
+  // out << grammar_xbwt_trie.label_bucket_offsets_;
+  // out << "cumulative_counts_:\n";
+  // out << grammar_xbwt_trie.cumulative_counts_;
+  // out << "colex_to_lex_rank_: " << ProperSizeRepresentation(sdsl::size_in_bytes(grammar_xbwt_trie.colex_to_lex_rank_)) << "B\n";
+  return out;
+}
 
 void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodes
 (
@@ -490,7 +501,7 @@ void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodes
       ancestors.pop_back();
     }
   }
-  reverse_grammar_rules.width(grammar_trie.GetEffectiveAlphabetWidth() + grammar_trie.GetLengthWidth());
+  reverse_grammar_rules.width(grammar_trie.GetLabelWidth());
   reverse_grammar_rules.resize(std::size(temp_reverse_grammar_rules) + 1);
   std::copy(std::begin(temp_reverse_grammar_rules), std::end(temp_reverse_grammar_rules), std::begin(reverse_grammar_rules));
   return;
