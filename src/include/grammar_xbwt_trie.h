@@ -162,7 +162,7 @@ public:
     std::shared_ptr<SpaceNode> parent = nullptr,
     std::string const name = ""
   );
-  // void Load (std::istream& in);
+  void Load (std::istream& in);
 
   // template <typename Iterator>
   // uint64_t Count (Iterator it, Iterator end);
@@ -422,15 +422,19 @@ uint64_t GrammarXbwtTrie::Serialize
   return size_in_bytes;
 }
 
-// void GrammarXbwtTrie::Load (std::istream& in)
-// {
-//   level_order_bits_.load(in);
-//   level_order_select_1_.load(in);
-//   level_order_select_1_.set_vector(&level_order_bits_);
-//   labels_.load(in);
-//   cumulative_counts_.load(in);
-//   return;
-// }
+void GrammarXbwtTrie::Load (std::istream& in)
+{
+  trie_bits_.load(in);
+  trie_rank_1_.load(in);
+  trie_rank_1_.set_vector(&trie_bits_);
+  trie_select_1_.load(in);
+  trie_select_1_.set_vector(&trie_bits_);
+  child_labels_.load(in);
+  label_bucket_offsets_.Load(in);
+  cumulative_counts_.Load(in);
+  colex_to_lex_rank_.load(in);;
+  return;
+}
 
 // template <typename Iterator>
 // uint64_t GrammarXbwtTrie::Count (Iterator it, Iterator end)
