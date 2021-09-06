@@ -9,8 +9,8 @@ class SparsePrefixSum
 public:
 
   SparsePrefixSum () = default;
-  template <typename RandomAccessContainer>
-  SparsePrefixSum (RandomAccessContainer const& prefix_sum);
+  SparsePrefixSum (std::deque<uint64_t> const& prefix_sum);
+  SparsePrefixSum (sdsl::int_vector<> const& prefix_sum);
   SparsePrefixSum& operator= (SparsePrefixSum&&);
 
   uint64_t Serialize
@@ -32,8 +32,13 @@ private:
 
 };
 
-template <typename RandomAccessContainer>
-SparsePrefixSum::SparsePrefixSum (RandomAccessContainer const& prefix_sum)
+SparsePrefixSum::SparsePrefixSum (std::deque<uint64_t> const& prefix_sum)
+{
+  prefix_sum_bits_ = decltype(prefix_sum_bits_)(std::begin(prefix_sum), std::end(prefix_sum));
+  prefix_sum_select_1_.set_vector(&prefix_sum_bits_);
+}
+
+SparsePrefixSum::SparsePrefixSum (sdsl::int_vector<> const& prefix_sum)
 {
   prefix_sum_bits_ = decltype(prefix_sum_bits_)(std::begin(prefix_sum), std::end(prefix_sum));
   prefix_sum_select_1_.set_vector(&prefix_sum_bits_);
