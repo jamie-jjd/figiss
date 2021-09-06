@@ -156,12 +156,12 @@ public:
   GrammarXbwtTrie (GrammarTrie const& grammar_trie);
   GrammarXbwtTrie& operator= (GrammarXbwtTrie&&);
 
-  // uint64_t Serialize
-  // (
-  //   std::ostream& out,
-  //   std::shared_ptr<SpaceNode> parent = nullptr,
-  //   std::string const name = ""
-  // );
+  uint64_t Serialize
+  (
+    std::ostream& out,
+    std::shared_ptr<SpaceNode> parent = nullptr,
+    std::string const name = ""
+  );
   // void Load (std::istream& in);
 
   // template <typename Iterator>
@@ -196,7 +196,7 @@ private:
   >
   child_labels_;
   SparsePrefixSum label_bucket_offsets_;
-  SparsePrefixSum counts_;
+  SparsePrefixSum cumulative_counts_;
   sdsl::int_vector<> colex_to_lex_rank_;
 
 };
@@ -353,7 +353,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie)
     }
     {
       std::partial_sum(std::begin(counts), std::end(counts), std::begin(counts));
-      counts_ = decltype(counts_)(counts);
+      cumulative_counts_ = decltype(cumulative_counts_)(counts);
       // {
       //   std::cout << "counts: ";
       //   Print(counts, std::cout);
@@ -382,39 +382,45 @@ GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie&& grammar_xbwt_trie
     trie_select_1_.set_vector(&trie_bits_);
     child_labels_ = std::move(grammar_xbwt_trie.child_labels_);
     label_bucket_offsets_ = std::move(grammar_xbwt_trie.label_bucket_offsets_);
-    counts_ = std::move(grammar_xbwt_trie.counts_);
+    cumulative_counts_ = std::move(grammar_xbwt_trie.cumulative_counts_);
     colex_to_lex_rank_ = std::move(grammar_xbwt_trie.colex_to_lex_rank_);
   }
   return *this;
 }
 
-// uint64_t GrammarXbwtTrie::Serialize
-// (
-//   std::ostream& out,
-//   std::shared_ptr<SpaceNode> parent,
-//   std::string const name
-// )
-// {
-//   uint64_t size_in_bytes {};
-//   if (!parent)
-//   {
-//     sdsl::serialize(level_order_bits_, out);
-//     sdsl::serialize(level_order_select_1_, out);
-//     sdsl::serialize(labels_, out);
-//     sdsl::serialize(counts_, out);
-//   }
-//   else
-//   {
-//     auto node {std::make_shared<SpaceNode>(name)};
-//     node->AddLeaf("level_order_bits_", sdsl::serialize(level_order_bits_, out));
-//     node->AddLeaf("level_order_select_1_", sdsl::serialize(level_order_select_1_, out));
-//     node->AddLeaf("labels_", sdsl::serialize(labels_, out));
-//     node->AddLeaf("counts_", sdsl::serialize(counts_, out));
-//     parent->AddChild(node);
-//     size_in_bytes = node->GetSizeInBytes();
-//   }
-//   return size_in_bytes;
-// }
+uint64_t GrammarXbwtTrie::Serialize
+(
+  std::ostream& out,
+  std::shared_ptr<SpaceNode> parent,
+  std::string const name
+)
+{
+  uint64_t size_in_bytes {};
+  if (!parent)
+  {
+    sdsl::serialize(trie_bits_, out);
+    sdsl::serialize(trie_rank_1_, out);
+    sdsl::serialize(trie_select_1_, out);
+    sdsl::serialize(child_labels_, out);
+    label_bucket_offsets_.Serialize(out);
+    cumulative_counts_.Serialize(out);
+    sdsl::serialize(colex_to_lex_rank_, out);
+  }
+  else
+  {
+    auto node {std::make_shared<SpaceNode>(name)};
+    node->AddLeaf("trie_bits_", sdsl::serialize(trie_bits_, out));
+    node->AddLeaf("trie_rank_1_", sdsl::serialize(trie_rank_1_, out));
+    node->AddLeaf("trie_select_1_", sdsl::serialize(trie_select_1_, out));
+    node->AddLeaf("child_labels_", sdsl::serialize(child_labels_, out));
+    node->AccumalateSizeInBytes(label_bucket_offsets_.Serialize(out, node, "label_bucket_offsets_"));
+    node->AccumalateSizeInBytes(cumulative_counts_.Serialize(out, node, "cumulative_counts_"));
+    node->AddLeaf("colex_to_lex_rank_", sdsl::serialize(colex_to_lex_rank_, out));
+    parent->AddChild(node);
+    size_in_bytes = node->GetSizeInBytes();
+  }
+  return size_in_bytes;
+}
 
 // void GrammarXbwtTrie::Load (std::istream& in)
 // {
@@ -422,7 +428,7 @@ GrammarXbwtTrie& GrammarXbwtTrie::operator= (GrammarXbwtTrie&& grammar_xbwt_trie
 //   level_order_select_1_.load(in);
 //   level_order_select_1_.set_vector(&level_order_bits_);
 //   labels_.load(in);
-//   counts_.load(in);
+//   cumulative_counts_.load(in);
 //   return;
 // }
 
