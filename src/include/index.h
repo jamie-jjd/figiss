@@ -159,7 +159,7 @@ private:
   // );
 
   ByteAlphabet byte_alphabet_;
-  // GrammarXbwtTrie grammar_xbwt_trie_;
+  GrammarXbwtTrie grammar_xbwt_trie_;
   // SymbolBucketOffsets lex_symbol_bucket_offsets_;
   // sdsl::wt_rlmn
   // <
@@ -204,7 +204,7 @@ Index::Index (std::filesystem::path const& byte_text_path)
     GrammarTrie grammar_trie {byte_alphabet_.GetEffectiveAlphabetWidth(), length_width};
     CalculateGrammarTrie(run_length_text, grammar_trie);
     // std::cout << grammar_trie;
-    // grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie);
+    grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie);
     // std::cout << grammar_xbwt_trie_;
   }
   // uint64_t lex_text_size {};
@@ -471,7 +471,7 @@ void Index::CalculateGrammarTrie
   }
   grammar_trie.Insert(std::begin(run_length_text), sl_factor_end);
   // std::cout << grammar_trie;
-  grammar_trie.CalculateCumulativeCountAndRankRange();
+  grammar_trie.CalculateCumulativeCountAndRank();
   return;
 }
 
