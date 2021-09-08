@@ -111,23 +111,19 @@ void ByteAlphabet::Load (std::istream& in)
 std::ostream& operator<< (std::ostream& out, ByteAlphabet const& byte_alphabet)
 {
   {
-    out << "value:\n";
     out << "effective_alphabet_width_:";
     out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_width_) << "\n";
-    out << "byte alphabet:\n";
-    out << 0 << ":" << 0 << "\n";
-    for (uint64_t byte {1}; byte != std::size(byte_alphabet.effective_alphabet_bits_); ++byte)
+    out << "byte_alphabet:\n";
+    for (uint64_t byte {}; byte != std::size(byte_alphabet.effective_alphabet_bits_); ++byte)
     {
-      auto rank {byte_alphabet.GetRank(byte)};
-      if (rank)
+      if (byte_alphabet.effective_alphabet_bits_[byte])
       {
-        out << rank << ":" << byte << "\n";
+        out << byte_alphabet.GetRank(byte) << ":" << byte  << "(" << static_cast<char>(byte) << ")" << "\n";
       }
     }
   }
   {
-    out << "space:\n";
-    out << "effective_alphabet_width_:" << sizeof(byte_alphabet.effective_alphabet_width_) << "B\n";
+    out << "effective_alphabet_width_:" << ProperSizeRepresentation(sizeof(byte_alphabet.effective_alphabet_width_)) << "B\n";
     out << "effective_alphabet_bits_:" << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.effective_alphabet_bits_)) << "B\n";
     out << "effective_alphabet_rank_1_:" << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.effective_alphabet_rank_1_)) << "B\n";
   }
