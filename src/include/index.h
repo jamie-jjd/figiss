@@ -9,7 +9,8 @@
 
 #include "byte_alphabet.h"
 #include "grammar_xbwt_trie.h"
-// #include "symbol_bucket_offsets.h"
+#include "integer_alphabet.h"
+// #include "sparse_prefix_sum.h"
 // #include "utility.h"
 
 namespace figiss
@@ -38,17 +39,21 @@ public:
 
 private:
 
-  void CalculateRunLengthText
+  void CalculateRunLengthTextAndRunLengthAlphabet
   (
     sdsl::int_vector<8> const& byte_text,
-    sdsl::int_vector<>& run_length_text,
-    uint64_t& length_width
+    sdsl::int_vector<>& run_length_text
   );
   void CalculateGrammarTrie
   (
     sdsl::int_vector<> const& run_length_text,
     GrammarTrie& grammar_trie
   );
+
+  inline uint64_t GetLengthWidth () const
+  {
+    return (run_length_alphabet_.GetEffectiveAlphabetWidth() - byte_alphabet_.GetEffectiveAlphabetWidth());
+  }
   // template <typename Iterator>
   // void CalculateLexTextSizeAndLexFactorIntegersAndTempColexToLex
   // (
@@ -159,7 +164,8 @@ private:
   // );
 
   ByteAlphabet byte_alphabet_;
-  GrammarXbwtTrie grammar_xbwt_trie_;
+  IntegerAlphabet run_length_alphabet_;
+  // GrammarXbwtTrie grammar_xbwt_trie_;
   // SymbolBucketOffsets lex_symbol_bucket_offsets_;
   // sdsl::wt_rlmn
   // <
@@ -189,24 +195,24 @@ Index::Index (std::filesystem::path const& byte_text_path)
   }
   byte_alphabet_ = decltype(byte_alphabet_)(byte_text);
   // std::cout << byte_alphabet_;
-  uint64_t length_width {};
   sdsl::int_vector<> run_length_text;
-  CalculateRunLengthText(byte_text, run_length_text, length_width);
+  CalculateRunLengthTextAndRunLengthAlphabet(byte_text, run_length_text);
   // {
-  //   uint64_t divisor {1ULL << length_width};
-  //   for (auto const& symbol : run_length_text)
+  //   uint64_t divisor {1ULL << GetLengthWidth()};
+  //   for (auto const& integer : run_length_text)
   //   {
-  //     std::cout << "(" << (symbol / divisor) << "," << (symbol % divisor) << ")";
+  //     std::cout << "(" << (integer / divisor) << "," << (integer % divisor) << ")";
   //   }
   //   std::cout << "\n";
+  //   std::cout << run_length_alphabet_;
   // }
-  {
-    GrammarTrie grammar_trie {byte_alphabet_.GetEffectiveAlphabetWidth(), length_width};
-    CalculateGrammarTrie(run_length_text, grammar_trie);
-    // std::cout << grammar_trie;
-    grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie);
-    // std::cout << grammar_xbwt_trie_;
-  }
+  // {
+  //   GrammarTrie grammar_trie {byte_alphabet_.GetEffectiveAlphabetWidth(), length_width};
+  //   CalculateGrammarTrie(run_length_text, grammar_trie);
+  //   std::cout << grammar_trie;
+  //   grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie);
+  //   std::cout << grammar_xbwt_trie_;
+  // }
   // uint64_t lex_text_size {};
   // std::set<uint64_t> lex_factor_integers;
   // std::map<uint64_t, uint64_t> temp_colex_to_lex;
@@ -387,11 +393,10 @@ Index::Index (std::filesystem::path const& byte_text_path)
 //   return out;
 // }
 
-void Index::CalculateRunLengthText
+void Index::CalculateRunLengthTextAndRunLengthAlphabet
 (
   sdsl::int_vector<8> const& byte_text,
-  sdsl::int_vector<>& run_length_text,
-  uint64_t& length_width
+  sdsl::int_vector<>& run_length_text
 )
 {
   uint8_t prev_byte {byte_text[0]};
@@ -413,7 +418,7 @@ void Index::CalculateRunLengthText
     ++length;
   }
   {
-    length_width = sdsl::bits::hi(max_length) + 1;
+    auto length_width {sdsl::bits::hi(max_length) + 1};
     run_length_text.width(byte_alphabet_.GetEffectiveAlphabetWidth() + length_width);
     run_length_text.resize(run_length_text_size);
     auto it {std::begin(run_length_text)};
@@ -432,6 +437,7 @@ void Index::CalculateRunLengthText
     }
     *it = 0;
   }
+  run_length_alphabet_ = decltype(run_length_alphabet_)(run_length_text);
 }
 
 void Index::CalculateGrammarTrie
