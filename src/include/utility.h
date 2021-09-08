@@ -263,24 +263,24 @@ std::string ProperSizeRepresentation (Size const size)
   if (size >= (1ULL << 30))
   {
     stringstream << (static_cast<double>(size) / (1ULL << 30));
-    return (stringstream.str() + "G");
+    return (stringstream.str() + "Gi");
   }
   else if (size >= (1ULL << 20))
   {
     stringstream << (static_cast<double>(size) / (1ULL << 20));
-    return (stringstream.str() + "M");
+    return (stringstream.str() + "Mi");
   }
   else if (size >= (1ULL << 10))
   {
     stringstream << (static_cast<double>(size) / (1ULL << 10));
-    return (stringstream.str() + "K");
+    return (stringstream.str() + "Ki");
   }
   else
   {
     stringstream << static_cast<double>(size);
     return stringstream.str();
   }
-  return "0";
+  return "0.00";
 }
 
 std::string ProperTimeRepresentation (double const nanoseconds)
@@ -307,7 +307,7 @@ std::string ProperTimeRepresentation (double const nanoseconds)
     stringstream << nanoseconds;
     return (stringstream.str() + "ns");
   }
-  return "0";
+  return "0.00";
 }
 
 class SpaceNode
