@@ -10,7 +10,13 @@ public:
 
   ByteAlphabet () = default;
   ByteAlphabet (sdsl::int_vector<8> const& byte_text);
+  ByteAlphabet (ByteAlphabet const&) = delete;
+  ByteAlphabet (ByteAlphabet&&);
+  ByteAlphabet& operator= (ByteAlphabet const&) = delete;
   ByteAlphabet& operator= (ByteAlphabet&&);
+  ~ByteAlphabet () = default;
+
+  void Swap (ByteAlphabet&);
 
   uint64_t Serialize
   (
@@ -61,16 +67,34 @@ ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const& byte_text)
   effective_alphabet_width_ = sdsl::bits::hi(std::size(effective_alphabet) - 1) + 1;
 }
 
-ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet&& byte_alphabet)
+ByteAlphabet::ByteAlphabet (ByteAlphabet&& byte_alphabet)
 {
-  if (this !=& byte_alphabet)
+  if (this != &byte_alphabet)
   {
     effective_alphabet_width_ = std::move(byte_alphabet.effective_alphabet_width_);
     effective_alphabet_bits_ = std::move(byte_alphabet.effective_alphabet_bits_);
     effective_alphabet_rank_1_ = std::move(byte_alphabet.effective_alphabet_rank_1_);
     effective_alphabet_rank_1_.set_vector(&effective_alphabet_bits_);
   }
+}
+
+ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet&& byte_alphabet)
+{
+  if (this != &byte_alphabet)
+  {
+    ByteAlphabet temp {std::move(byte_alphabet)};
+    this->Swap(temp);
+  }
   return *this;
+}
+
+void ByteAlphabet::Swap (ByteAlphabet& byte_alphabet)
+{
+  std::swap(effective_alphabet_width_, byte_alphabet.effective_alphabet_width_);
+  effective_alphabet_bits_.swap(byte_alphabet.effective_alphabet_bits_);
+  effective_alphabet_rank_1_.set_vector(&effective_alphabet_bits_);
+  byte_alphabet.effective_alphabet_rank_1_.set_vector(&byte_alphabet.effective_alphabet_bits_);
+  return;
 }
 
 uint64_t ByteAlphabet::Serialize
