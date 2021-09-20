@@ -71,12 +71,11 @@ void SparsePrefixSum::Swap (SparsePrefixSum& sparse_prefix_sum)
   return;
 }
 
-
 uint64_t SparsePrefixSum::operator[] (uint64_t const index) const
 {
   if (index < std::size(prefix_sum_bits_))
   {
-    return prefix_sum_select_1_(index);
+    return prefix_sum_select_1_(index + 1);
   }
   return std::size(prefix_sum_bits_);
 }
