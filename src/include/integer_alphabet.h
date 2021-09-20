@@ -119,10 +119,8 @@ IntegerAlphabet& IntegerAlphabet::operator= (IntegerAlphabet&& integer_alphabet)
 void IntegerAlphabet::Swap (IntegerAlphabet& integer_alphabet)
 {
   effective_alphabet_bits_.swap(integer_alphabet.effective_alphabet_bits_);
-  effective_alphabet_rank_1_.swap(integer_alphabet.effective_alphabet_rank_1_);
   effective_alphabet_rank_1_.set_vector(&effective_alphabet_bits_);
   integer_alphabet.effective_alphabet_rank_1_.set_vector(&integer_alphabet.effective_alphabet_bits_);
-  effective_alphabet_select_1_.swap(integer_alphabet.effective_alphabet_select_1_);
   effective_alphabet_select_1_.set_vector(&effective_alphabet_bits_);
   integer_alphabet.effective_alphabet_select_1_.set_vector(&integer_alphabet.effective_alphabet_bits_);
   return;
@@ -139,15 +137,11 @@ uint64_t IntegerAlphabet::Serialize
   if (!parent)
   {
     sdsl::serialize(effective_alphabet_bits_, out);
-    sdsl::serialize(effective_alphabet_rank_1_, out);
-    sdsl::serialize(effective_alphabet_select_1_, out);
   }
   else
   {
     auto node {std::make_shared<SpaceNode>(name)};
     node->AddLeaf("effective_alphabet_bits_", sdsl::serialize(effective_alphabet_bits_, out));
-    node->AddLeaf("effective_alphabet_rank_1_", sdsl::serialize(effective_alphabet_rank_1_, out));
-    node->AddLeaf("effective_alphabet_select_1_", sdsl::serialize(effective_alphabet_select_1_, out));
     parent->AddChild(node);
     size_in_bytes = node->GetSizeInBytes();
   }
@@ -157,9 +151,7 @@ uint64_t IntegerAlphabet::Serialize
 void IntegerAlphabet::Load (std::istream& in)
 {
   effective_alphabet_bits_.load(in);
-  effective_alphabet_rank_1_.load(in);
   effective_alphabet_rank_1_.set_vector(&effective_alphabet_bits_);
-  effective_alphabet_select_1_.load(in);
   effective_alphabet_select_1_.set_vector(&effective_alphabet_bits_);
   return;
 }
@@ -181,8 +173,6 @@ std::ostream& operator<< (std::ostream& out, IntegerAlphabet const& integer_alph
   }
   {
     out << "effective_alphabet_bits_:" << ProperSizeRepresentation(sdsl::size_in_bytes(integer_alphabet.effective_alphabet_bits_)) << "B\n";
-    out << "effective_alphabet_rank_1_:" << ProperSizeRepresentation(sdsl::size_in_bytes(integer_alphabet.effective_alphabet_rank_1_)) << "B\n";
-    out << "effective_alphabet_select_1_:" << ProperSizeRepresentation(sdsl::size_in_bytes(integer_alphabet.effective_alphabet_select_1_)) << "B\n";
   }
   return out;
 }
