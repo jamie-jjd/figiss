@@ -9,10 +9,10 @@ class IntegerAlphabet
 public:
 
   IntegerAlphabet () = default;
-  IntegerAlphabet (sdsl::int_vector<> const& text);
-  IntegerAlphabet (IntegerAlphabet const&);
+  IntegerAlphabet (std::set<uint64_t> const& alphabet);
+  IntegerAlphabet (IntegerAlphabet const&) = delete;
   IntegerAlphabet (IntegerAlphabet&&);
-  IntegerAlphabet& operator= (IntegerAlphabet const&);
+  IntegerAlphabet& operator= (IntegerAlphabet const&) = delete;
   IntegerAlphabet& operator= (IntegerAlphabet&&);
   ~IntegerAlphabet () = default;
 
@@ -59,28 +59,23 @@ private:
 
 };
 
-IntegerAlphabet::IntegerAlphabet (sdsl::int_vector<> const& text)
+IntegerAlphabet::IntegerAlphabet (std::set<uint64_t> const& alphabet)
 {
-  std::set<uint8_t> effective_alphabet;
-  for (auto const integer : text)
-  {
-    effective_alphabet.insert(integer);
-  }
-  auto alphabet_width {sdsl::bits::hi(*std::rbegin(effective_alphabet)) + 1};
-  sdsl::int_vector<> sorted_integers(std::size(effective_alphabet), 0, alphabet_width);
-  std::copy(std::begin(effective_alphabet), std::end(effective_alphabet), std::begin(sorted_integers));
+  auto alphabet_width {sdsl::bits::hi(*std::rbegin(alphabet)) + 1};
+  sdsl::int_vector<> sorted_integers(std::size(alphabet), 0, alphabet_width);
+  std::copy(std::begin(alphabet), std::end(alphabet), std::begin(sorted_integers));
   effective_alphabet_bits_ = decltype(effective_alphabet_bits_)(std::begin(sorted_integers), std::end(sorted_integers));
   effective_alphabet_rank_1_ = decltype(effective_alphabet_rank_1_)(&effective_alphabet_bits_);
 }
 
-IntegerAlphabet::IntegerAlphabet (IntegerAlphabet const& integer_alphabet)
-{
-  if (this != &integer_alphabet)
-  {
-    effective_alphabet_bits_ = integer_alphabet.effective_alphabet_bits_;
-    effective_alphabet_rank_1_.set_vector(&effective_alphabet_bits_);
-  }
-}
+// IntegerAlphabet::IntegerAlphabet (IntegerAlphabet const& integer_alphabet)
+// {
+//   if (this != &integer_alphabet)
+//   {
+//     effective_alphabet_bits_ = integer_alphabet.effective_alphabet_bits_;
+//     effective_alphabet_rank_1_.set_vector(&effective_alphabet_bits_);
+//   }
+// }
 
 IntegerAlphabet::IntegerAlphabet (IntegerAlphabet&& integer_alphabet)
 {
@@ -90,15 +85,15 @@ IntegerAlphabet::IntegerAlphabet (IntegerAlphabet&& integer_alphabet)
   }
 }
 
-IntegerAlphabet& IntegerAlphabet::operator= (IntegerAlphabet const& integer_alphabet)
-{
-  if (this != &integer_alphabet)
-  {
-    IntegerAlphabet temp {integer_alphabet};
-    this->Swap(temp);
-  }
-  return *this;
-}
+// IntegerAlphabet& IntegerAlphabet::operator= (IntegerAlphabet const& integer_alphabet)
+// {
+//   if (this != &integer_alphabet)
+//   {
+//     IntegerAlphabet temp {integer_alphabet};
+//     this->Swap(temp);
+//   }
+//   return *this;
+// }
 
 IntegerAlphabet& IntegerAlphabet::operator= (IntegerAlphabet&& integer_alphabet)
 {
