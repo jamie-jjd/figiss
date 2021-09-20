@@ -39,21 +39,22 @@ public:
 
 private:
 
-  void CalculateRunLengthTextAndRunLengthAlphabet
+  void CalculateRunLengthText
   (
     sdsl::int_vector<8> const& byte_text,
     sdsl::int_vector<>& run_length_text
   );
-  void CalculateGrammarTrie
+  void InsertGrammarRulesIntoGrammarTrie
   (
     sdsl::int_vector<> const& run_length_text,
     GrammarTrie& grammar_trie
   );
+  void CalculateRunLengthAlphabetAndLexRankOnGrammarTrie
+  (
+    IntegerAlphabet& run_length_alphabet,
+    GrammarTrie& grammar_trie
+  );
 
-  inline uint64_t GetLengthWidth () const
-  {
-    return (run_length_alphabet_.GetEffectiveAlphabetWidth() - byte_alphabet_.GetEffectiveAlphabetWidth());
-  }
   // template <typename Iterator>
   // void CalculateLexTextSizeAndLexFactorIntegersAndTempColexToLex
   // (
@@ -164,7 +165,6 @@ private:
   // );
 
   ByteAlphabet byte_alphabet_;
-  IntegerAlphabet run_length_alphabet_;
   // GrammarXbwtTrie grammar_xbwt_trie_;
   // SymbolBucketOffsets lex_symbol_bucket_offsets_;
   // sdsl::wt_rlmn
@@ -196,23 +196,29 @@ Index::Index (std::filesystem::path const& byte_text_path)
   byte_alphabet_ = decltype(byte_alphabet_)(byte_text);
   // std::cout << byte_alphabet_;
   sdsl::int_vector<> run_length_text;
-  CalculateRunLengthTextAndRunLengthAlphabet(byte_text, run_length_text);
+  CalculateRunLengthText(byte_text, run_length_text);
   // {
-  //   uint64_t divisor {1ULL << GetLengthWidth()};
+  //   auto length_width {run_length_text.width() - byte_alphabet_.GetEffectiveAlphabetWidth()};
+  //   uint64_t divisor {1ULL << length_width};
   //   for (auto const& integer : run_length_text)
   //   {
   //     std::cout << "(" << (integer / divisor) << "," << (integer % divisor) << ")";
   //   }
   //   std::cout << "\n";
-  //   std::cout << run_length_alphabet_;
   // }
-  // {
-  //   GrammarTrie grammar_trie {byte_alphabet_.GetEffectiveAlphabetWidth(), length_width};
-  //   CalculateGrammarTrie(run_length_text, grammar_trie);
-  //   std::cout << grammar_trie;
-  //   grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie);
-  //   std::cout << grammar_xbwt_trie_;
-  // }
+  // std::cout << run_length_alphabet;
+  {
+    auto length_width {static_cast<uint8_t>(run_length_text.width() - byte_alphabet_.GetEffectiveAlphabetWidth())};
+    GrammarTrie grammar_trie {length_width};
+    InsertGrammarRulesIntoGrammarTrie(run_length_text, grammar_trie);
+    // std::cout << grammar_trie;
+    IntegerAlphabet run_length_alphabet;
+    CalculateRunLengthAlphabetAndLexRankOnGrammarTrie(run_length_alphabet, grammar_trie);
+    // std::cout << grammar_trie;
+    // std::cout << run_length_alphabet;
+    // grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie, run_length_alphabet);
+    // std::cout << grammar_xbwt_trie_;
+  }
   // uint64_t lex_text_size {};
   // std::set<uint64_t> lex_factor_integers;
   // std::map<uint64_t, uint64_t> temp_colex_to_lex;
@@ -393,7 +399,7 @@ Index::Index (std::filesystem::path const& byte_text_path)
 //   return out;
 // }
 
-void Index::CalculateRunLengthTextAndRunLengthAlphabet
+void Index::CalculateRunLengthText
 (
   sdsl::int_vector<8> const& byte_text,
   sdsl::int_vector<>& run_length_text
@@ -437,10 +443,9 @@ void Index::CalculateRunLengthTextAndRunLengthAlphabet
     }
     *it = 0;
   }
-  run_length_alphabet_ = decltype(run_length_alphabet_)(run_length_text);
 }
 
-void Index::CalculateGrammarTrie
+void Index::InsertGrammarRulesIntoGrammarTrie
 (
   sdsl::int_vector<> const& run_length_text,
   GrammarTrie& grammar_trie
@@ -476,8 +481,34 @@ void Index::CalculateGrammarTrie
     next_sl_type = sl_type;
   }
   grammar_trie.Insert(std::begin(run_length_text), sl_factor_end);
-  // std::cout << grammar_trie;
-  grammar_trie.CalculateCumulativeCountAndRank();
+  return;
+}
+
+void Index::CalculateRunLengthAlphabetAndLexRankOnGrammarTrie
+(
+  IntegerAlphabet& run_length_alphabet,
+  GrammarTrie& grammar_trie
+)
+{
+  std::set<uint64_t> alphabet;
+  uint64_t lex_rank {};
+  std::deque<std::shared_ptr<GrammarTrie::Node>> nodes;
+  nodes.emplace_back(grammar_trie.GetRoot());
+  while (!nodes.empty())
+  {
+    auto node {nodes.back()};
+    alphabet.insert(node->label);
+    if (node->lex_rank)
+    {
+      node->lex_rank = ++lex_rank;
+    }
+    nodes.pop_back();
+    for (auto it {std::rbegin(node->children)}; it != std::rend(node->children); ++it)
+    {
+      nodes.emplace_back(std::get<1>(*it));
+    }
+  }
+  run_length_alphabet = IntegerAlphabet(alphabet);
   return;
 }
 
