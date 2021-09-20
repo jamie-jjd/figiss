@@ -10,8 +10,12 @@ public:
 
   SparsePrefixSum () = default;
   SparsePrefixSum (std::deque<uint64_t> const& prefix_sum);
-  SparsePrefixSum (sdsl::int_vector<> const& prefix_sum);
+  SparsePrefixSum (SparsePrefixSum const&) = delete;
+  SparsePrefixSum (SparsePrefixSum&&);
+  SparsePrefixSum& operator= (SparsePrefixSum const&) = delete;
   SparsePrefixSum& operator= (SparsePrefixSum&&);
+
+  void Swap (SparsePrefixSum&);
 
   uint64_t Serialize
   (
@@ -38,21 +42,35 @@ SparsePrefixSum::SparsePrefixSum (std::deque<uint64_t> const& prefix_sum)
   prefix_sum_select_1_.set_vector(&prefix_sum_bits_);
 }
 
-SparsePrefixSum::SparsePrefixSum (sdsl::int_vector<> const& prefix_sum)
+SparsePrefixSum::SparsePrefixSum (SparsePrefixSum&& sparse_prefix_sum)
 {
-  prefix_sum_bits_ = decltype(prefix_sum_bits_)(std::begin(prefix_sum), std::end(prefix_sum));
-  prefix_sum_select_1_.set_vector(&prefix_sum_bits_);
+  if (this != &sparse_prefix_sum)
+  {
+    this->Swap(sparse_prefix_sum);
+  }
 }
 
 SparsePrefixSum& SparsePrefixSum::operator= (SparsePrefixSum&& sparse_prefix_sum)
 {
   if (this != &sparse_prefix_sum)
   {
-    prefix_sum_bits_ = std::move(sparse_prefix_sum.prefix_sum_bits_);
-    prefix_sum_select_1_.set_vector(&prefix_sum_bits_);
+    SparsePrefixSum temp {std::move(sparse_prefix_sum)};
+    this->Swap(temp);
   }
   return *this;
 }
+
+void SparsePrefixSum::Swap (SparsePrefixSum& sparse_prefix_sum)
+{
+  if (this != &sparse_prefix_sum)
+  {
+    prefix_sum_bits_.swap(sparse_prefix_sum.prefix_sum_bits_);
+    prefix_sum_select_1_.set_vector(&prefix_sum_bits_);
+    sparse_prefix_sum.prefix_sum_select_1_.set_vector(&sparse_prefix_sum.prefix_sum_bits_);
+  }
+  return;
+}
+
 
 uint64_t SparsePrefixSum::operator[] (uint64_t const index) const
 {
