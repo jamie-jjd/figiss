@@ -41,7 +41,7 @@ public:
     return size;
   }
 
-  inline uint64_t GetRank (uint64_t const byte) const
+  inline uint64_t Rank (uint64_t const byte) const
   {
     if ((byte < std::size(effective_alphabet_bits_)) && effective_alphabet_bits_[byte])
     {
@@ -146,7 +146,7 @@ std::ostream& operator<< (std::ostream& out, ByteAlphabet const& byte_alphabet)
     {
       if (byte_alphabet.effective_alphabet_bits_[byte])
       {
-        out << byte_alphabet.GetRank(byte) << ":" << byte << "(" << static_cast<char>(byte) << ")" << "\n";
+        out << byte_alphabet.Rank(byte) << ":" << byte << "(" << static_cast<char>(byte) << ")" << "\n";
       }
     }
   }
