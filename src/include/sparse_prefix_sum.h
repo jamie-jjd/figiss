@@ -25,23 +25,8 @@ public:
   );
   void Load (std::istream& in);
 
-  inline uint64_t operator[] (uint64_t const index) const
-  {
-    if (index < std::size(prefix_sum_bits_))
-    {
-      return prefix_sum_select_1_(index + 1);
-    }
-    return std::size(prefix_sum_bits_);
-  }
-
-  inline uint64_t Predecessor (uint64_t const index) const
-  {
-    if (index < std::size(prefix_sum_bits_))
-    {
-      return prefix_sum_rank_1_(index);
-    }
-    return prefix_sum_rank_1_(std::size(prefix_sum_bits_));
-  }
+  uint64_t operator[] (uint64_t const index) const;
+  uint64_t Predecessor (uint64_t const index) const;
 
   friend std::ostream& operator<< (std::ostream& out, SparsePrefixSum const& sparse_prefix_sum);
 
@@ -132,5 +117,24 @@ void SparsePrefixSum::Load (std::istream& in)
   prefix_sum_select_1_.set_vector(&prefix_sum_bits_);
   prefix_sum_rank_1_.set_vector(&prefix_sum_bits_);
   return;
+}
+
+uint64_t SparsePrefixSum::operator[] (uint64_t const index) const
+{
+  if (index == 0) { return 0; }
+  if (index < std::size(prefix_sum_bits_))
+  {
+    return prefix_sum_select_1_(index);
+  }
+  return std::size(prefix_sum_bits_);
+}
+
+uint64_t SparsePrefixSum::Predecessor (uint64_t const index) const
+{
+  if (index < std::size(prefix_sum_bits_))
+  {
+    return prefix_sum_rank_1_(index);
+  }
+  return prefix_sum_rank_1_(std::size(prefix_sum_bits_));
 }
 }
