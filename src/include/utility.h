@@ -384,7 +384,7 @@ std::ostream& operator<<
     auto const depth {std::get<1>(nodes.back())};
     nodes.pop_back();
     std::string whitespaces(depth * 2, ' ');
-    out << whitespaces << node->name_ << ": ";
+    out << whitespaces << node->name_ << ":";
     if (is_proper)
     {
       out << ProperSizeRepresentation(node->size_in_bytes_);
@@ -393,7 +393,7 @@ std::ostream& operator<<
     {
       out << node->size_in_bytes_;
     }
-    out << "\n";
+    out << "B\n";
     for (auto it {std::rbegin(node->children_)}; it != std::rend(node->children_); ++it)
     {
       nodes.emplace_back(*it, depth + 1);
@@ -405,17 +405,12 @@ std::ostream& operator<<
 template <typename Index>
 void PrintIndexSpace
 (
-  std::filesystem::path const& text_path,
+  std::filesystem::path const& byte_text_path,
   Index& index,
   bool const is_proper_representation = false
 )
 {
-  std::filesystem::path output_path
-  {
-    std::string{"../data/space/"}
-    + std::to_string(Index::kMaxFactorSize) + "/"
-    + text_path.filename().string()
-  };
+  std::filesystem::path output_path {std::string{"../data/space/"} + byte_text_path.filename().string()};
   if (!std::filesystem::exists(output_path.parent_path()))
   {
     std::filesystem::create_directories(output_path.parent_path());
@@ -423,9 +418,9 @@ void PrintIndexSpace
   std::fstream fout {output_path, std::ios_base::out | std::ios_base::trunc};
   std::cout << "write space information to " << std::filesystem::canonical(output_path) << "\n";
   {
-    index = Index{text_path};
+    std::ofstream out {"_.index"};
     auto root {std::make_shared<SpaceNode>("index")};
-    index.Serialize(std::filesystem::path{"_.index"}, root);
+    index.Serialize(out, root);
     fout << std::make_pair(root, is_proper_representation);
     std::cout << "remove " << std::filesystem::canonical(std::filesystem::path("_.index")) << "\n";
     std::filesystem::remove("_.index");
