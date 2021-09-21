@@ -24,12 +24,18 @@ public:
 
   Index () = default;
   Index (std::filesystem::path const& byte_text_path);
+  Index (Index const&) = delete;
+  Index (Index&&);
+  Index& operator= (Index const&) = delete;
+  Index& operator= (Index&&);
 
-  // uint64_t Serialize
-  // (
-  //   std::filesystem::path const& index_path,
-  //   std::shared_ptr<SpaceNode> root = nullptr
-  // );
+  void Swap (Index&);
+
+  uint64_t Serialize
+  (
+    std::ofstream& out,
+    std::shared_ptr<SpaceNode> parent = nullptr
+  );
   // void Load (std::filesystem::path const& index_path);
   //
   // template <typename Iterator>
@@ -277,48 +283,50 @@ Index::Index (std::filesystem::path const& byte_text_path)
   // }
 }
 
-// uint64_t Index::Serialize
-// (
-//   std::filesystem::path const& index_path,
-//   std::shared_ptr<SpaceNode> root
-// )
-// {
-//   if
-//   (
-//     !index_path.parent_path().filename().string().empty()
-//     && !std::filesystem::exists(index_path.parent_path())
-//   )
-//   {
-//     std::filesystem::create_directories(index_path.parent_path());
-//   }
-//   std::fstream index_file {index_path, std::ios_base::out | std::ios_base::trunc};
-//   std::cout << "serialize index to " << std::filesystem::canonical(index_path) << "\n";
-//   uint64_t size_in_bytes {};
-//   if (!root)
-//   {
-//     sdsl::write_member(kMaxFactorSize, index_file);
-//     symbol_table_.Serialize(index_file);
-//     sub_factor_trie_.Serialize(index_file);
-//     lex_symbol_table_.Serialize(index_file);
-//     colex_symbol_table_.Serialize(index_file);;
-//     sdsl::serialize(colex_to_lex_, index_file);
-//     lex_symbol_bucket_offsets_.Serialize(index_file);
-//     sdsl::serialize(lex_bwt_, index_file);
-//   }
-//   else
-//   {
-//     root->AddLeaf("kMaxFactorSize", sdsl::write_member(kMaxFactorSize, index_file));
-//     root->AccumalateSizeInBytes(symbol_table_.Serialize(index_file, root, "symbol_table_"));
-//     root->AccumalateSizeInBytes(sub_factor_trie_.Serialize(index_file, root, "sub_factor_trie_"));
-//     root->AccumalateSizeInBytes(lex_symbol_table_.Serialize(index_file, root, "lex_symbol_table_"));
-//     root->AccumalateSizeInBytes(colex_symbol_table_.Serialize(index_file, root, "colex_symbol_table_"));
-//     root->AddLeaf("colex_to_lex_", sdsl::serialize(colex_to_lex_, index_file));
-//     root->AccumalateSizeInBytes(lex_symbol_bucket_offsets_.Serialize(index_file, root, "lex_symbol_bucket_offsets_"));
-//     root->AddLeaf("lex_bwt_", sdsl::serialize(lex_bwt_, index_file));
-//     size_in_bytes = root->GetSizeInBytes();
-//   }
-//   return size_in_bytes;
-// }
+Index::Index (Index&& index)
+{
+  if (this != &index)
+  {
+    this->Swap(index);
+  }
+}
+
+Index& Index::operator= (Index&& index)
+{
+  if (this != &index)
+  {
+    Index temp {std::move(index)};
+    this->Swap(temp);
+  }
+  return *this;
+}
+
+void Index::Swap (Index& index)
+{
+  if (this != &index)
+  {
+    byte_alphabet_.Swap(index.byte_alphabet_);
+    grammar_xbwt_trie_.Swap(index.grammar_xbwt_trie_);
+  }
+  return;
+}
+
+uint64_t Index::Serialize (std::ofstream& out, std::shared_ptr<SpaceNode> root)
+{
+  uint64_t size_in_bytes {};
+  if (!root)
+  {
+    byte_alphabet_.Serialize(out);
+    grammar_xbwt_trie_.Serialize(out);
+  }
+  else
+  {
+    byte_alphabet_.Serialize(out, root, "byte_alphabet_");
+    grammar_xbwt_trie_.Serialize(out, root, "grammar_xbwt_trie_");
+    size_in_bytes = root->GetSizeInBytes();
+  }
+  return size_in_bytes;
+}
 
 // void Index::Load (std::filesystem::path const& index_path)
 // {
