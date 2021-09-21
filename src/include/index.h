@@ -165,7 +165,7 @@ private:
   // );
 
   ByteAlphabet byte_alphabet_;
-  // GrammarXbwtTrie grammar_xbwt_trie_;
+  GrammarXbwtTrie grammar_xbwt_trie_;
   // SymbolBucketOffsets lex_symbol_bucket_offsets_;
   // sdsl::wt_rlmn
   // <
@@ -216,7 +216,7 @@ Index::Index (std::filesystem::path const& byte_text_path)
     CalculateRunLengthAlphabetAndLexRankOnGrammarTrie(run_length_alphabet, grammar_trie);
     // std::cout << grammar_trie;
     // std::cout << run_length_alphabet;
-    // grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie, run_length_alphabet);
+    grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie, std::move(run_length_alphabet));
     // std::cout << grammar_xbwt_trie_;
   }
   // uint64_t lex_text_size {};
@@ -435,7 +435,7 @@ void Index::CalculateRunLengthText
     {
       if (prev_byte != byte)
       {
-        *it++ = (byte_alphabet_.GetRank(prev_byte) * divisor) + length;
+        *it++ = (byte_alphabet_.Rank(prev_byte) * divisor) + length;
         prev_byte = byte;
         length = 0;
       }
