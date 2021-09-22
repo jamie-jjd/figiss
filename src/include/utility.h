@@ -418,12 +418,12 @@ void PrintIndexSpace
   std::fstream fout {output_path, std::ios_base::out | std::ios_base::trunc};
   std::cout << "write space information to " << std::filesystem::canonical(output_path) << "\n";
   {
-    std::ofstream out {"_.index"};
+    auto index_path {std::filesystem::path("_.index")};
     auto root {std::make_shared<SpaceNode>("index")};
-    index.Serialize(out, root);
+    index.Serialize(index_path, root);
     fout << std::make_pair(root, is_proper_representation);
-    std::cout << "remove " << std::filesystem::canonical(std::filesystem::path("_.index")) << "\n";
-    std::filesystem::remove("_.index");
+    std::cout << "remove " << std::filesystem::canonical(index_path) << "\n";
+    std::filesystem::remove(index_path);
   }
   return;
 }
