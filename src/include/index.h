@@ -1,16 +1,11 @@
 #pragma once
 
-// #include <deque>
-// #include <map>
-// #include <memory>
-// #include <set>
-
 // #include <sdsl/wavelet_trees.hpp>
 
 #include "byte_alphabet.h"
 #include "grammar_xbwt_trie.h"
 #include "integer_alphabet.h"
-// #include "sparse_prefix_sum.h"
+#include "sparse_prefix_sum.h"
 // #include "utility.h"
 
 namespace figiss
@@ -65,22 +60,8 @@ private:
     sdsl::int_vector<> const& run_length_text,
     sdsl::int_vector<>& colex_text
   );
-  // template <typename TextIterator, typename LexTextIterator>
-  // LexTextIterator CalculateLexTextInSlFactor
-  // (
-  //   TextIterator rbegin,
-  //   TextIterator rend,
-  //   LexTextIterator lex_text_it
-  // );
-  // void CalculateColexSymbolTable (std::map<uint64_t, uint64_t> const& temp_colex_to_lex);
-  // void CalculateColexToLex (std::map<uint64_t, uint64_t> const& temp_colex_to_lex);
-  // void CalculateLexSymbolBucketOffsets
-  // (
-  //   uint64_t const lex_text_alphabet_size,
-  //   sdsl::int_vector<> const& lex_text
-  // );
-  // void CalculateLexBwt (sdsl::int_vector<> const& lex_text);
-  //
+  void CalculateLexRankBucketOffsets (sdsl::int_vector<> const& colex_text);
+
   // template <typename Range> // [,]
   // inline bool IsNotEmptyRange (Range const& range) const
   // {
@@ -157,7 +138,7 @@ private:
 
   ByteAlphabet byte_alphabet_;
   GrammarXbwtTrie grammar_xbwt_trie_;
-  // SparsePrefixSum lex_symbol_bucket_offsets_;
+  SparsePrefixSum lex_rank_bucket_offsets_;
   // sdsl::wt_rlmn
   // <
   //   sdsl::sd_vector<>,
@@ -172,51 +153,58 @@ private:
 Index::Index (std::filesystem::path const& byte_text_path)
 {
   std::cout << "construct index of " << std::filesystem::canonical(byte_text_path) << "\n";
-  sdsl::int_vector<8> byte_text;
-  sdsl::load_vector_from_file(byte_text, byte_text_path);
+  sdsl::int_vector<> colex_text;
   {
-    for (auto const byte : byte_text)
+    sdsl::int_vector<> run_length_text;
     {
-      if (byte == 0)
+      sdsl::int_vector<8> byte_text;
+      sdsl::load_vector_from_file(byte_text, byte_text_path);
+      for (auto const byte : byte_text)
       {
-        throw std::runtime_error("byte_text contains 0");
+        if (byte == 0)
+        {
+          throw std::runtime_error("byte_text contains 0");
+        }
+      }
+      sdsl::append_zero_symbol(byte_text);
+      {
+        byte_alphabet_ = decltype(byte_alphabet_)(byte_text);
+        // std::cout << byte_alphabet_;
+      }
+      {
+        CalculateRunLengthText(byte_text, run_length_text);
+        // {
+        //   auto length_width {run_length_text.width() - byte_alphabet_.GetEffectiveAlphabetWidth()};
+        //   uint64_t divisor {1ULL << length_width};
+        //   for (auto const& integer : run_length_text)
+        //   {
+        //     std::cout << "(" << (integer / divisor) << "," << (integer % divisor) << ")";
+        //   }
+        //   std::cout << "\n";
+        // }
       }
     }
-    sdsl::append_zero_symbol(byte_text);
+    {
+      auto length_width {static_cast<uint8_t>(run_length_text.width() - byte_alphabet_.GetEffectiveAlphabetWidth())};
+      GrammarTrie grammar_trie {length_width};
+      InsertGrammarRulesIntoGrammarTrie(run_length_text, grammar_trie);
+      // std::cout << grammar_trie;
+      IntegerAlphabet run_length_alphabet;
+      CalculateRunLengthAlphabetAndLexRankOnGrammarTrie(run_length_alphabet, grammar_trie);
+      // std::cout << grammar_trie;
+      // std::cout << run_length_alphabet;
+      grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie, std::move(run_length_alphabet));
+      // std::cout << grammar_xbwt_trie_;
+    }
+    {
+      CalculateColexText(run_length_text, colex_text);
+      // Print(colex_text, std::cout);
+    }
   }
-  byte_alphabet_ = decltype(byte_alphabet_)(byte_text);
-  // std::cout << byte_alphabet_;
-  sdsl::int_vector<> run_length_text;
-  CalculateRunLengthText(byte_text, run_length_text);
-  // {
-  //   auto length_width {run_length_text.width() - byte_alphabet_.GetEffectiveAlphabetWidth()};
-  //   uint64_t divisor {1ULL << length_width};
-  //   for (auto const& integer : run_length_text)
-  //   {
-  //     std::cout << "(" << (integer / divisor) << "," << (integer % divisor) << ")";
-  //   }
-  //   std::cout << "\n";
-  // }
-  // std::cout << run_length_alphabet;
   {
-    auto length_width {static_cast<uint8_t>(run_length_text.width() - byte_alphabet_.GetEffectiveAlphabetWidth())};
-    GrammarTrie grammar_trie {length_width};
-    InsertGrammarRulesIntoGrammarTrie(run_length_text, grammar_trie);
-    // std::cout << grammar_trie;
-    IntegerAlphabet run_length_alphabet;
-    CalculateRunLengthAlphabetAndLexRankOnGrammarTrie(run_length_alphabet, grammar_trie);
-    // std::cout << grammar_trie;
-    // std::cout << run_length_alphabet;
-    grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie, std::move(run_length_alphabet));
-    // std::cout << grammar_xbwt_trie_;
+    CalculateLexRankBucketOffsets(colex_text);
+    // std::cout << lex_rank_bucket_offsets_;
   }
-  sdsl::int_vector<> colex_text;
-  CalculateColexText(run_length_text, colex_text);
-  // Print(colex_text, std::cout);
-  // {
-  //   CalculateLexSymbolBucketOffsets(lex_text_alphabet_size, lex_text);
-  //   // std::cout << lex_symbol_bucket_offsets_;
-  // }
   // {
   //   CalculateLexBwt(lex_text);
   //   // std::cout << lex_bwt_ << "\n";
@@ -505,26 +493,31 @@ void Index::CalculateColexText
   return;
 }
 
-// void Index::CalculateLexSymbolBucketOffsets
-// (
-//   uint64_t const lex_text_alphabet_size,
-//   sdsl::int_vector<> const& lex_text
-// )
-// {
-//   sdsl::int_vector<> offsets
-//   (
-//     lex_text_alphabet_size + 1,
-//     0,
-//     sdsl::bits::hi(std::size(lex_text)) + 1
-//   );
-//   for (auto const lex_symbol : lex_text)
-//   {
-//     ++offsets[lex_symbol];
-//   }
-//   std::partial_sum(std::begin(offsets), std::end(offsets), std::begin(offsets));
-//   lex_symbol_bucket_offsets_ = decltype(lex_symbol_bucket_offsets_)(offsets);
-//   return;
-// }
+void Index::CalculateLexRankBucketOffsets (sdsl::int_vector<> const& colex_text)
+{
+  std::map<uint64_t, uint64_t> lex_rank_counts;
+  for (auto const& colex_rank : colex_text)
+  {
+    auto lex_rank {grammar_xbwt_trie_.ColexToLexRank(colex_rank)};
+    auto it {lex_rank_counts.find(lex_rank)};
+    if (it != lex_rank_counts.end())
+    {
+      ++std::get<1>(*it);
+    }
+    else
+    {
+      lex_rank_counts[lex_rank] = 1;
+    }
+  }
+  std::deque<uint64_t> cumulative_counts;
+  for (auto const& pair : lex_rank_counts)
+  {
+    cumulative_counts.push_back(std::get<1>(pair));
+  }
+  std::partial_sum(std::begin(cumulative_counts), std::end(cumulative_counts), std::begin(cumulative_counts));
+  lex_rank_bucket_offsets_ = decltype(lex_rank_bucket_offsets_)(cumulative_counts);
+  return;
+}
 
 // void Index::CalculateLexBwt (sdsl::int_vector<> const& lex_text)
 // {
