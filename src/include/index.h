@@ -6,7 +6,6 @@
 #include "grammar_xbwt_trie.h"
 #include "integer_alphabet.h"
 #include "sparse_prefix_sum.h"
-// #include "utility.h"
 
 namespace figiss
 {
@@ -28,10 +27,10 @@ public:
 
   uint64_t Serialize
   (
-    std::ofstream& out,
+    std::filesystem::path const& index_path,
     std::shared_ptr<SpaceNode> parent = nullptr
   );
-  // void Load (std::filesystem::path const& index_path);
+  void Load (std::filesystem::path const& index_path);
   //
   // template <typename Iterator>
   // uint64_t Count (Iterator begin, Iterator end);
@@ -240,36 +239,51 @@ void Index::Swap (Index& index)
   return;
 }
 
-uint64_t Index::Serialize (std::ofstream& out, std::shared_ptr<SpaceNode> root)
+uint64_t Index::Serialize
+(
+  std::filesystem::path const& index_path,
+  std::shared_ptr<SpaceNode> root
+)
 {
+  if
+  (
+    !index_path.parent_path().filename().string().empty()
+    && !std::filesystem::exists(index_path.parent_path())
+  )
+  {
+    std::filesystem::create_directories(index_path.parent_path());
+  }
+  std::fstream out {index_path, std::ios_base::out | std::ios_base::trunc};
+  std::cout << "serialize index to" << std::filesystem::canonical(index_path) << "\n";
   uint64_t size_in_bytes {};
   if (!root)
   {
     byte_alphabet_.Serialize(out);
     grammar_xbwt_trie_.Serialize(out);
+    lex_rank_bucket_offsets_.Serialize(out);
+    colex_bwt_.serialize(out);
   }
   else
   {
     byte_alphabet_.Serialize(out, root, "byte_alphabet_");
     grammar_xbwt_trie_.Serialize(out, root, "grammar_xbwt_trie_");
+    lex_rank_bucket_offsets_.Serialize(out, root, "lex_rank_bucket_offsets_");
+    root->AddLeaf("colex_bwt_", colex_bwt_.serialize(out));
     size_in_bytes = root->GetSizeInBytes();
   }
   return size_in_bytes;
 }
 
-// void Index::Load (std::filesystem::path const& index_path)
-// {
-//   std::ifstream index_file {index_path};
-//   std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
-//   symbol_table_.Load(index_file);
-//   sub_factor_trie_.Load(index_file);
-//   lex_symbol_table_.Load(index_file);
-//   colex_symbol_table_.Load(index_file);
-//   colex_to_lex_.load(index_file);
-//   lex_symbol_bucket_offsets_.Load(index_file);
-//   lex_bwt_.load(index_file);
-//   return;
-// }
+void Index::Load (std::filesystem::path const& index_path)
+{
+  std::ifstream in {index_path};
+  std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
+  byte_alphabet_.Load(in);
+  grammar_xbwt_trie_.Load(in);
+  lex_rank_bucket_offsets_.Load(in);
+  colex_bwt_.load(in);
+  return;
+}
 
 // template <typename Iterator>
 // uint64_t Index::Count (Iterator begin, Iterator end)
