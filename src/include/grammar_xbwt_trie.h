@@ -156,6 +156,15 @@ public:
     return sdsl::bits::hi(std::size(colex_to_lex_rank_) + 1) + 1;
   }
 
+  inline uint64_t ColexToLexRank (uint64_t const colex_rank) const
+  {
+    if (colex_rank && colex_rank <= std::size(colex_to_lex_rank_))
+    {
+      return colex_to_lex_rank_[colex_rank - 1];
+    }
+    return 0;
+  }
+
   friend std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& xbwt);
 
 private:
