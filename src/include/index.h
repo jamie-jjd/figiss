@@ -1,6 +1,6 @@
 #pragma once
 
-// #include <sdsl/wavelet_trees.hpp>
+#include <sdsl/wavelet_trees.hpp>
 
 #include "byte_alphabet.h"
 #include "grammar_xbwt_trie.h"
@@ -61,6 +61,7 @@ private:
     sdsl::int_vector<>& colex_text
   );
   void CalculateLexRankBucketOffsets (sdsl::int_vector<> const& colex_text);
+  void CalculateColexBwt (sdsl::int_vector<> const& colex_text);
 
   // template <typename Range> // [,]
   // inline bool IsNotEmptyRange (Range const& range) const
@@ -139,14 +140,14 @@ private:
   ByteAlphabet byte_alphabet_;
   GrammarXbwtTrie grammar_xbwt_trie_;
   SparsePrefixSum lex_rank_bucket_offsets_;
-  // sdsl::wt_rlmn
-  // <
-  //   sdsl::sd_vector<>,
-  //   typename sdsl::sd_vector<>::rank_1_type,
-  //   typename sdsl::sd_vector<>::select_1_type,
-  //   sdsl::wt_ap<>
-  // >
-  // lex_bwt_;
+  sdsl::wt_rlmn
+  <
+    sdsl::sd_vector<>,
+    typename sdsl::sd_vector<>::rank_1_type,
+    typename sdsl::sd_vector<>::select_1_type,
+    sdsl::wt_ap<>
+  >
+  colex_bwt_;
 
 };
 
@@ -205,10 +206,10 @@ Index::Index (std::filesystem::path const& byte_text_path)
     CalculateLexRankBucketOffsets(colex_text);
     // std::cout << lex_rank_bucket_offsets_;
   }
-  // {
-  //   CalculateLexBwt(lex_text);
-  //   // std::cout << lex_bwt_ << "\n";
-  // }
+  {
+    CalculateColexBwt(colex_text);
+    // std::cout << colex_bwt_ << "\n";
+  }
 }
 
 Index::Index (Index&& index)
@@ -519,20 +520,20 @@ void Index::CalculateLexRankBucketOffsets (sdsl::int_vector<> const& colex_text)
   return;
 }
 
-// void Index::CalculateLexBwt (sdsl::int_vector<> const& lex_text)
-// {
-//   sdsl::int_vector<> buffer;
-//   sdsl::qsufsort::construct_sa(buffer, lex_text);
-//   for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
-//   {
-//     if (*it != 0)
-//     {
-//       *it = lex_text[*it - 1];
-//     }
-//   }
-//   sdsl::construct_im(lex_bwt_, buffer);
-//   return;
-// }
+void Index::CalculateColexBwt (sdsl::int_vector<> const& colex_text)
+{
+  sdsl::int_vector<> buffer;
+  sdsl::qsufsort::construct_sa(buffer, colex_text);
+  for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
+  {
+    if (*it != 0)
+    {
+      *it = colex_text[*it - 1];
+    }
+  }
+  sdsl::construct_im(colex_bwt_, buffer);
+  return;
+}
 
 // template <typename Iterator>
 // bool Index::CalculatePattern (Iterator begin, Iterator end, sdsl::int_vector<>& pattern)
