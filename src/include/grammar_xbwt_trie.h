@@ -130,6 +130,9 @@ public:
   );
   void Load (std::istream& in);
 
+  template <typename Iterator>
+  uint64_t GetColexRank (Iterator it, Iterator end);
+
   // template <typename Iterator>
   // uint64_t Count (Iterator it, Iterator end);
 
@@ -146,6 +149,11 @@ public:
   inline uint8_t GetEffectiveAlphabetWidth () const
   {
     return run_length_alphabet_.GetEffectiveAlphabetWidth();
+  }
+
+  inline uint8_t GetColexAlphabetWidth () const
+  {
+    return sdsl::bits::hi(std::size(colex_to_lex_rank_) + 1) + 1;
   }
 
   friend std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& xbwt);
@@ -443,6 +451,43 @@ void GrammarXbwtTrie::Load (std::istream& in)
   cumulative_counts_.Load(in);
   colex_to_lex_rank_.load(in);;
   return;
+}
+
+template <typename Iterator>
+uint64_t GrammarXbwtTrie::GetColexRank (Iterator it, Iterator end)
+{
+  uint64_t colex_rank {};
+  uint64_t offset {};
+  while (it != end)
+  {
+    auto children_offset {offset};
+    auto children_end_offset {children_select_1_(children_rank_1_(offset) + 1) + 1};
+    auto label_rank {run_length_alphabet_.Rank(*it)};
+    if (label_rank)
+    {
+      while (children_offset != children_end_offset && label_rank != children_label_ranks_[children_offset])
+      {
+        ++children_offset;
+      }
+      if (children_offset != children_end_offset)
+      {
+        auto rank {children_label_ranks_.rank(children_offset, label_rank)};
+        auto bucket_offset {label_rank_bucket_offsets_[label_rank]};
+        offset = children_select_1_(children_rank_1_(bucket_offset) + rank) + 1;
+        ++it;
+      }
+      else { break; }
+    }
+    else { break; }
+  }
+  if (it == end)
+  {
+    if (children_label_ranks_[offset] == 0)
+    {
+      colex_rank = children_label_ranks_.rank(offset + 1, 0);
+    }
+  }
+  return colex_rank;
 }
 
 // template <typename Iterator>
