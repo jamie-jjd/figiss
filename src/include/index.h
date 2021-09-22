@@ -31,11 +31,11 @@ public:
     std::shared_ptr<SpaceNode> parent = nullptr
   );
   void Load (std::filesystem::path const& index_path);
-  //
+
   // template <typename Iterator>
   // uint64_t Count (Iterator begin, Iterator end);
-  //
-  // friend std::ostream& operator<< (std::ostream& out, Index const& index);
+
+  friend std::ostream& operator<< (std::ostream& out, Index const& index);
 
 private:
 
@@ -338,17 +338,18 @@ void Index::Load (std::filesystem::path const& index_path)
 //   return count;
 // }
 
-// std::ostream& operator<< (std::ostream& out, Index const& index)
-// {
-//   out << index.symbol_table_;
-//   out << std::make_pair(index.sub_factor_trie_, true);
-//   out << index.lex_symbol_table_;
-//   out << index.colex_symbol_table_;
-//   out << index.colex_to_lex_ << "\n";
-//   out << index.lex_symbol_bucket_offsets_ << "\n";
-//   out << index.lex_bwt_ << "\n";
-//   return out;
-// }
+std::ostream& operator<< (std::ostream& out, Index const& index)
+{
+  out << "byte_alphabet_:\n";
+  out << index.byte_alphabet_ << "\n";
+  out << "grammar_xbwt_trie_:\n";
+  out << index.grammar_xbwt_trie_ << "\n";
+  out << "lex_rank_bucket_offsets_:";
+  out << index.lex_rank_bucket_offsets_ << "\n";
+  out << "colex_bwt_:";
+  Print(index.colex_bwt_, out);
+  return out;
+}
 
 void Index::CalculateRunLengthText
 (
