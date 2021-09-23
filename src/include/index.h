@@ -32,8 +32,8 @@ public:
   );
   void Load (std::filesystem::path const& index_path);
 
-  // template <typename Iterator>
-  // uint64_t Count (Iterator begin, Iterator end);
+  template <typename Iterator>
+  uint64_t Count (Iterator begin, Iterator end);
 
   friend std::ostream& operator<< (std::ostream& out, Index const& index);
 
@@ -77,9 +77,9 @@ private:
   //   }
   //   return 0;
   // }
-  //
-  // template <typename Iterator>
-  // bool CalculatePattern (Iterator begin, Iterator end, sdsl::int_vector<>& pattern);
+
+  template <typename Iterator>
+  bool CalculateRunLengthPattern (Iterator begin, Iterator end, sdsl::int_vector<>& run_length_pattern);
   // template <typename Iterator, typename Range>
   // Iterator BackwardSearchSuffix
   // (
@@ -285,58 +285,65 @@ void Index::Load (std::filesystem::path const& index_path)
   return;
 }
 
-// template <typename Iterator>
-// uint64_t Index::Count (Iterator begin, Iterator end)
-// {
-//   uint64_t count {};
-//   sdsl::int_vector<> pattern;
-//   if (CalculatePattern(begin, end, pattern))
-//   {
-//     // Print(pattern, std::cout);
-//     std::pair<uint64_t, uint64_t> pattern_range_s {1, 0};
-//     std::pair<uint64_t, uint64_t> pattern_range_l {1, 0};
-//     auto rbegin {std::prev(std::end(pattern))};
-//     auto rend {std::prev(std::begin(pattern))};
-//     auto rfirst {rbegin};
-//     auto rlast {rbegin};
-//     rlast = BackwardSearchSuffix(rbegin, rend, pattern_range_s, pattern_range_l);
-//     if (rlast != rend)
-//     {
-//       while (IsNotEmptyRange(pattern_range_s) || IsNotEmptyRange(pattern_range_l))
-//       {
-//         CalculateSlFactor(rend, rfirst, rlast);
-//         if (rlast != rend)
-//         {
-//           BackwardSearchInfix(rfirst, rlast, pattern_range_s, pattern_range_l);
-//         }
-//         else
-//         {
-//           BackwardSearchPrefix(rfirst, rlast, pattern_range_s, pattern_range_l);
-//           break;
-//         }
-//       }
-//     }
-//     {
-//       count += RangeSize(pattern_range_s);
-//       count += RangeSize(pattern_range_l);
-//       auto size {std::distance(begin, end)};
-//       if (size < (Index::kMaxFactorSize - 1))
-//       {
-//         count += sub_factor_trie_.Count(std::next(rend), std::next(rbegin));
-//       }
-//       if (size < Index::kMaxFactorSize)
-//       {
-//         auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
-//         std::get<0>(colex_symbol_range) += (colex_symbol_table_[SymbolsToInteger(rbegin, rend, -1)] != 0);
-//         if (IsNotEmptyRange(colex_symbol_range))
-//         {
-//           count += RangeCount({0, std::size(lex_bwt_) - 1}, colex_symbol_range);
-//         }
-//       }
-//     }
-//   }
-//   return count;
-// }
+template <typename Iterator>
+uint64_t Index::Count (Iterator begin, Iterator end)
+{
+  uint64_t count {};
+  sdsl::int_vector<> run_length_pattern;
+  if (CalculateRunLengthPattern(begin, end, run_length_pattern))
+  {
+    // {
+    //   uint64_t divisor {1ULL << grammar_xbwt_trie_.GetLengthWidth()};
+    //   for (auto const& integer : run_length_pattern)
+    //   {
+    //     std::cout << "(" << (integer / divisor) << "," << (integer % divisor) << ")";
+    //   }
+    //   std::cout << "\n";
+    // }
+    // std::pair<uint64_t, uint64_t> pattern_range_s {1, 0};
+    // std::pair<uint64_t, uint64_t> pattern_range_l {1, 0};
+    // auto rbegin {std::prev(std::end(pattern))};
+    // auto rend {std::prev(std::begin(pattern))};
+    // auto rfirst {rbegin};
+    // auto rlast {rbegin};
+    // rlast = BackwardSearchSuffix(rbegin, rend, pattern_range_s, pattern_range_l);
+    // if (rlast != rend)
+    // {
+    //   while (IsNotEmptyRange(pattern_range_s) || IsNotEmptyRange(pattern_range_l))
+    //   {
+    //     CalculateSlFactor(rend, rfirst, rlast);
+    //     if (rlast != rend)
+    //     {
+    //       BackwardSearchInfix(rfirst, rlast, pattern_range_s, pattern_range_l);
+    //     }
+    //     else
+    //     {
+    //       BackwardSearchPrefix(rfirst, rlast, pattern_range_s, pattern_range_l);
+    //       break;
+    //     }
+    //   }
+    // }
+    // {
+    //   count += RangeSize(pattern_range_s);
+    //   count += RangeSize(pattern_range_l);
+    //   auto size {std::distance(begin, end)};
+    //   if (size < (Index::kMaxFactorSize - 1))
+    //   {
+    //     count += sub_factor_trie_.Count(std::next(rend), std::next(rbegin));
+    //   }
+    //   if (size < Index::kMaxFactorSize)
+    //   {
+    //     auto colex_symbol_range {CalculateSymbolRange(rbegin, rend, -1)};
+    //     std::get<0>(colex_symbol_range) += (colex_symbol_table_[SymbolsToInteger(rbegin, rend, -1)] != 0);
+    //     if (IsNotEmptyRange(colex_symbol_range))
+    //     {
+    //       count += RangeCount({0, std::size(lex_bwt_) - 1}, colex_symbol_range);
+    //     }
+    //   }
+    // }
+  }
+  return count;
+}
 
 std::ostream& operator<< (std::ostream& out, Index const& index)
 {
@@ -550,22 +557,49 @@ void Index::CalculateColexBwt (sdsl::int_vector<> const& colex_text)
   return;
 }
 
-// template <typename Iterator>
-// bool Index::CalculatePattern (Iterator begin, Iterator end, sdsl::int_vector<>& pattern)
-// {
-//   pattern.width(symbol_table_.GetEffectiveAlphabetWidth());
-//   pattern.resize(std::distance(begin, end));
-//   auto pattern_it {std::begin(pattern)};
-//   for (auto it {begin}; it != end; ++it, ++pattern_it)
-//   {
-//     *pattern_it = symbol_table_[*it];
-//     if (*pattern_it == 0)
-//     {
-//       return false;
-//     }
-//   }
-//   return true;
-// }
+template <typename Iterator>
+bool Index::CalculateRunLengthPattern (Iterator begin, Iterator end, sdsl::int_vector<>& run_length_pattern)
+{
+  uint8_t prev_byte {};
+  uint64_t run_length_pattern_size {};
+  for (auto it {begin}; it != end; ++it)
+  {
+    if (*it != prev_byte)
+    {
+      if (byte_alphabet_.Rank(*it) == 0)
+      {
+        return false;
+      }
+      ++run_length_pattern_size;
+      prev_byte = *it;
+    }
+  }
+  run_length_pattern.width(grammar_xbwt_trie_.GetAlphabetWidth());
+  run_length_pattern.resize(run_length_pattern_size);
+  auto run_length_pattern_it {std::begin(run_length_pattern)};
+  {
+    uint64_t length {};
+    prev_byte = 0;
+    for (auto it {begin}; it != end; ++it)
+    {
+      if (*it != prev_byte)
+      {
+        if (prev_byte)
+        {
+          *run_length_pattern_it++ = byte_alphabet_.Rank(prev_byte) * (1ULL << grammar_xbwt_trie_.GetLengthWidth()) + length;
+        }
+        length = 1;
+        prev_byte = *it;
+      }
+      else
+      {
+        ++length;
+      }
+    }
+    *run_length_pattern_it = byte_alphabet_.Rank(prev_byte) * (1ULL << grammar_xbwt_trie_.GetLengthWidth()) + length;
+  }
+  return true;
+}
 
 // template <typename Iterator, typename Range>
 // void Index::CountWithinSlFactor
