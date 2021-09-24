@@ -17,7 +17,6 @@ public:
   ~ByteAlphabet () = default;
 
   void Swap (ByteAlphabet&);
-
   uint64_t Serialize
   (
     std::ostream& out,
@@ -25,6 +24,7 @@ public:
     std::string const name = ""
   );
   void Load (std::istream& in);
+  uint64_t operator[] (uint64_t const byte) const;
 
   inline uint8_t GetAlphabetWidth () const
   {
@@ -39,15 +39,6 @@ public:
       return sdsl::bits::hi(effective_alphabet_rank_1_(std::size(effective_alphabet_bits_)) - 1) + 1;
     }
     return size;
-  }
-
-  inline uint64_t Rank (uint64_t const byte) const
-  {
-    if ((byte < std::size(effective_alphabet_bits_)) && effective_alphabet_bits_[byte])
-    {
-      return effective_alphabet_rank_1_(byte);
-    }
-    return 0;
   }
 
   friend std::ostream& operator<< (std::ostream& out, ByteAlphabet const& byte_alphabet);
@@ -132,6 +123,15 @@ void ByteAlphabet::Load (std::istream& in)
   effective_alphabet_rank_1_.load(in);
   effective_alphabet_rank_1_.set_vector(&effective_alphabet_bits_);
   return;
+}
+
+uint64_t ByteAlphabet::operator[] (uint64_t const byte) const
+{
+  if ((byte < std::size(effective_alphabet_bits_)) && effective_alphabet_bits_[byte])
+  {
+    return effective_alphabet_rank_1_(byte);
+  }
+  return 0;
 }
 
 std::ostream& operator<< (std::ostream& out, ByteAlphabet const& byte_alphabet)
