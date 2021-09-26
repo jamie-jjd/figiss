@@ -33,12 +33,7 @@ public:
 
   inline uint8_t GetEffectiveAlphabetWidth () const
   {
-    auto size {std::size(effective_alphabet_bits_)};
-    if (size)
-    {
-      return sdsl::bits::hi(effective_alphabet_rank_1_(std::size(effective_alphabet_bits_)) - 1) + 1;
-    }
-    return size;
+    return sdsl::bits::hi(effective_alphabet_rank_1_(std::size(effective_alphabet_bits_))) + 1;
   }
 
   friend std::ostream& operator<< (std::ostream& out, ByteAlphabet const& byte_alphabet);
@@ -55,6 +50,10 @@ ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const& byte_text)
   std::set<uint8_t> effective_alphabet;
   for (auto const byte : byte_text)
   {
+    if (byte == 0)
+    {
+      throw std::runtime_error("byte_text contains 0");
+    }
     effective_alphabet.insert(byte);
   }
   effective_alphabet_bits_.resize(*effective_alphabet.rbegin() + 1);
@@ -129,7 +128,7 @@ uint64_t ByteAlphabet::operator[] (uint64_t const byte) const
 {
   if ((byte < std::size(effective_alphabet_bits_)) && effective_alphabet_bits_[byte])
   {
-    return effective_alphabet_rank_1_(byte);
+    return (effective_alphabet_rank_1_(byte) + 1);
   }
   return 0;
 }
@@ -146,7 +145,7 @@ std::ostream& operator<< (std::ostream& out, ByteAlphabet const& byte_alphabet)
     {
       if (byte_alphabet.effective_alphabet_bits_[byte])
       {
-        out << byte_alphabet.Rank(byte) << ":" << byte << "(" << static_cast<char>(byte) << ")" << "\n";
+        out << byte_alphabet[byte] << ":" << byte << "(" << static_cast<char>(byte) << ")" << "\n";
       }
     }
   }
