@@ -17,7 +17,6 @@ public:
   ~IntegerAlphabet () = default;
 
   void Swap (IntegerAlphabet&);
-
   uint64_t Serialize
   (
     std::ostream& out,
@@ -25,6 +24,9 @@ public:
     std::string const name = ""
   );
   void Load (std::istream& in);
+  uint64_t operator[] (uint64_t const integer) const;
+  uint64_t Rank (uint64_t const integer) const;
+  uint64_t Select (uint64_t const index) const;
 
   inline uint8_t GetAlphabetWidth () const
   {
@@ -33,30 +35,7 @@ public:
 
   inline uint8_t GetEffectiveAlphabetWidth () const
   {
-    auto size {std::size(effective_alphabet_bits_)};
-    if (size)
-    {
-      return sdsl::bits::hi(effective_alphabet_rank_1_(std::size(effective_alphabet_bits_)) - 1) + 1;
-    }
-    return size;
-  }
-
-  inline uint64_t Rank (uint64_t const integer) const
-  {
-    if ((integer < std::size(effective_alphabet_bits_)) && effective_alphabet_bits_[integer])
-    {
-      return effective_alphabet_rank_1_(integer);
-    }
-    return 0;
-  }
-
-  inline uint64_t Select (uint64_t const index) const
-  {
-    if ((index - 1) < effective_alphabet_rank_1_(std::size(effective_alphabet_bits_)))
-    {
-      return effective_alphabet_select_1_(index);
-    }
-    return 0;
+    return sdsl::bits::hi(effective_alphabet_rank_1_(std::size(effective_alphabet_bits_))) + 1;
   }
 
   friend std::ostream& operator<< (std::ostream& out, IntegerAlphabet const& integer_alphabet);
@@ -71,6 +50,10 @@ private:
 
 IntegerAlphabet::IntegerAlphabet (std::set<uint64_t> const& alphabet)
 {
+  if (alphabet.find(0) != alphabet.end())
+  {
+    throw std::runtime_error("alphabet contains 0");
+  }
   auto alphabet_width {sdsl::bits::hi(*std::rbegin(alphabet)) + 1};
   sdsl::int_vector<> sorted_integers(std::size(alphabet), 0, alphabet_width);
   std::copy(std::begin(alphabet), std::end(alphabet), std::begin(sorted_integers));
@@ -156,6 +139,33 @@ void IntegerAlphabet::Load (std::istream& in)
   return;
 }
 
+uint64_t IntegerAlphabet::operator[] (uint64_t const integer) const
+{
+  if ((integer < std::size(effective_alphabet_bits_)) && effective_alphabet_bits_[integer])
+  {
+    return (effective_alphabet_rank_1_(integer) + 1);
+  }
+  return 0;
+}
+
+uint64_t IntegerAlphabet::Rank (uint64_t const integer) const
+{
+  if (integer < std::size(effective_alphabet_bits_))
+  {
+    return effective_alphabet_rank_1_(integer);
+  }
+  return effective_alphabet_rank_1_(std::size(effective_alphabet_bits_));
+}
+
+uint64_t IntegerAlphabet::Select (uint64_t const index) const
+{
+  if ((index - 1) < effective_alphabet_rank_1_(std::size(effective_alphabet_bits_)))
+  {
+    return effective_alphabet_select_1_(index);
+  }
+  return 0;
+}
+
 std::ostream& operator<< (std::ostream& out, IntegerAlphabet const& integer_alphabet)
 {
   {
@@ -168,7 +178,7 @@ std::ostream& operator<< (std::ostream& out, IntegerAlphabet const& integer_alph
     auto number_of_ones {integer_alphabet.effective_alphabet_rank_1_(std::size(bits))};
     for (uint64_t i {}; i != number_of_ones; ++i)
     {
-      out << i << ":" << integer_alphabet.Select(i + 1) << "\n";
+      out << (i + 1) << ":" << integer_alphabet.Select(i + 1) << "\n";
     }
   }
   {
