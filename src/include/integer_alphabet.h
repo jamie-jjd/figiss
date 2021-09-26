@@ -25,7 +25,8 @@ public:
   );
   void Load (std::istream& in);
   uint64_t operator[] (uint64_t const integer) const;
-  uint64_t Rank (uint64_t const integer) const;
+  uint64_t Predecessor (uint64_t const integer) const;
+  uint64_t Successor (uint64_t const integer) const;
   uint64_t Select (uint64_t const index) const;
 
   inline uint8_t GetAlphabetWidth () const
@@ -148,13 +149,22 @@ uint64_t IntegerAlphabet::operator[] (uint64_t const integer) const
   return 0;
 }
 
-uint64_t IntegerAlphabet::Rank (uint64_t const integer) const
+uint64_t IntegerAlphabet::Predecessor (uint64_t const integer) const
 {
   if (integer < std::size(effective_alphabet_bits_))
   {
     return effective_alphabet_rank_1_(integer);
   }
   return effective_alphabet_rank_1_(std::size(effective_alphabet_bits_));
+}
+
+uint64_t IntegerAlphabet::Successor (uint64_t const integer) const
+{
+  if (integer < std::size(effective_alphabet_bits_) - 1)
+  {
+    return (effective_alphabet_rank_1_(integer) + 1);
+  }
+  return 0;
 }
 
 uint64_t IntegerAlphabet::Select (uint64_t const index) const
