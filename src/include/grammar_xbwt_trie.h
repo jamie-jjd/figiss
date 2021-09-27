@@ -82,7 +82,7 @@ std::ostream& operator<< (std::ostream& out, GrammarTrie const& grammar_trie)
   std::deque<std::pair<std::shared_ptr<GrammarTrie::Node>, uint64_t>> nodes;
   nodes.emplace_back(grammar_trie.root_, 0);
   uint64_t size {};
-  uint64_t divisor {1ULL << grammar_trie.length_width_};
+  uint64_t const divisor {1ULL << grammar_trie.length_width_};
   while (!nodes.empty())
   {
     ++size;
@@ -131,10 +131,13 @@ public:
   void Load (std::istream& in);
 
   template <typename Iterator>
-  uint64_t GetColexRank (Iterator it, Iterator end);
-
-  // template <typename Iterator>
-  // uint64_t Count (Iterator it, Iterator end);
+  std::pair<uint64_t, uint64_t> GetLexRankRange (Iterator it, Iterator end) const;
+  template <typename Iterator>
+  uint64_t GetColexRank (Iterator it, Iterator end) const;
+  template <typename Iterator>
+  std::pair<uint64_t, uint64_t> GetColexRankRange (Iterator it, Iterator end) const;
+  template <typename Iterator>
+  uint64_t Count (Iterator it, Iterator end) const;
 
   inline uint8_t GetLengthWidth () const
   {
@@ -181,6 +184,22 @@ private:
     sdsl::int_vector<> const& suffix_array,
     sdsl::int_vector<>& reduced_commom_prefix_lengths
   );
+  uint64_t FindChild
+  (
+    std::pair<uint64_t, uint64_t> const& children_offset_range,
+    uint64_t label_rank
+  ) const;
+
+  template <typename Range> // [,]
+  inline bool IsNotEmptyRange (Range const& range) const
+  {
+    return (std::get<0>(range) <= std::get<1>(range));
+  }
+
+  inline uint64_t InvalidOffset () const
+  {
+    return std::size(children_label_ranks_);
+  }
 
   sdsl::bit_vector children_bits_;
   sdsl::bit_vector::rank_1_type children_rank_1_;
@@ -206,7 +225,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie, IntegerAlphab
   std::deque<std::shared_ptr<GrammarTrie::Node>> grammar_trie_nodes;
   CalculateReverseGrammarRulesAndGrammarTrieNodes(grammar_trie, reverse_grammar_rules, grammar_trie_nodes);
   // {
-  //   uint64_t divisor {1ULL << length_width_};
+  //   uint64_t const divisor {1ULL << length_width_};
   //   for (auto const& label : reverse_grammar_rules)
   //   {
   //     std::cout << "(" << (label / divisor) << "," << (label % divisor) << ")";
@@ -226,7 +245,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie, IntegerAlphab
   sdsl::int_vector<> reduced_commom_prefix_lengths;
   CalculateReducedCommomPrefixLengths(reverse_grammar_rules, suffix_array, reduced_commom_prefix_lengths);
   // {
-  //   uint64_t divisor {1ULL << length_width_};
+  //   uint64_t const divisor {1ULL << length_width_};
   //   std::cout << "i\tRCP\tBWT\tSA\treverse_grammar_rules[i:]\n";
   //   for (uint64_t i {}; i != std::size(suffix_array); ++i)
   //   {
@@ -322,7 +341,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie, IntegerAlphab
         children_labels.push_back(label);
       }
       // {
-      //   uint64_t divisor {1ULL << length_width_};
+      //   uint64_t const divisor {1ULL << length_width_};
       //   std::cout << "children_labels:";
       //   for (auto const &label : children_labels)
       //   {
@@ -330,7 +349,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie, IntegerAlphab
       //   }
       //   std::cout << "\n";
       // }
-      sdsl::int_vector<> children_label_ranks(std::size(children_labels), 0, run_length_alphabet.GetEffectiveAlphabetWidth());
+      sdsl::int_vector<> children_label_ranks(std::size(children_labels), 0, run_length_alphabet_.GetEffectiveAlphabetWidth());
       std::transform
       (
         std::begin(children_labels),
@@ -338,7 +357,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie, IntegerAlphab
         std::begin(children_label_ranks),
         [&] (auto const& label)
         {
-          return run_length_alphabet_.Rank(label);
+          return run_length_alphabet_[label];
         }
       );
       sdsl::construct_im(children_label_ranks_, children_label_ranks);
@@ -463,46 +482,168 @@ void GrammarXbwtTrie::Load (std::istream& in)
 }
 
 template <typename Iterator>
-uint64_t GrammarXbwtTrie::GetColexRank (Iterator it, Iterator end)
+std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetLexRankRange (Iterator it, Iterator end) const
 {
-  uint64_t colex_rank {};
+  uint64_t const divisor {1ULL << length_width_};
+  auto lex_rank_range {std::make_pair<uint64_t, uint64_t>(1, 0)};
+  uint64_t offset {};
+  uint64_t label_rank {};
+  while (it != std::prev(end))
+  {
+    label_rank = run_length_alphabet_[*it++];
+    if (label_rank)
+    {
+      offset = FindChild({offset, children_select_1_(children_rank_1_(offset) + 1)}, label_rank);
+      if (offset == InvalidOffset()) { return {1, 0}; }
+    }
+    else { return {1, 0}; }
+  }
+  {
+    auto temp_offset {offset};
+    while (children_label_ranks_[temp_offset])
+    {
+      label_rank = run_length_alphabet_.Successor(*it - 1);
+      if (label_rank && (*it / divisor) == (run_length_alphabet_.Select(label_rank + 1) / divisor))
+      {
+        temp_offset = FindChild({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
+        if (temp_offset == InvalidOffset()) { return {1, 0}; }
+      }
+      else { return {1, 0}; }
+    }
+    std::get<0>(lex_rank_range) = colex_to_lex_rank_[children_label_ranks_.rank(temp_offset, 0)];
+  }
+  {
+    auto temp_offset {offset};
+    while (children_label_ranks_[temp_offset])
+    {
+      label_rank = run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor);
+      temp_offset = FindChild({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
+    }
+    std::get<1>(lex_rank_range) = colex_to_lex_rank_[children_label_ranks_.rank(temp_offset, 0)];
+  }
+  return lex_rank_range;
+}
+
+template <typename Iterator>
+uint64_t GrammarXbwtTrie::GetColexRank (Iterator it, Iterator end) const
+{
   uint64_t offset {};
   while (it != end)
   {
-    auto children_offset {offset};
-    auto children_end_offset {children_select_1_(children_rank_1_(offset) + 1) + 1};
-    auto label_rank {run_length_alphabet_.Rank(*it)};
+    auto label_rank {run_length_alphabet_[*it++]};
     if (label_rank)
     {
-      while (children_offset != children_end_offset && label_rank != children_label_ranks_[children_offset])
-      {
-        ++children_offset;
-      }
-      if (children_offset != children_end_offset)
-      {
-        auto rank {children_label_ranks_.rank(children_offset, label_rank)};
-        auto bucket_offset {label_rank_bucket_offsets_[label_rank]};
-        offset = children_select_1_(children_rank_1_(bucket_offset) + rank) + 1;
-        ++it;
-      }
-      else { break; }
+      offset = FindChild({offset, children_select_1_(children_rank_1_(offset) + 1)}, label_rank);
+      if (offset == InvalidOffset()) { return 0; }
     }
-    else { break; }
+    else { return 0; }
   }
-  if (it == end)
+  if (children_label_ranks_[offset] == 0)
   {
-    if (children_label_ranks_[offset] == 0)
-    {
-      colex_rank = children_label_ranks_.rank(offset + 1, 0);
-    }
+    return children_label_ranks_.rank(offset + 1, 0);
   }
-  return colex_rank;
+  return 0;
 }
 
-// template <typename Iterator>
-// uint64_t GrammarXbwtTrie::Count (Iterator it, Iterator end)
-// {
-// }
+template <typename Iterator>
+std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetColexRankRange (Iterator it, Iterator end) const
+{
+  uint64_t const divisor {1ULL << length_width_};
+  auto offset_range {std::make_pair<uint64_t, uint64_t>(1, 0)};
+  auto label_rank_range {std::make_pair<uint64_t, uint64_t>(1, 0)};
+  std::get<0>(label_rank_range) = run_length_alphabet_.Successor(*it - 1);
+  if
+  (
+    std::get<0>(label_rank_range)
+    && (*it / divisor) == (run_length_alphabet_.Select(std::get<0>(label_rank_range) + 1) / divisor)
+  )
+  {
+    std::get<1>(label_rank_range) = run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor);
+    offset_range =
+    {
+      label_rank_bucket_offsets_[std::get<0>(label_rank_range)],
+      label_rank_bucket_offsets_[std::get<1>(label_rank_range) + 1] - 1
+    };
+    if (!IsNotEmptyRange(offset_range)) { return {1, 0}; }
+  }
+  else { return {1, 0}; }
+  while (it++ != end)
+  {
+    auto label_rank {run_length_alphabet_[*it]};
+    if (label_rank)
+    {
+      auto begin_offset {label_rank_bucket_offsets_[label_rank]};
+      offset_range =
+      {
+        begin_offset + children_label_ranks_.rank(std::get<0>(offset_range), label_rank),
+        begin_offset + children_label_ranks_.rank(std::get<1>(offset_range) + 1, label_rank) - 1
+      };
+      if (!IsNotEmptyRange(offset_range)) { return {1, 0}; }
+    }
+    else { return {1, 0}; }
+  }
+  return
+  {
+    children_label_ranks_.rank(std::get<0>(offset_range), 0) + 1,
+    children_label_ranks_.rank(std::get<1>(offset_range) + 1, 0)
+  };
+}
+
+template <typename Iterator>
+uint64_t GrammarXbwtTrie::Count (Iterator it, Iterator end) const
+{
+  auto offset_range {std::make_pair<uint64_t, uint64_t>(1, 0)};
+  if (it != end)
+  {
+    uint64_t const divisor {1ULL << length_width_};
+    offset_range =
+    {
+      label_rank_bucket_offsets_[run_length_alphabet_.Successor(*it - 1)],
+      label_rank_bucket_offsets_[run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor) + 1] - 1
+    };
+    while (it++ != std::prev(end) && IsNotEmptyRange(offset_range))
+    {
+      auto label_rank {run_length_alphabet_[*it]};
+      if (label_rank)
+      {
+        auto begin_offset {label_rank_bucket_offsets_[label_rank]};
+        offset_range =
+        {
+          begin_offset + children_label_ranks_.rank(std::get<0>(offset_range), label_rank),
+          begin_offset + children_label_ranks_.rank(std::get<1>(offset_range) + 1, label_rank) - 1
+        };
+      } else { return 0; }
+    }
+    if (it != end)
+    {
+      uint64_t count {};
+      auto begin_label_rank {run_length_alphabet_.Successor(*it - 1)};
+      auto end_label_rank {run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor) + 1};
+      for (auto label_rank {begin_label_rank}; label_rank != end_label_rank; ++label_rank)
+      {
+        auto begin_offset {label_rank_bucket_offsets_[label_rank]};
+        auto temp_offset_range
+        {
+          std::make_pair
+          (
+            begin_offset + children_label_ranks_.rank(std::get<0>(offset_range), label_rank),
+            begin_offset + children_label_ranks_.rank(std::get<1>(offset_range) + 1, label_rank) - 1
+          )
+        };
+        if (IsNotEmptyRange(temp_offset_range))
+        {
+          count += (cumulative_counts_[std::get<1>(temp_offset_range)] - cumulative_counts_[std::get<0>(temp_offset_range) - 1]);
+        }
+      }
+      return count;
+    }
+  }
+  if (IsNotEmptyRange(offset_range))
+  {
+    return (cumulative_counts_[std::get<1>(offset_range)] - cumulative_counts_[std::get<0>(offset_range) - 1]);
+  }
+  return 0;
+}
 
 std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& xbwt)
 {
@@ -519,8 +660,8 @@ std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& xbwt)
     if (depth)
     {
       auto label_rank {xbwt.label_rank_bucket_offsets_.Predecessor(offset + 1)};
-      auto label {xbwt.run_length_alphabet_.Select(label_rank + 1)};
-      uint64_t divisor {1ULL << xbwt.length_width_};
+      auto label {xbwt.run_length_alphabet_.Select(label_rank)};
+      uint64_t const divisor {1ULL << xbwt.length_width_};
       auto children_rank {xbwt.children_rank_1_(offset)};
       uint64_t count {xbwt.cumulative_counts_[children_rank] - xbwt.cumulative_counts_[children_rank - 1]};
       uint64_t lex_rank {};
@@ -535,18 +676,19 @@ std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& xbwt)
       << "(" << lex_rank << ")\n";
     }
     {
+      auto children_offset {xbwt.children_select_1_(xbwt.children_rank_1_(offset) + 1)};
       auto children_rend_offset {offset - 1};
-      auto children_rbegin_offset {xbwt.children_select_1_(xbwt.children_rank_1_(offset) + 1)};
-      for (auto children_offset {children_rbegin_offset}; children_offset != children_rend_offset; --children_offset)
+      while (children_offset != children_rend_offset)
       {
         auto pair {xbwt.children_label_ranks_.inverse_select(children_offset)};
-        auto rank {std::get<0>(pair)};
+        auto occurrence {std::get<0>(pair)};
         auto label_rank {std::get<1>(pair)};
         if (label_rank)
         {
           auto bucket_offset {xbwt.label_rank_bucket_offsets_[label_rank]};
-          offsets.emplace_back(xbwt.children_select_1_(xbwt.children_rank_1_(bucket_offset) + rank) + 1, depth + 1);
+          offsets.emplace_back(xbwt.children_select_1_(xbwt.children_rank_1_(bucket_offset) + occurrence) + 1, depth + 1);
         }
+        --children_offset;
       }
     }
   }
@@ -645,5 +787,28 @@ void GrammarXbwtTrie::CalculateReducedCommomPrefixLengths
     }
   }
   return;
+}
+
+uint64_t GrammarXbwtTrie::FindChild
+(
+  std::pair<uint64_t, uint64_t> const& children_offset_range,
+  uint64_t const label_rank
+) const
+{
+  auto offset {InvalidOffset()};
+  auto occurrence_range
+  {
+    std::make_pair
+    (
+      children_label_ranks_.rank(std::get<0>(children_offset_range), label_rank),
+      children_label_ranks_.rank(std::get<1>(children_offset_range) + 1, label_rank) - 1
+    )
+  };
+  if (IsNotEmptyRange(occurrence_range))
+  {
+    auto bucket_offset {label_rank_bucket_offsets_[label_rank]};
+    offset = children_select_1_(children_rank_1_(bucket_offset) + std::get<0>(occurrence_range)) + 1;
+  }
+  return offset;
 }
 }
