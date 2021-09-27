@@ -5,23 +5,22 @@
 #include <sdsl/csa_wt.hpp>
 #include <sdsl/suffix_array_algorithm.hpp>
 
-#include "index.h"
 #include "pattern.h"
 #include "utility.h"
 
 namespace figiss
 {
 template <typename Index>
-void TestCount (std::filesystem::path const& text_path, Index& index)
+void TestCount (std::filesystem::path const& byte_text_path, Index& index)
 {
   sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
   {
-    sdsl::int_vector<8> text;
-    sdsl::load_vector_from_file(text, text_path);
-    sdsl::construct_im(rlfm, text);
+    sdsl::int_vector<8> byte_text;
+    sdsl::load_vector_from_file(byte_text, byte_text_path);
+    sdsl::construct_im(rlfm, byte_text);
   }
   {
-    index = Index {text_path};
+    index = Index {byte_text_path};
   }
   {
     uint64_t amount {1ULL << 12};
@@ -32,7 +31,7 @@ void TestCount (std::filesystem::path const& text_path, Index& index)
       Patterns patterns;
       for (uint8_t is_mutated {}; is_mutated != 2; ++is_mutated)
       {
-        patterns = Patterns(text_path, amount, unit_size, is_mutated);
+        patterns = Patterns(byte_text_path, amount, unit_size, is_mutated);
         if (patterns.GetUnitSize() < unit_size)
         {
           return;
@@ -96,7 +95,7 @@ void PrintCountingTime
 template <typename Index>
 void MeasureIndexCountingTime
 (
-  std::filesystem::path const& text_path,
+  std::filesystem::path const& byte_text_path,
   Index& index,
   bool const is_proper_representation = false
 )
@@ -107,13 +106,13 @@ void MeasureIndexCountingTime
     (
       "../data/index/"
       + std::to_string(Index::kMaxFactorSize) + "/"
-      + text_path.filename().string()
+      + byte_text_path.filename().string()
       + ".gci"
     )
   };
   if (!std::filesystem::exists(index_path))
   {
-    index = Index{text_path};
+    index = Index{byte_text_path};
     index.Serialize(index_path);
   }
   std::vector<std::pair<uint64_t, double>> time;
@@ -121,7 +120,7 @@ void MeasureIndexCountingTime
   for (uint64_t unit_size {1ULL << 8}; unit_size <= (1ULL << 15); unit_size <<= 1)
   {
     std::cout << "pattern size: " << unit_size << "\n";
-    auto patterns {Patterns(text_path, amount, unit_size)};
+    auto patterns {Patterns(byte_text_path, amount, unit_size)};
     index.Load(index_path);
     {
       auto begin {std::begin(patterns)};
@@ -151,7 +150,7 @@ void MeasureIndexCountingTime
     {
       std::string("../data/time/")
       + std::to_string(Index::kMaxFactorSize) + "/"
-      + text_path.filename().string()
+      + byte_text_path.filename().string()
     },
     time,
     is_proper_representation
@@ -161,7 +160,7 @@ void MeasureIndexCountingTime
 
 void MeasureRlfmCountingTime
 (
-  std::filesystem::path const& text_path,
+  std::filesystem::path const& byte_text_path,
   bool const is_proper_representation = false
 )
 {
@@ -170,7 +169,7 @@ void MeasureRlfmCountingTime
     std::filesystem::path
     (
       "../data/index/rlfm/"
-      + text_path.filename().string()
+      + byte_text_path.filename().string()
       + ".rlfm"
     )
   };
@@ -178,10 +177,10 @@ void MeasureRlfmCountingTime
   if (!std::filesystem::exists(index_path))
   {
     std::filesystem::create_directories(index_path.parent_path());
-    sdsl::int_vector<8> text;
-    sdsl::load_vector_from_file(text, text_path);
-    std::cout << "construct rlfm of " << std::filesystem::canonical(text_path) << "\n";
-    sdsl::construct_im(rlfm, text);
+    sdsl::int_vector<8> byte_text;
+    sdsl::load_vector_from_file(byte_text, byte_text_path);
+    std::cout << "construct rlfm of " << std::filesystem::canonical(byte_text_path) << "\n";
+    sdsl::construct_im(rlfm, byte_text);
     std::ofstream fout {index_path, std::ios_base::out | std::ios_base::trunc};
     sdsl::serialize(rlfm, fout);
     std::cout << "serialize rlfm to " << std::filesystem::canonical(index_path) << "\n";
@@ -191,7 +190,7 @@ void MeasureRlfmCountingTime
   for (uint64_t unit_size {1ULL << 8}; unit_size <= (1ULL << 15); unit_size <<= 1)
   {
     std::cout << "pattern size: " << unit_size << "\n";
-    auto patterns {Patterns(text_path, amount, unit_size)};
+    auto patterns {Patterns(byte_text_path, amount, unit_size)};
     {
       std::ifstream in {index_path};
       rlfm.load(in);
@@ -225,7 +224,7 @@ void MeasureRlfmCountingTime
     {
       std::string("../data/time/")
       + "rlfm/"
-      + text_path.filename().string()
+      + byte_text_path.filename().string()
     },
     time,
     is_proper_representation
