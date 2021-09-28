@@ -54,10 +54,10 @@ private:
     IntegerAlphabet& run_length_alphabet,
     GrammarTrie& grammar_trie
   );
-  void CalculateColexText
+  void CalculateLexText
   (
     sdsl::int_vector<> const& run_length_text,
-    sdsl::int_vector<>& colex_text
+    sdsl::int_vector<>& lex_text
   );
   void CalculateLexRankBucketOffsets (sdsl::int_vector<> const& colex_text);
   void CalculateColexBwt (sdsl::int_vector<> const& colex_text);
@@ -113,7 +113,7 @@ private:
 Index::Index (std::filesystem::path const& byte_text_path)
 {
   std::cout << "construct index of " << std::filesystem::canonical(byte_text_path) << "\n";
-  sdsl::int_vector<> colex_text;
+  sdsl::int_vector<> lex_text;
   {
     sdsl::int_vector<> run_length_text;
     {
@@ -149,18 +149,18 @@ Index::Index (std::filesystem::path const& byte_text_path)
       // std::cout << grammar_xbwt_trie_;
     }
     {
-      CalculateColexText(run_length_text, colex_text);
-      // Print(colex_text, std::cout);
+      CalculateLexText(run_length_text, lex_text);
+      // Print(lex_text, std::cout);
     }
   }
-  {
-    CalculateLexRankBucketOffsets(colex_text);
-    // std::cout << lex_rank_bucket_offsets_;
-  }
-  {
-    CalculateColexBwt(colex_text);
-    // std::cout << colex_bwt_ << "\n";
-  }
+  // {
+  //   CalculateLexRankBucketOffsets(colex_text);
+  //   // std::cout << lex_rank_bucket_offsets_;
+  // }
+  // {
+  //   CalculateColexBwt(colex_text);
+  //   // std::cout << colex_bwt_ << "\n";
+  // }
 }
 
 Index::Index (Index&& index)
@@ -417,13 +417,13 @@ void Index::CalculateRunLengthAlphabetAndLexRankOnGrammarTrie
   return;
 }
 
-void Index::CalculateColexText
+void Index::CalculateLexText
 (
   sdsl::int_vector<> const& run_length_text,
-  sdsl::int_vector<>& colex_text
+  sdsl::int_vector<>& lex_text
 )
 {
-  std::deque<uint64_t> temp_colex_text(1, 0);
+  std::deque<uint64_t> temp_lex_text(1, 0);
   auto rend {std::prev(std::begin(run_length_text))};
   auto it {std::prev(std::end(run_length_text), 2)};
   auto next_symbol {*std::prev(std::end(run_length_text))};
@@ -447,17 +447,17 @@ void Index::CalculateColexText
     if ((sl_type == Index::kL) && (next_sl_type == Index::kS))
     {
       auto sl_factor_begin {std::next(it)};
-      temp_colex_text.push_front(grammar_xbwt_trie_.GetColexRank(sl_factor_begin, sl_factor_end));
+      temp_lex_text.push_front(grammar_xbwt_trie_.Rank(sl_factor_begin, sl_factor_end, true));
       sl_factor_end = sl_factor_begin;
     }
     next_symbol = *it--;
     next_sl_type = sl_type;
   }
-  temp_colex_text.push_front(grammar_xbwt_trie_.GetColexRank(std::next(rend), sl_factor_end));
+  temp_lex_text.push_front(grammar_xbwt_trie_.Rank(std::next(rend), sl_factor_end, true));
   {
-    colex_text.width(grammar_xbwt_trie_.GetColexAlphabetWidth());
-    colex_text.resize(std::size(temp_colex_text));
-    std::copy(std::begin(temp_colex_text), std::end(temp_colex_text), std::begin(colex_text));
+    lex_text.width(grammar_xbwt_trie_.GetLexAlphabetWidth());
+    lex_text.resize(std::size(temp_lex_text));
+    std::copy(std::begin(temp_lex_text), std::end(temp_lex_text), std::begin(lex_text));
   }
   return;
 }
@@ -606,6 +606,7 @@ Iterator Index::ClassifyPattern (Iterator rbegin, Iterator rend, Range& pattern_
     else
     {
       pattern_range_l = {1, grammar_xbwt_trie_.Count(std::next(rend), std::next(rbegin))};
+      return rend;
     }
   }
   return rlast;
@@ -633,7 +634,7 @@ void Index::BackwardSearchSuffix (Iterator rbegin, Iterator rend, Range& pattern
 template <typename Iterator, typename Range>
 void Index::BackwardSearchInfix (Iterator rbegin, Iterator rend, Range& pattern_range)
 {
-  auto colex_rank {grammar_xbwt_trie_.GetColexRank(std::next(rend), std::next(rbegin))};
+  auto colex_rank {grammar_xbwt_trie_.Rank(std::next(rend), std::next(rbegin))};
   if (colex_rank)
   {
     auto begin_offset {lex_rank_bucket_offsets_[grammar_xbwt_trie_.ColexToLexRank(colex_rank)]};
@@ -668,7 +669,7 @@ void Index::BackwardSearchPrefix (Iterator rbegin, Iterator rend, Range& pattern
 template <typename Iterator, typename Range>
 void Index::BackwardSearchInfix (Iterator rbegin, Iterator rend, Range& pattern_range_s, Range& pattern_range_l)
 {
-  auto colex_rank {grammar_xbwt_trie_.GetColexRank(std::next(rend), std::next(rbegin))};
+  auto colex_rank {grammar_xbwt_trie_.Rank(std::next(rend), std::next(rbegin))};
   if (colex_rank)
   {
     auto begin_offset {lex_rank_bucket_offsets_[grammar_xbwt_trie_.ColexToLexRank(colex_rank)]};
