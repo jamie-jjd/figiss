@@ -156,7 +156,7 @@ public:
 
   inline uint64_t GetLexAlphabetSize () const
   {
-    return std::size(colex_to_lex_rank_) + 1;
+    return (std::size(colex_to_lex_rank_) + 1);
   }
 
   inline uint64_t ColexToLexRank (uint64_t const colex_rank) const
@@ -533,7 +533,7 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetLexRankRange (Iterator it, Ite
         temp_offset = CalculateChildRbeginOffset({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
         while ((label_rank = children_label_ranks_[temp_offset]))
         {
-          temp_offset = CalculateChildRbeginOffset({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 2)}, label_rank);
+          temp_offset = CalculateChildRbeginOffset({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
           if (temp_offset == InvalidOffset()) { return {1, 0}; }
         }
         std::get<1>(lex_rank_range) = colex_to_lex_rank_[children_label_ranks_.rank(temp_offset, 0)];
