@@ -131,9 +131,9 @@ public:
   void Load (std::istream& in);
 
   template <typename Iterator>
-  std::pair<uint64_t, uint64_t> GetLexRankRange (Iterator it, Iterator end) const;
+  uint64_t Rank (Iterator it, Iterator end, bool const is_lex = false) const; // true: colex_rank
   template <typename Iterator>
-  uint64_t GetColexRank (Iterator it, Iterator end) const;
+  std::pair<uint64_t, uint64_t> GetLexRankRange (Iterator it, Iterator end) const;
   template <typename Iterator>
   std::pair<uint64_t, uint64_t> GetColexRankRange (Iterator it, Iterator end) const;
   template <typename Iterator>
@@ -154,7 +154,7 @@ public:
     return run_length_alphabet_.GetEffectiveAlphabetWidth();
   }
 
-  inline uint8_t GetColexAlphabetWidth () const
+  inline uint8_t GetLexAlphabetWidth () const
   {
     return sdsl::bits::hi(std::size(colex_to_lex_rank_) + 1) + 1;
   }
@@ -545,7 +545,7 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetLexRankRange (Iterator it, Ite
 }
 
 template <typename Iterator>
-uint64_t GrammarXbwtTrie::GetColexRank (Iterator it, Iterator end) const
+uint64_t GrammarXbwtTrie::Rank (Iterator it, Iterator end, bool const is_lex) const
 {
   uint64_t offset {};
   while (it != end)
@@ -560,6 +560,10 @@ uint64_t GrammarXbwtTrie::GetColexRank (Iterator it, Iterator end) const
   }
   if (children_label_ranks_[offset] == 0)
   {
+    if (is_lex)
+    {
+      return colex_to_lex_rank_[children_label_ranks_.rank(offset, 0)];
+    }
     return children_label_ranks_.rank(offset + 1, 0);
   }
   return 0;
@@ -587,7 +591,7 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetColexRankRange (Iterator it, I
     if (IsEmptyRange(offset_range)) { return {1, 0}; }
   }
   else { return {1, 0}; }
-  while (it++ != end)
+  while (++it != end)
   {
     auto label_rank {run_length_alphabet_[*it]};
     if (label_rank)
