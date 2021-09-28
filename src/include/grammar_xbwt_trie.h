@@ -154,9 +154,9 @@ public:
     return run_length_alphabet_.GetEffectiveAlphabetWidth();
   }
 
-  inline uint8_t GetLexAlphabetWidth () const
+  inline uint64_t GetLexAlphabetSize () const
   {
-    return sdsl::bits::hi(std::size(colex_to_lex_rank_) + 1) + 1;
+    return std::size(colex_to_lex_rank_) + 1;
   }
 
   inline uint64_t ColexToLexRank (uint64_t const colex_rank) const
