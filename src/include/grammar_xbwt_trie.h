@@ -172,7 +172,7 @@ public:
 
 private:
 
-  void CalculateReverseGrammarRulesAndGrammarTrieNodes
+  void CalculateReverseGrammarRulesAndGrammarTrieNodesAndCumulativeByteRankCounts
   (
     GrammarTrie const& grammar_trie,
     sdsl::int_vector<>& reverse_grammar_rules,
@@ -191,9 +191,9 @@ private:
   ) const;
 
   template <typename Range> // [,]
-  inline bool IsNotEmptyRange (Range const& range) const
+  inline bool IsEmptyRange (Range const& range) const
   {
-    return (std::get<0>(range) <= std::get<1>(range));
+    return (std::get<0>(range) > std::get<1>(range));
   }
 
   inline uint64_t InvalidOffset () const
@@ -209,6 +209,7 @@ private:
   sdsl::wm_int<> children_label_ranks_;
   SparsePrefixSum label_rank_bucket_offsets_;
   SparsePrefixSum cumulative_counts_;
+  SparsePrefixSum cumulative_byte_rank_counts_;
   sdsl::int_vector<> colex_to_lex_rank_;
 
 };
@@ -223,7 +224,12 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie, IntegerAlphab
   }
   sdsl::int_vector<> reverse_grammar_rules;
   std::deque<std::shared_ptr<GrammarTrie::Node>> grammar_trie_nodes;
-  CalculateReverseGrammarRulesAndGrammarTrieNodes(grammar_trie, reverse_grammar_rules, grammar_trie_nodes);
+  CalculateReverseGrammarRulesAndGrammarTrieNodesAndCumulativeByteRankCounts
+  (
+    grammar_trie,
+    reverse_grammar_rules,
+    grammar_trie_nodes
+  );
   // {
   //   uint64_t const divisor {1ULL << length_width_};
   //   for (auto const& label : reverse_grammar_rules)
@@ -239,6 +245,7 @@ GrammarXbwtTrie::GrammarXbwtTrie (GrammarTrie const& grammar_trie, IntegerAlphab
   //     << "(" << node->count << ")"
   //     << "(" << node->lex_rank << ")\n";
   //   }
+  //   std::cout << "cumulative_byte_rank_counts_:" << cumulative_byte_rank_counts_;
   // }
   sdsl::int_vector<> suffix_array;
   sdsl::qsufsort::construct_sa(suffix_array, reverse_grammar_rules);
@@ -423,6 +430,7 @@ void GrammarXbwtTrie::Swap (GrammarXbwtTrie& grammar_xbwt_trie)
     label_rank_bucket_offsets_.Swap(grammar_xbwt_trie.label_rank_bucket_offsets_);
     cumulative_counts_.Swap(grammar_xbwt_trie.cumulative_counts_);
     colex_to_lex_rank_.swap(grammar_xbwt_trie.colex_to_lex_rank_);
+    cumulative_byte_rank_counts_.Swap(grammar_xbwt_trie.cumulative_byte_rank_counts_);
   }
   return;
 }
@@ -446,6 +454,7 @@ uint64_t GrammarXbwtTrie::Serialize
     label_rank_bucket_offsets_.Serialize(out);
     cumulative_counts_.Serialize(out);
     sdsl::serialize(colex_to_lex_rank_, out);
+    cumulative_byte_rank_counts_.Serialize(out);
   }
   else
   {
@@ -459,6 +468,7 @@ uint64_t GrammarXbwtTrie::Serialize
     node->AccumalateSizeInBytes(label_rank_bucket_offsets_.Serialize(out, node, "label_rank_bucket_offsets_"));
     node->AccumalateSizeInBytes(cumulative_counts_.Serialize(out, node, "cumulative_counts_"));
     node->AddLeaf("colex_to_lex_rank_", sdsl::serialize(colex_to_lex_rank_, out));
+    node->AccumalateSizeInBytes(cumulative_byte_rank_counts_.Serialize(out, node, "cumulative_byte_rank_counts_"));
     parent->AddChild(node);
     size_in_bytes = node->GetSizeInBytes();
   }
@@ -478,6 +488,7 @@ void GrammarXbwtTrie::Load (std::istream& in)
   label_rank_bucket_offsets_.Load(in);
   cumulative_counts_.Load(in);
   colex_to_lex_rank_.load(in);;
+  cumulative_byte_rank_counts_.Load(in);
   return;
 }
 
@@ -503,7 +514,7 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetLexRankRange (Iterator it, Ite
     while (children_label_ranks_[temp_offset])
     {
       label_rank = run_length_alphabet_.Successor(*it - 1);
-      if (label_rank && (*it / divisor) == (run_length_alphabet_.Select(label_rank + 1) / divisor))
+      if (label_rank && (*it / divisor) == (run_length_alphabet_.Select(label_rank) / divisor))
       {
         temp_offset = FindChild({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
         if (temp_offset == InvalidOffset()) { return {1, 0}; }
@@ -555,7 +566,7 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetColexRankRange (Iterator it, I
   if
   (
     std::get<0>(label_rank_range)
-    && (*it / divisor) == (run_length_alphabet_.Select(std::get<0>(label_rank_range) + 1) / divisor)
+    && (*it / divisor) == (run_length_alphabet_.Select(std::get<0>(label_rank_range)) / divisor)
   )
   {
     std::get<1>(label_rank_range) = run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor);
@@ -564,7 +575,7 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetColexRankRange (Iterator it, I
       label_rank_bucket_offsets_[std::get<0>(label_rank_range)],
       label_rank_bucket_offsets_[std::get<1>(label_rank_range) + 1] - 1
     };
-    if (!IsNotEmptyRange(offset_range)) { return {1, 0}; }
+    if (IsEmptyRange(offset_range)) { return {1, 0}; }
   }
   else { return {1, 0}; }
   while (it++ != end)
@@ -578,7 +589,7 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetColexRankRange (Iterator it, I
         begin_offset + children_label_ranks_.rank(std::get<0>(offset_range), label_rank),
         begin_offset + children_label_ranks_.rank(std::get<1>(offset_range) + 1, label_rank) - 1
       };
-      if (!IsNotEmptyRange(offset_range)) { return {1, 0}; }
+      if (IsEmptyRange(offset_range)) { return {1, 0}; }
     }
     else { return {1, 0}; }
   }
@@ -592,57 +603,85 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetColexRankRange (Iterator it, I
 template <typename Iterator>
 uint64_t GrammarXbwtTrie::Count (Iterator it, Iterator end) const
 {
+  uint64_t const divisor {1ULL << length_width_};
   auto offset_range {std::make_pair<uint64_t, uint64_t>(1, 0)};
-  if (it != end)
+  auto label_rank_range {std::make_pair<uint64_t, uint64_t>(1, 0)};
+  std::get<0>(label_rank_range) = run_length_alphabet_.Successor(*it - 1);
+  if
+  (
+    std::get<0>(label_rank_range)
+    && (*it / divisor) == (run_length_alphabet_.Select(std::get<0>(label_rank_range)) / divisor)
+  )
   {
-    uint64_t const divisor {1ULL << length_width_};
+    std::get<1>(label_rank_range) = run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor);
     offset_range =
     {
-      label_rank_bucket_offsets_[run_length_alphabet_.Successor(*it - 1)],
-      label_rank_bucket_offsets_[run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor) + 1] - 1
+      label_rank_bucket_offsets_[std::get<0>(label_rank_range)],
+      label_rank_bucket_offsets_[std::get<1>(label_rank_range) + 1] - 1
     };
-    while (it++ != std::prev(end) && IsNotEmptyRange(offset_range))
+    if (IsEmptyRange(offset_range)) { return 0; }
+    if (it == std::prev(end))
     {
-      auto label_rank {run_length_alphabet_[*it]};
-      if (label_rank)
+      return
+      (
+        cumulative_byte_rank_counts_[std::get<1>(label_rank_range)]
+        - cumulative_byte_rank_counts_[std::get<0>(label_rank_range) - 1]
+      )
+      - ((*it % divisor) - 1) *
+      (
+        cumulative_counts_[children_rank_1_(std::get<1>(offset_range))]
+        - cumulative_counts_[children_rank_1_(std::get<0>(offset_range)) - 1]
+      );
+    }
+  }
+  else { return 0; }
+  while (++it != std::prev(end))
+  {
+    auto label_rank {run_length_alphabet_[*it]};
+    if (label_rank)
+    {
+      auto begin_offset {label_rank_bucket_offsets_[label_rank]};
+      offset_range =
       {
-        auto begin_offset {label_rank_bucket_offsets_[label_rank]};
-        offset_range =
-        {
+        begin_offset + children_label_ranks_.rank(std::get<0>(offset_range), label_rank),
+        begin_offset + children_label_ranks_.rank(std::get<1>(offset_range) + 1, label_rank) - 1
+      };
+      if (IsEmptyRange(offset_range)) { return 0; }
+    } else { return 0; }
+  }
+  uint64_t count {};
+  std::get<0>(label_rank_range) = run_length_alphabet_.Successor(*it - 1);
+  if
+  (
+    std::get<0>(label_rank_range)
+    && (*it / divisor) == (run_length_alphabet_.Select(std::get<0>(label_rank_range)) / divisor)
+  )
+  {
+    auto label_rank {std::get<0>(label_rank_range)};
+    std::get<1>(label_rank_range) = run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor);
+    while (label_rank <= std::get<1>(label_rank_range))
+    {
+      auto begin_offset {label_rank_bucket_offsets_[label_rank]};
+      auto temp_offset_range
+      {
+        std::make_pair
+        (
           begin_offset + children_label_ranks_.rank(std::get<0>(offset_range), label_rank),
           begin_offset + children_label_ranks_.rank(std::get<1>(offset_range) + 1, label_rank) - 1
-        };
-      } else { return 0; }
-    }
-    if (it != end)
-    {
-      uint64_t count {};
-      auto begin_label_rank {run_length_alphabet_.Successor(*it - 1)};
-      auto end_label_rank {run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor) + 1};
-      for (auto label_rank {begin_label_rank}; label_rank != end_label_rank; ++label_rank)
+        )
+      };
+      if (!IsEmptyRange(temp_offset_range))
       {
-        auto begin_offset {label_rank_bucket_offsets_[label_rank]};
-        auto temp_offset_range
-        {
-          std::make_pair
-          (
-            begin_offset + children_label_ranks_.rank(std::get<0>(offset_range), label_rank),
-            begin_offset + children_label_ranks_.rank(std::get<1>(offset_range) + 1, label_rank) - 1
-          )
-        };
-        if (IsNotEmptyRange(temp_offset_range))
-        {
-          count += (cumulative_counts_[std::get<1>(temp_offset_range)] - cumulative_counts_[std::get<0>(temp_offset_range) - 1]);
-        }
+        count +=
+        (
+          cumulative_counts_[children_rank_1_(std::get<1>(temp_offset_range))]
+          - cumulative_counts_[children_rank_1_(std::get<0>(temp_offset_range)) - 1]
+        );
       }
-      return count;
+      ++label_rank;
     }
   }
-  if (IsNotEmptyRange(offset_range))
-  {
-    return (cumulative_counts_[std::get<1>(offset_range)] - cumulative_counts_[std::get<0>(offset_range) - 1]);
-  }
-  return 0;
+  return count;
 }
 
 std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& xbwt)
@@ -699,16 +738,18 @@ std::ostream& operator<< (std::ostream& out, GrammarXbwtTrie const& xbwt)
   return out;
 }
 
-void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodes
+void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodesAndCumulativeByteRankCounts
 (
   GrammarTrie const& grammar_trie,
   sdsl::int_vector<>& reverse_grammar_rules,
   std::deque<std::shared_ptr<GrammarTrie::Node>>& grammar_trie_nodes
 )
 {
+  uint64_t const divisor {1ULL << grammar_trie.GetLengthWidth()};
   std::deque<std::pair<std::shared_ptr<GrammarTrie::Node>, bool>> nodes;
   std::deque<std::shared_ptr<GrammarTrie::Node>> ancestors;
   std::deque<uint64_t> temp_reverse_grammar_rules;
+  std::map<uint64_t, uint64_t> byte_rank_counts;
   auto root {grammar_trie.GetRoot()};
   for (auto it {std::rbegin(root->children)}; it != std::rend(root->children); ++it)
   {
@@ -736,6 +777,20 @@ void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodes
       {
         nodes.emplace_back(std::get<1>(*it), true);
       }
+      {
+        uint64_t byte_rank_count {(node->label % divisor) * node->count};
+        {
+          auto it {byte_rank_counts.find(node->label)};
+          if (it != byte_rank_counts.end())
+          {
+            std::get<1>(*it) += byte_rank_count;
+          }
+          else
+          {
+            byte_rank_counts[node->label] = byte_rank_count;
+          }
+        }
+      }
     }
     else
     {
@@ -743,9 +798,21 @@ void GrammarXbwtTrie::CalculateReverseGrammarRulesAndGrammarTrieNodes
       ancestors.pop_back();
     }
   }
-  reverse_grammar_rules.width(run_length_alphabet_.GetAlphabetWidth());
-  reverse_grammar_rules.resize(std::size(temp_reverse_grammar_rules) + 1);
-  std::copy(std::begin(temp_reverse_grammar_rules), std::end(temp_reverse_grammar_rules), std::begin(reverse_grammar_rules));
+  {
+    reverse_grammar_rules.width(run_length_alphabet_.GetAlphabetWidth());
+    reverse_grammar_rules.resize(std::size(temp_reverse_grammar_rules) + 1);
+    std::copy(std::begin(temp_reverse_grammar_rules), std::end(temp_reverse_grammar_rules), std::begin(reverse_grammar_rules));
+  }
+  {
+    uint64_t prefix_sum {};
+    std::deque<uint64_t> cumulative_byte_rank_counts;
+    for (auto const& pair : byte_rank_counts)
+    {
+      prefix_sum += std::get<1>(pair);
+      cumulative_byte_rank_counts.push_back(prefix_sum);
+    }
+    cumulative_byte_rank_counts_ = decltype(cumulative_byte_rank_counts_)(cumulative_byte_rank_counts);
+  }
   return;
 }
 
@@ -804,7 +871,7 @@ uint64_t GrammarXbwtTrie::FindChild
       children_label_ranks_.rank(std::get<1>(children_offset_range) + 1, label_rank) - 1
     )
   };
-  if (IsNotEmptyRange(occurrence_range))
+  if (!IsEmptyRange(occurrence_range))
   {
     auto bucket_offset {label_rank_bucket_offsets_[label_rank]};
     offset = children_select_1_(children_rank_1_(bucket_offset) + std::get<0>(occurrence_range)) + 1;
