@@ -187,6 +187,8 @@ void Index::Swap (Index& index)
   {
     byte_alphabet_.Swap(index.byte_alphabet_);
     grammar_xbwt_trie_.Swap(index.grammar_xbwt_trie_);
+    lex_rank_bucket_offsets_.Swap(index.lex_rank_bucket_offsets_);
+    colex_bwt_.swap(index.colex_bwt_);
   }
   return;
 }
