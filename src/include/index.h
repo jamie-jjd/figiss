@@ -157,10 +157,10 @@ Index::Index (std::filesystem::path const& byte_text_path)
     CalculateLexRankBucketOffsets(lex_text);
     // std::cout << lex_rank_bucket_offsets_;
   }
-  // {
-  //   CalculateColexBwt(colex_text);
-  //   // std::cout << colex_bwt_ << "\n";
-  // }
+  {
+    CalculateColexBwt(lex_text);
+    // std::cout << colex_bwt_ << "\n";
+  }
 }
 
 Index::Index (Index&& index)
@@ -455,7 +455,7 @@ void Index::CalculateLexText
   }
   temp_lex_text.push_front(grammar_xbwt_trie_.Rank(std::next(rend), sl_factor_end, true));
   {
-    lex_text.width(grammar_xbwt_trie_.GetLexAlphabetWidth());
+    lex_text.width(sdsl::bits::hi(grammar_xbwt_trie_.GetLexAlphabetSize() - 1) + 1);
     lex_text.resize(std::size(temp_lex_text));
     std::copy(std::begin(temp_lex_text), std::end(temp_lex_text), std::begin(lex_text));
   }
@@ -487,15 +487,22 @@ void Index::CalculateLexRankBucketOffsets (sdsl::int_vector<> const& lex_text)
   return;
 }
 
-void Index::CalculateColexBwt (sdsl::int_vector<> const& colex_text)
+void Index::CalculateColexBwt (sdsl::int_vector<> const& lex_text)
 {
+  auto lex_alphabet_size {grammar_xbwt_trie_.GetLexAlphabetSize()};
+  auto lex_alphabet_width {sdsl::bits::hi(lex_alphabet_size - 1) + 1};
+  sdsl::int_vector<> lex_to_colex_rank(lex_alphabet_size, 0, lex_alphabet_width);
+  for (uint64_t colex_rank {}; colex_rank != lex_alphabet_size; ++colex_rank)
+  {
+    lex_to_colex_rank[grammar_xbwt_trie_.ColexToLexRank(colex_rank)] = colex_rank;
+  }
   sdsl::int_vector<> buffer;
-  sdsl::qsufsort::construct_sa(buffer, colex_text);
+  sdsl::qsufsort::construct_sa(buffer, lex_text);
   for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
   {
     if (*it != 0)
     {
-      *it = colex_text[*it - 1];
+      *it = lex_to_colex_rank[lex_text[*it - 1]];
     }
   }
   sdsl::construct_im(colex_bwt_, buffer);
