@@ -59,7 +59,7 @@ private:
     sdsl::int_vector<> const& run_length_text,
     sdsl::int_vector<>& lex_text
   );
-  void CalculateLexRankBucketOffsets (sdsl::int_vector<> const& colex_text);
+  void CalculateLexRankBucketOffsets (sdsl::int_vector<> const& lex_text);
   void CalculateColexBwt (sdsl::int_vector<> const& colex_text);
   template <typename Iterator>
   bool CalculateRunLengthPattern (Iterator begin, Iterator end, sdsl::int_vector<>& run_length_pattern);
@@ -153,10 +153,10 @@ Index::Index (std::filesystem::path const& byte_text_path)
       // Print(lex_text, std::cout);
     }
   }
-  // {
-  //   CalculateLexRankBucketOffsets(colex_text);
-  //   // std::cout << lex_rank_bucket_offsets_;
-  // }
+  {
+    CalculateLexRankBucketOffsets(lex_text);
+    // std::cout << lex_rank_bucket_offsets_;
+  }
   // {
   //   CalculateColexBwt(colex_text);
   //   // std::cout << colex_bwt_ << "\n";
@@ -462,12 +462,11 @@ void Index::CalculateLexText
   return;
 }
 
-void Index::CalculateLexRankBucketOffsets (sdsl::int_vector<> const& colex_text)
+void Index::CalculateLexRankBucketOffsets (sdsl::int_vector<> const& lex_text)
 {
   std::map<uint64_t, uint64_t> lex_rank_counts;
-  for (auto const& colex_rank : colex_text)
+  for (auto const& lex_rank : lex_text)
   {
-    auto lex_rank {grammar_xbwt_trie_.ColexToLexRank(colex_rank)};
     auto it {lex_rank_counts.find(lex_rank)};
     if (it != lex_rank_counts.end())
     {
