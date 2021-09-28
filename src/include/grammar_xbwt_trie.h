@@ -184,7 +184,12 @@ private:
     sdsl::int_vector<> const& suffix_array,
     sdsl::int_vector<>& reduced_commom_prefix_lengths
   );
-  uint64_t FindChild
+  uint64_t CalculateChildBeginOffset
+  (
+    std::pair<uint64_t, uint64_t> const& children_offset_range,
+    uint64_t label_rank
+  ) const;
+  uint64_t CalculateChildRbeginOffset
   (
     std::pair<uint64_t, uint64_t> const& children_offset_range,
     uint64_t label_rank
@@ -504,33 +509,37 @@ std::pair<uint64_t, uint64_t> GrammarXbwtTrie::GetLexRankRange (Iterator it, Ite
     label_rank = run_length_alphabet_[*it++];
     if (label_rank)
     {
-      offset = FindChild({offset, children_select_1_(children_rank_1_(offset) + 1)}, label_rank);
+      offset = CalculateChildBeginOffset({offset, children_select_1_(children_rank_1_(offset) + 1)}, label_rank);
       if (offset == InvalidOffset()) { return {1, 0}; }
     }
     else { return {1, 0}; }
   }
   {
     auto temp_offset {offset};
-    while (children_label_ranks_[temp_offset])
+    label_rank = run_length_alphabet_.Successor(*it - 1);
+    if (label_rank && (*it / divisor) == (run_length_alphabet_.Select(label_rank) / divisor))
     {
-      label_rank = run_length_alphabet_.Successor(*it - 1);
-      if (label_rank && (*it / divisor) == (run_length_alphabet_.Select(label_rank) / divisor))
+      temp_offset = CalculateChildBeginOffset({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
+      if (temp_offset == InvalidOffset()) { return {1, 0}; }
+      while ((label_rank = children_label_ranks_[temp_offset]))
       {
-        temp_offset = FindChild({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
+        temp_offset = CalculateChildBeginOffset({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
         if (temp_offset == InvalidOffset()) { return {1, 0}; }
       }
-      else { return {1, 0}; }
+      std::get<0>(lex_rank_range) = colex_to_lex_rank_[children_label_ranks_.rank(temp_offset, 0)];
+      {
+        temp_offset = offset;
+        label_rank = run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor);
+        temp_offset = CalculateChildRbeginOffset({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
+        while ((label_rank = children_label_ranks_[temp_offset]))
+        {
+          temp_offset = CalculateChildRbeginOffset({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 2)}, label_rank);
+          if (temp_offset == InvalidOffset()) { return {1, 0}; }
+        }
+        std::get<1>(lex_rank_range) = colex_to_lex_rank_[children_label_ranks_.rank(temp_offset, 0)];
+      }
     }
-    std::get<0>(lex_rank_range) = colex_to_lex_rank_[children_label_ranks_.rank(temp_offset, 0)];
-  }
-  {
-    auto temp_offset {offset};
-    while (children_label_ranks_[temp_offset])
-    {
-      label_rank = run_length_alphabet_.Predecessor((*it / divisor + 1) * divisor);
-      temp_offset = FindChild({temp_offset, children_select_1_(children_rank_1_(temp_offset) + 1)}, label_rank);
-    }
-    std::get<1>(lex_rank_range) = colex_to_lex_rank_[children_label_ranks_.rank(temp_offset, 0)];
+    else { return {1, 0}; }
   }
   return lex_rank_range;
 }
@@ -544,7 +553,7 @@ uint64_t GrammarXbwtTrie::GetColexRank (Iterator it, Iterator end) const
     auto label_rank {run_length_alphabet_[*it++]};
     if (label_rank)
     {
-      offset = FindChild({offset, children_select_1_(children_rank_1_(offset) + 1)}, label_rank);
+      offset = CalculateChildBeginOffset({offset, children_select_1_(children_rank_1_(offset) + 1)}, label_rank);
       if (offset == InvalidOffset()) { return 0; }
     }
     else { return 0; }
@@ -856,7 +865,7 @@ void GrammarXbwtTrie::CalculateReducedCommomPrefixLengths
   return;
 }
 
-uint64_t GrammarXbwtTrie::FindChild
+uint64_t GrammarXbwtTrie::CalculateChildBeginOffset
 (
   std::pair<uint64_t, uint64_t> const& children_offset_range,
   uint64_t const label_rank
@@ -875,6 +884,29 @@ uint64_t GrammarXbwtTrie::FindChild
   {
     auto bucket_offset {label_rank_bucket_offsets_[label_rank]};
     offset = children_select_1_(children_rank_1_(bucket_offset) + std::get<0>(occurrence_range)) + 1;
+  }
+  return offset;
+}
+
+uint64_t GrammarXbwtTrie::CalculateChildRbeginOffset
+(
+  std::pair<uint64_t, uint64_t> const& children_offset_range,
+  uint64_t const label_rank
+) const
+{
+  auto offset {InvalidOffset()};
+  auto occurrence_range
+  {
+    std::make_pair
+    (
+      children_label_ranks_.rank(std::get<0>(children_offset_range), label_rank),
+      children_label_ranks_.rank(std::get<1>(children_offset_range) + 1, label_rank) - 1
+    )
+  };
+  if (!IsEmptyRange(occurrence_range))
+  {
+    auto bucket_offset {label_rank_bucket_offsets_[label_rank]};
+    offset = children_select_1_(children_rank_1_(bucket_offset) + std::get<0>(occurrence_range) + 1);
   }
   return offset;
 }
