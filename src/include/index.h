@@ -49,7 +49,7 @@ private:
     sdsl::int_vector<> const& run_length_text,
     GrammarTrie& grammar_trie
   );
-  void CalculateRunLengthAlphabetAndLexRankOnGrammarTrie
+  void CalculateRunLengthAlphabetAndLexRankRangeOnGrammarTrie
   (
     IntegerAlphabet& run_length_alphabet,
     GrammarTrie& grammar_trie
@@ -142,7 +142,7 @@ Index::Index (std::filesystem::path const& byte_text_path)
       InsertGrammarRulesIntoGrammarTrie(run_length_text, grammar_trie);
       // std::cout << grammar_trie;
       IntegerAlphabet run_length_alphabet;
-      CalculateRunLengthAlphabetAndLexRankOnGrammarTrie(run_length_alphabet, grammar_trie);
+      CalculateRunLengthAlphabetAndLexRankRangeOnGrammarTrie(run_length_alphabet, grammar_trie);
       // std::cout << grammar_trie;
       // std::cout << run_length_alphabet;
       grammar_xbwt_trie_ = decltype(grammar_xbwt_trie_)(grammar_trie, std::move(run_length_alphabet));
@@ -388,31 +388,50 @@ void Index::InsertGrammarRulesIntoGrammarTrie
   return;
 }
 
-void Index::CalculateRunLengthAlphabetAndLexRankOnGrammarTrie
+void Index::CalculateRunLengthAlphabetAndLexRankRangeOnGrammarTrie
 (
   IntegerAlphabet& run_length_alphabet,
   GrammarTrie& grammar_trie
 )
 {
   std::set<uint64_t> alphabet;
-  uint64_t lex_rank {};
-  std::deque<std::shared_ptr<GrammarTrie::Node>> nodes;
-  nodes.emplace_back(grammar_trie.GetRoot());
+  uint64_t lex_rank {1};
+  std::deque<std::pair<std::shared_ptr<GrammarTrie::Node>, bool>> nodes;
+  nodes.emplace_back(grammar_trie.GetRoot(), true);
   while (!nodes.empty())
   {
-    auto node {nodes.back()};
-    if (node->label)
+    auto node {std::get<0>(nodes.back())};
+    auto& is_forward {std::get<1>(nodes.back())};
+    if (is_forward)
     {
-      alphabet.insert(node->label);
+      is_forward = false;
+      if (node->label)
+      {
+        alphabet.insert(node->label);
+      }
+      if (std::get<0>(node->lex_rank_range))
+      {
+        node->lex_rank_range = {lex_rank, lex_rank};
+        ++lex_rank;
+      }
+      for (auto it {std::rbegin(node->children)}; it != std::rend(node->children); ++it)
+      {
+        nodes.emplace_back(std::get<1>(*it), true);
+      }
     }
-    if (node->lex_rank)
+    else
     {
-      node->lex_rank = ++lex_rank;
-    }
-    nodes.pop_back();
-    for (auto it {std::rbegin(node->children)}; it != std::rend(node->children); ++it)
-    {
-      nodes.emplace_back(std::get<1>(*it));
+      if (!node->children.empty())
+      {
+        auto rightmost_lex_rank {std::get<1>(std::get<1>(*std::rbegin(node->children))->lex_rank_range)};
+        if (std::get<0>(node->lex_rank_range) == 0)
+        {
+          auto leftmost_lex_rank {std::get<0>(std::get<1>(*std::begin(node->children))->lex_rank_range)};
+          std::get<0>(node->lex_rank_range) = leftmost_lex_rank;
+        }
+        std::get<1>(node->lex_rank_range) = rightmost_lex_rank;
+      }
+      nodes.pop_back();
     }
   }
   run_length_alphabet = IntegerAlphabet(alphabet);
