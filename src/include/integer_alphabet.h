@@ -162,7 +162,7 @@ uint64_t IntegerAlphabet::Successor (uint64_t const integer) const
 {
   if (integer < std::size(effective_alphabet_bits_) - 1)
   {
-    return (effective_alphabet_rank_1_(integer) + 1);
+    return (effective_alphabet_rank_1_(integer + 1) + 1);
   }
   return 0;
 }
