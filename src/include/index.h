@@ -604,9 +604,9 @@ Iterator Index::ClassifyPattern (Iterator rbegin, Iterator rend, Range& pattern_
       {
         rlast = std::prev(rbegin);
         BackwardSearchSuffix(rfirst, rlast, pattern_range_s);
+        CalculateSlFactor(rend, rfirst, rlast);
         if (IsNotEmptyRange(pattern_range_s))
         {
-          CalculateSlFactor(rend, rfirst, rlast);
           if (rlast != rend)
           {
             BackwardSearchInfix(rfirst, rlast, pattern_range_s);
@@ -623,7 +623,7 @@ Iterator Index::ClassifyPattern (Iterator rbegin, Iterator rend, Range& pattern_
       }
       if (rlast != rend)
       {
-        BackwardSearchSuffix(rfirst, rend, pattern_range_l);
+        BackwardSearchSuffix(rbegin, rlast, pattern_range_l);
       }
       else
       {
