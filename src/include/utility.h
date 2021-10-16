@@ -12,6 +12,13 @@
 
 namespace figiss
 {
+template <typename Ostream>
+void PrintRange (std::pair<uint64_t, uint64_t> const& range, Ostream& out)
+{
+  out << "[" << std::get<0>(range) << "," << std::get<1>(range) << "]\n";
+  return;
+}
+
 template <typename File, typename Container>
 void Print
 (
