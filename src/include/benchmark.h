@@ -5,13 +5,21 @@
 #include <sdsl/csa_wt.hpp>
 #include <sdsl/suffix_array_algorithm.hpp>
 
-#include "pattern.h"
+#include "index.h"
+#include "pattern_collection.h"
 #include "utility.h"
 
 namespace figiss
 {
-template <typename Index>
-void TestCount (std::filesystem::path const& byte_text_path, Index& index)
+void TestCounting
+(
+  std::filesystem::path const& byte_text_path,
+  std::filesystem::path const& index_path,
+  std::filesystem::path& pattern_parent_path,
+  uint64_t const amount = 4096,
+  uint64_t const min_length = 1,
+  uint64_t const max_length = 32768
+)
 {
   sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
   {
@@ -19,46 +27,68 @@ void TestCount (std::filesystem::path const& byte_text_path, Index& index)
     sdsl::load_vector_from_file(byte_text, byte_text_path);
     sdsl::construct_im(rlfm, byte_text);
   }
+  Index index;
   {
-    index = Index {byte_text_path};
+    index.Load(index_path);
   }
   {
-    uint64_t amount {1ULL << 12};
-    uint64_t max_unit_size {1ULL << 15};
-    std::cout << "test pattern counting\namount\tsize\n";
-    for (uint64_t unit_size {1}; unit_size <= max_unit_size; unit_size <<= 1)
+    for (uint64_t length {min_length}; length <= max_length; length <<= 1)
     {
-      Patterns patterns;
+      PatternCollection patterns;
       for (uint8_t is_mutated {}; is_mutated != 2; ++is_mutated)
       {
-        patterns = Patterns(byte_text_path, amount, unit_size, is_mutated);
-        if (patterns.GetUnitSize() < unit_size)
+        auto metadata_path
         {
-          return;
+          pattern_parent_path
+          / std::filesystem::path{byte_text_path.filename().string()}
+          / std::filesystem::path{std::to_string(length) + ".meta"}
+        };
+        if (is_mutated)
+        {
+          metadata_path.replace_extension(".mutated.meta");
         }
-        auto begin {std::begin(patterns)};
-        auto end {begin};
-        for (uint64_t i {}; i != patterns.GetAmount(); ++i)
+        patterns = PatternCollection(byte_text_path, metadata_path, amount, length, is_mutated);
+        if (patterns)
         {
-          begin = end;
-          end = std::next(begin, patterns.GetUnitSize());
-          auto rlfm_count {sdsl::count(rlfm, begin, end)};
-          auto index_count {index.Count(begin, end)};
-          if (rlfm_count != index_count)
+          // auto pattern_path
+          // {
+          //   pattern_parent_path
+          //   / std::filesystem::path{byte_text_path.filename().string()}
+          //   / std::filesystem::path{std::to_string(length) + ".pattern"}
+          // };
+          if (is_mutated)
           {
-            std::string pattern {begin, end};
-            throw std::runtime_error
-            (
-              "\033[31mfailed at pattern:" + pattern
-              + ", real count:" + std::to_string(rlfm_count)
-              + ", count:" + std::to_string(index_count)
-              + "\033[0m");
+            // metadata_path.replace_extension(".mutated.pattern");
+            std::cout << "test " << amount << " random \"mutated\" existed patterns of length " << length << "\n";
           }
+          else
+          {
+            std::cout << "test " << amount << " random existed patterns of length " << length << "\n";
+          }
+          // patterns.Serialize(pattern_path);
+          auto begin {std::begin(patterns)};
+          auto end {begin};
+          for (uint64_t i {}; i != patterns.GetAmount(); ++i)
+          {
+            begin = end;
+            end = std::next(begin, patterns.GetLength());
+            auto rlfm_count {sdsl::count(rlfm, begin, end)};
+            auto index_count {index.Count(begin, end)};
+            if (rlfm_count != index_count)
+            {
+              std::string pattern {begin, end};
+              throw std::runtime_error
+              (
+                "\033[31mfailed at pattern:" + pattern
+                + ",genuine count:" + std::to_string(rlfm_count)
+                + ",count:" + std::to_string(index_count)
+                + "\033[0m");
+            }
+          }
+          std::cout << "\033[32msuccess\033[0m\n";
         }
+        else { return; }
       }
-      std::cout
-      << std::to_string(patterns.GetAmount()) << "\t"
-      << std::to_string(patterns.GetUnitSize()) << "\t\033[32msuccess\033[0m\n";
     }
   }
   return;
@@ -92,143 +122,143 @@ void PrintCountingTime
   return;
 }
 
-template <typename Index>
-void MeasureIndexCountingTime
-(
-  std::filesystem::path const& byte_text_path,
-  Index& index,
-  bool const is_proper_representation = false
-)
-{
-  auto index_path
-  {
-    std::filesystem::path
-    (
-      "../data/index/"
-      + std::to_string(Index::kMaxFactorSize) + "/"
-      + byte_text_path.filename().string()
-      + ".gci"
-    )
-  };
-  if (!std::filesystem::exists(index_path))
-  {
-    index = Index{byte_text_path};
-    index.Serialize(index_path);
-  }
-  std::vector<std::pair<uint64_t, double>> time;
-  uint64_t amount {1ULL << 12};
-  for (uint64_t unit_size {1ULL << 8}; unit_size <= (1ULL << 15); unit_size <<= 1)
-  {
-    std::cout << "pattern size: " << unit_size << "\n";
-    auto patterns {Patterns(byte_text_path, amount, unit_size)};
-    index.Load(index_path);
-    {
-      auto begin {std::begin(patterns)};
-      while (begin != std::end(patterns))
-      {
-        auto end {std::next(begin, patterns.GetUnitSize())};
-        index.Count(begin, end);
-        begin = end;
-      }
-    }
-    {
-      auto begin {std::begin(patterns)};
-      auto begin_time {std::chrono::steady_clock::now()};
-      while (begin != std::end(patterns))
-      {
-        auto end {std::next(begin, patterns.GetUnitSize())};
-        index.Count(begin, end);
-        begin = end;
-      }
-      auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
-      time.emplace_back(patterns.GetUnitSize(), duration / patterns.GetAmount());
-    }
-  }
-  PrintCountingTime
-  (
-    std::filesystem::path
-    {
-      std::string("../data/time/")
-      + std::to_string(Index::kMaxFactorSize) + "/"
-      + byte_text_path.filename().string()
-    },
-    time,
-    is_proper_representation
-  );
-  return;
-}
-
-void MeasureRlfmCountingTime
-(
-  std::filesystem::path const& byte_text_path,
-  bool const is_proper_representation = false
-)
-{
-  auto index_path
-  {
-    std::filesystem::path
-    (
-      "../data/index/rlfm/"
-      + byte_text_path.filename().string()
-      + ".rlfm"
-    )
-  };
-  sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
-  if (!std::filesystem::exists(index_path))
-  {
-    std::filesystem::create_directories(index_path.parent_path());
-    sdsl::int_vector<8> byte_text;
-    sdsl::load_vector_from_file(byte_text, byte_text_path);
-    std::cout << "construct rlfm of " << std::filesystem::canonical(byte_text_path) << "\n";
-    sdsl::construct_im(rlfm, byte_text);
-    std::ofstream fout {index_path, std::ios_base::out | std::ios_base::trunc};
-    sdsl::serialize(rlfm, fout);
-    std::cout << "serialize rlfm to " << std::filesystem::canonical(index_path) << "\n";
-  }
-  std::vector<std::pair<uint64_t, double>> time;
-  uint64_t amount {1ULL << 12};
-  for (uint64_t unit_size {1ULL << 8}; unit_size <= (1ULL << 15); unit_size <<= 1)
-  {
-    std::cout << "pattern size: " << unit_size << "\n";
-    auto patterns {Patterns(byte_text_path, amount, unit_size)};
-    {
-      std::ifstream in {index_path};
-      rlfm.load(in);
-      std::cout << "load rlfm from " << std::filesystem::canonical(index_path) << "\n";
-    }
-    {
-      auto begin {std::begin(patterns)};
-      while (begin != std::end(patterns))
-      {
-        auto end {std::next(begin, patterns.GetUnitSize())};
-        sdsl::count(rlfm, begin, end);
-        begin = end;
-      }
-    }
-    {
-      auto begin {std::begin(patterns)};
-      auto begin_time {std::chrono::steady_clock::now()};
-      while (begin != std::end(patterns))
-      {
-        auto end {std::next(begin, patterns.GetUnitSize())};
-        sdsl::count(rlfm, begin, end);
-        begin = end;
-      }
-      auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
-      time.emplace_back(patterns.GetUnitSize(), duration / patterns.GetAmount());
-    }
-  }
-  PrintCountingTime
-  (
-    std::filesystem::path
-    {
-      std::string("../data/time/")
-      + "rlfm/"
-      + byte_text_path.filename().string()
-    },
-    time,
-    is_proper_representation
-  );
-  return;
-}
+// template <typename Index>
+// void MeasureIndexCountingTime
+// (
+//   std::filesystem::path const& byte_text_path,
+//   Index& index,
+//   bool const is_proper_representation = false
+// )
+// {
+//   auto index_path
+//   {
+//     std::filesystem::path
+//     (
+//       "../data/index/"
+//       + std::to_string(Index::kMaxFactorSize) + "/"
+//       + byte_text_path.filename().string()
+//       + ".gci"
+//     )
+//   };
+//   if (!std::filesystem::exists(index_path))
+//   {
+//     index = Index{byte_text_path};
+//     index.Serialize(index_path);
+//   }
+//   std::vector<std::pair<uint64_t, double>> time;
+//   uint64_t amount {1ULL << 12};
+//   for (uint64_t length {1ULL << 8}; length <= (1ULL << 15); length <<= 1)
+//   {
+//     std::cout << "pattern size: " << length << "\n";
+//     auto patterns {PatternCollection(byte_text_path, amount, length)};
+//     index.Load(index_path);
+//     {
+//       auto begin {std::begin(patterns)};
+//       while (begin != std::end(patterns))
+//       {
+//         auto end {std::next(begin, patterns.GetLength())};
+//         index.Count(begin, end);
+//         begin = end;
+//       }
+//     }
+//     {
+//       auto begin {std::begin(patterns)};
+//       auto begin_time {std::chrono::steady_clock::now()};
+//       while (begin != std::end(patterns))
+//       {
+//         auto end {std::next(begin, patterns.GetLength())};
+//         index.Count(begin, end);
+//         begin = end;
+//       }
+//       auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
+//       time.emplace_back(patterns.GetLength(), duration / patterns.GetAmount());
+//     }
+//   }
+//   PrintCountingTime
+//   (
+//     std::filesystem::path
+//     {
+//       std::string("../data/time/")
+//       + std::to_string(Index::kMaxFactorSize) + "/"
+//       + byte_text_path.filename().string()
+//     },
+//     time,
+//     is_proper_representation
+//   );
+//   return;
+// }
+//
+// void MeasureSdslIndexCountingTime
+// (
+//   std::filesystem::path const& byte_text_path,
+//   bool const is_proper_representation = false
+// )
+// {
+//   auto index_path
+//   {
+//     std::filesystem::path
+//     (
+//       "../data/index/rlfm/"
+//       + byte_text_path.filename().string()
+//       + ".rlfm"
+//     )
+//   };
+//   sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
+//   if (!std::filesystem::exists(index_path))
+//   {
+//     std::filesystem::create_directories(index_path.parent_path());
+//     sdsl::int_vector<8> byte_text;
+//     sdsl::load_vector_from_file(byte_text, byte_text_path);
+//     std::cout << "construct rlfm of " << std::filesystem::canonical(byte_text_path) << "\n";
+//     sdsl::construct_im(rlfm, byte_text);
+//     std::ofstream fout {index_path, std::ios_base::out | std::ios_base::trunc};
+//     sdsl::serialize(rlfm, fout);
+//     std::cout << "serialize rlfm to " << std::filesystem::canonical(index_path) << "\n";
+//   }
+//   std::vector<std::pair<uint64_t, double>> time;
+//   uint64_t amount {1ULL << 12};
+//   for (uint64_t length {1ULL << 8}; length <= (1ULL << 15); length <<= 1)
+//   {
+//     std::cout << "pattern size: " << length << "\n";
+//     auto patterns {PatternCollection(byte_text_path, amount, length)};
+//     {
+//       std::ifstream in {index_path};
+//       rlfm.load(in);
+//       std::cout << "load rlfm from " << std::filesystem::canonical(index_path) << "\n";
+//     }
+//     {
+//       auto begin {std::begin(patterns)};
+//       while (begin != std::end(patterns))
+//       {
+//         auto end {std::next(begin, patterns.GetLength())};
+//         sdsl::count(rlfm, begin, end);
+//         begin = end;
+//       }
+//     }
+//     {
+//       auto begin {std::begin(patterns)};
+//       auto begin_time {std::chrono::steady_clock::now()};
+//       while (begin != std::end(patterns))
+//       {
+//         auto end {std::next(begin, patterns.GetLength())};
+//         sdsl::count(rlfm, begin, end);
+//         begin = end;
+//       }
+//       auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
+//       time.emplace_back(patterns.GetLength(), duration / patterns.GetAmount());
+//     }
+//   }
+//   PrintCountingTime
+//   (
+//     std::filesystem::path
+//     {
+//       std::string("../data/time/")
+//       + "rlfm/"
+//       + byte_text_path.filename().string()
+//     },
+//     time,
+//     is_proper_representation
+//   );
+//   return;
+// }
 }
