@@ -1,4 +1,7 @@
 *
+!.gitignore
 !text.txt
 !pattern.txt
-!.gitignore
+!/corpus
+!/corpus/*.7z
+!/corpus/*.xz
