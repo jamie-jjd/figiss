@@ -18,7 +18,7 @@ public:
   PatternCollection
   (
     std::filesystem::path const& byte_text_path,
-    std::filesystem::path const& metadata_path,
+    std::filesystem::path const& pattern_parent_path,
     uint64_t const amount,
     uint64_t const length,
     bool const is_mutated = false
@@ -42,7 +42,7 @@ public:
 
   inline operator bool() const
   {
-    return (length_ != 0);
+    return (amount_ != 0 && length_ != 0 );
   }
 
 private:
@@ -56,7 +56,7 @@ private:
 PatternCollection::PatternCollection
 (
   std::filesystem::path const& byte_text_path,
-  std::filesystem::path const& metadata_path,
+  std::filesystem::path const& pattern_parent_path,
   uint64_t const amount,
   uint64_t const length,
   bool const is_mutated
@@ -66,6 +66,7 @@ PatternCollection::PatternCollection
   sdsl::load_vector_from_file(byte_text, byte_text_path);
   if (length > std::size(byte_text))
   {
+    amount_ = length_ = 0;
     std::cerr << "\033[31mfailed at pattern generation: ";
     std::cerr
     << "length of pattern (" << length
@@ -110,6 +111,18 @@ PatternCollection::PatternCollection
     it = std::next(it, length_);
   }
   {
+    auto metadata_path
+    {
+      pattern_parent_path /
+      byte_text_path.filename() /
+      std::filesystem::path
+      {
+        std::to_string(amount_) +
+        "_" + std::to_string(length_) +
+        ((is_mutated) ? ".mutated" : "") +
+        ".meta"
+      }
+    };
     if (!std::filesystem::exists(metadata_path.parent_path()))
     {
       std::filesystem::create_directories(metadata_path.parent_path());
@@ -117,12 +130,12 @@ PatternCollection::PatternCollection
     std::ofstream out {metadata_path};
     std::cout << "write metadata of patterns to " << std::filesystem::canonical(metadata_path) << "\n";
     out
-    << "1st line is byte byte_text path\n"
-    << "2nd line is amount of patterns\n"
-    << "3rd line is length of single pattern\n"
-    << "4th to last lines are related offsets of pattern\n"
-    << "if pattern is mutated, mutation is done by swapping 2 charaters on pattern\n"
-    << "format: [begin offset on byte_text] [[first swapped offset on pattern] [second swapped offset on pattern]]"
+    << "# 1st line is byte byte_text path\n"
+    << "# 2nd line is amount of patterns\n"
+    << "# 3rd line is length of single pattern\n"
+    << "# 4th to last lines are related offsets of pattern\n"
+    << "# if pattern is mutated, mutation is done by swapping 2 characters on pattern\n"
+    << "# format: [begin offset on byte_text] [[first swapped offset on pattern] [second swapped offset on pattern]]\n"
     << std::filesystem::canonical(byte_text_path) << "\n"
     << amount_ << "\n"
     << length_ << "\n";
