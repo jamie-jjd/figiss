@@ -32,40 +32,35 @@ void TestCounting
     index.Load(index_path);
   }
   {
+    std::cout << "test counting on " << amount
+    << " random (mutated) sample patterns of length between "
+    << min_length << " and " << max_length << " from text\n";
     for (uint64_t length {min_length}; length <= max_length; length <<= 1)
     {
       PatternCollection patterns;
       for (uint8_t is_mutated {}; is_mutated != 2; ++is_mutated)
       {
-        auto metadata_path
-        {
-          pattern_parent_path
-          / std::filesystem::path{byte_text_path.filename().string()}
-          / std::filesystem::path{std::to_string(length) + ".meta"}
-        };
-        if (is_mutated)
-        {
-          metadata_path.replace_extension(".mutated.meta");
-        }
-        patterns = PatternCollection(byte_text_path, metadata_path, amount, length, is_mutated);
+        patterns = PatternCollection(byte_text_path, pattern_parent_path, amount, length, is_mutated);
         if (patterns)
         {
-          // auto pattern_path
-          // {
-          //   pattern_parent_path
-          //   / std::filesystem::path{byte_text_path.filename().string()}
-          //   / std::filesystem::path{std::to_string(length) + ".pattern"}
-          // };
-          if (is_mutated)
+          auto pattern_path
           {
-            // metadata_path.replace_extension(".mutated.pattern");
-            std::cout << "test " << amount << " random \"mutated\" existed patterns of length " << length << "\n";
-          }
-          else
+            pattern_parent_path /
+            byte_text_path.filename() /
+            std::filesystem::path
+            {
+              std::to_string(patterns.GetAmount()) +
+              "_" + std::to_string(patterns.GetLength()) +
+              ((is_mutated) ? ".mutated" : "") +
+              ".pattern"
+            }
+          };
           {
-            std::cout << "test " << amount << " random existed patterns of length " << length << "\n";
+            std::cout << "test " << amount << " random "
+            << ((is_mutated) ? "mutated" : "")
+            << "existed patterns of length " << length << "\n";
           }
-          // patterns.Serialize(pattern_path);
+          patterns.Serialize(pattern_path);
           auto begin {std::begin(patterns)};
           auto end {begin};
           for (uint64_t i {}; i != patterns.GetAmount(); ++i)
@@ -122,143 +117,147 @@ void PrintCountingTime
   return;
 }
 
-// template <typename Index>
-// void MeasureIndexCountingTime
-// (
-//   std::filesystem::path const& byte_text_path,
-//   Index& index,
-//   bool const is_proper_representation = false
-// )
-// {
-//   auto index_path
-//   {
-//     std::filesystem::path
-//     (
-//       "../data/index/"
-//       + std::to_string(Index::kMaxFactorSize) + "/"
-//       + byte_text_path.filename().string()
-//       + ".gci"
-//     )
-//   };
-//   if (!std::filesystem::exists(index_path))
-//   {
-//     index = Index{byte_text_path};
-//     index.Serialize(index_path);
-//   }
-//   std::vector<std::pair<uint64_t, double>> time;
-//   uint64_t amount {1ULL << 12};
-//   for (uint64_t length {1ULL << 8}; length <= (1ULL << 15); length <<= 1)
-//   {
-//     std::cout << "pattern size: " << length << "\n";
-//     auto patterns {PatternCollection(byte_text_path, amount, length)};
-//     index.Load(index_path);
-//     {
-//       auto begin {std::begin(patterns)};
-//       while (begin != std::end(patterns))
-//       {
-//         auto end {std::next(begin, patterns.GetLength())};
-//         index.Count(begin, end);
-//         begin = end;
-//       }
-//     }
-//     {
-//       auto begin {std::begin(patterns)};
-//       auto begin_time {std::chrono::steady_clock::now()};
-//       while (begin != std::end(patterns))
-//       {
-//         auto end {std::next(begin, patterns.GetLength())};
-//         index.Count(begin, end);
-//         begin = end;
-//       }
-//       auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
-//       time.emplace_back(patterns.GetLength(), duration / patterns.GetAmount());
-//     }
-//   }
-//   PrintCountingTime
-//   (
-//     std::filesystem::path
-//     {
-//       std::string("../data/time/")
-//       + std::to_string(Index::kMaxFactorSize) + "/"
-//       + byte_text_path.filename().string()
-//     },
-//     time,
-//     is_proper_representation
-//   );
-//   return;
-// }
-//
-// void MeasureSdslIndexCountingTime
-// (
-//   std::filesystem::path const& byte_text_path,
-//   bool const is_proper_representation = false
-// )
-// {
-//   auto index_path
-//   {
-//     std::filesystem::path
-//     (
-//       "../data/index/rlfm/"
-//       + byte_text_path.filename().string()
-//       + ".rlfm"
-//     )
-//   };
-//   sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
-//   if (!std::filesystem::exists(index_path))
-//   {
-//     std::filesystem::create_directories(index_path.parent_path());
-//     sdsl::int_vector<8> byte_text;
-//     sdsl::load_vector_from_file(byte_text, byte_text_path);
-//     std::cout << "construct rlfm of " << std::filesystem::canonical(byte_text_path) << "\n";
-//     sdsl::construct_im(rlfm, byte_text);
-//     std::ofstream fout {index_path, std::ios_base::out | std::ios_base::trunc};
-//     sdsl::serialize(rlfm, fout);
-//     std::cout << "serialize rlfm to " << std::filesystem::canonical(index_path) << "\n";
-//   }
-//   std::vector<std::pair<uint64_t, double>> time;
-//   uint64_t amount {1ULL << 12};
-//   for (uint64_t length {1ULL << 8}; length <= (1ULL << 15); length <<= 1)
-//   {
-//     std::cout << "pattern size: " << length << "\n";
-//     auto patterns {PatternCollection(byte_text_path, amount, length)};
-//     {
-//       std::ifstream in {index_path};
-//       rlfm.load(in);
-//       std::cout << "load rlfm from " << std::filesystem::canonical(index_path) << "\n";
-//     }
-//     {
-//       auto begin {std::begin(patterns)};
-//       while (begin != std::end(patterns))
-//       {
-//         auto end {std::next(begin, patterns.GetLength())};
-//         sdsl::count(rlfm, begin, end);
-//         begin = end;
-//       }
-//     }
-//     {
-//       auto begin {std::begin(patterns)};
-//       auto begin_time {std::chrono::steady_clock::now()};
-//       while (begin != std::end(patterns))
-//       {
-//         auto end {std::next(begin, patterns.GetLength())};
-//         sdsl::count(rlfm, begin, end);
-//         begin = end;
-//       }
-//       auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
-//       time.emplace_back(patterns.GetLength(), duration / patterns.GetAmount());
-//     }
-//   }
-//   PrintCountingTime
-//   (
-//     std::filesystem::path
-//     {
-//       std::string("../data/time/")
-//       + "rlfm/"
-//       + byte_text_path.filename().string()
-//     },
-//     time,
-//     is_proper_representation
-//   );
-//   return;
-// }
+template <typename Index>
+void MeasureIndexCountingTime
+(
+  std::filesystem::path const& index_path,
+  std::filesystem::path const& pattern_path,
+  std::filesystem::path const& time_path,
+  bool const is_proper_representation = false
+)
+{
+  if (!std::filesystem::exists(index_path))
+  {
+    std::cerr << "\033[31mfailed at finding index_path\033[0m\n";
+    std::cerr << std::filesystem::canonical(index_path);
+    return;
+  }
+  if (!std::filesystem::exists(pattern_path))
+  {
+    std::cerr << "\033[31mfailed at finding pattern_path\033[0m\n";
+    std::cerr << std::filesystem::canonical(pattern_path);
+    return;
+  }
+  Index index {};
+  {
+    index.Load(index_path);
+  }
+  PatternCollection patterns {};
+  {
+    patterns.Load(pattern_path);
+    std::cout << "warming up cache by counting on pattern collection once\n";
+    auto begin {std::begin(patterns)};
+    while (begin != std::end(patterns))
+    {
+      auto end {std::next(begin, patterns.GetLength())};
+      index.Count(begin, end);
+      begin = end;
+    }
+  }
+  {
+    auto begin {std::begin(patterns)};
+    std::cout << "experiment (timing) begins\n";
+    auto begin_time {std::chrono::steady_clock::now()};
+    while (begin != std::end(patterns))
+    {
+      auto end {std::next(begin, patterns.GetLength())};
+      index.Count(begin, end);
+      begin = end;
+    }
+    auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
+    std::cout << "experiment (timing) ends\n";
+    duration /= (patterns.GetAmount() * patterns.GetLength());
+    {
+      if (!time_path.parent_path().empty() && !std::filesystem::exists(time_path.parent_path()))
+      {
+        std::filesystem::create_directories(time_path.parent_path());
+      }
+      std::cout << "average counting time per character:";
+      if (is_proper_representation)
+      {
+        std::cout << ProperTimeRepresentation(duration) << "\n";
+      }
+      else
+      {
+        std::cout << duration << "ns\n";
+      }
+      std::ofstream out {time_path};
+      std::cout << "write time information to " << std::filesystem::canonical(time_path) << "\n";
+      out << ((is_proper_representation) ? ProperTimeRepresentation(duration) : std::to_string(duration)) << "\n";
+    }
+  }
+  return;
+}
+
+template <typename SdslIndex>
+void MeasureSdslIndexCountingTime
+(
+  std::filesystem::path const& index_path,
+  std::filesystem::path const& pattern_path,
+  std::filesystem::path const& time_path,
+  bool const is_proper_representation = false
+)
+{
+  if (!std::filesystem::exists(index_path))
+  {
+    std::cerr << "failed at finding " << std::filesystem::canonical(index_path) << "\n";
+    return;
+  }
+  if (!std::filesystem::exists(pattern_path))
+  {
+    std::cerr << "failed at finding " << std::filesystem::canonical(pattern_path) << "\n";
+    return;
+  }
+  SdslIndex index {};
+  {
+    std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
+    std::ifstream in {index_path};
+    index.load(in);
+  }
+  PatternCollection patterns {};
+  {
+    patterns.Load(pattern_path);
+    std::cout << "warming up cache by counting on pattern collection once\n";
+    auto begin {std::begin(patterns)};
+    while (begin != std::end(patterns))
+    {
+      auto end {std::next(begin, patterns.GetLength())};
+      sdsl::count(index, begin, end);
+      begin = end;
+    }
+  }
+  {
+    auto begin {std::begin(patterns)};
+    std::cout << "experiment (timing) begins\n";
+    auto begin_time {std::chrono::steady_clock::now()};
+    while (begin != std::end(patterns))
+    {
+      auto end {std::next(begin, patterns.GetLength())};
+      sdsl::count(index, begin, end);
+      begin = end;
+    }
+    auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
+    std::cout << "experiment (timing) ends\n";
+    duration /= (patterns.GetAmount() * patterns.GetLength());
+    {
+      if (!time_path.parent_path().empty() && !std::filesystem::exists(time_path.parent_path()))
+      {
+        std::filesystem::create_directories(time_path.parent_path());
+      }
+      std::cout << "average counting time per character:";
+      if (is_proper_representation)
+      {
+        std::cout << ProperTimeRepresentation(duration) << "\n";
+      }
+      else
+      {
+        std::cout << duration << "ns\n";
+      }
+      std::ofstream out {time_path};
+      std::cout << "write time information to " << std::filesystem::canonical(time_path) << "\n";
+      out << ((is_proper_representation) ? ProperTimeRepresentation(duration) : std::to_string(duration)) << "\n";
+    }
+  }
+  return;
+}
 }
