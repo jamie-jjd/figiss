@@ -1,4 +1,6 @@
 *
-!text.txt
-!pattern.txt
-!.gitignore
+!/compressed_corpus
+!/compressed_corpus/*
+!/text.txt
+!/pattern.txt
+!/.gitignore
