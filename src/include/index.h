@@ -187,7 +187,7 @@ private:
 template <uint8_t max_factor_size>
 Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
 {
-  std::cout << "construct index of " << std::filesystem::canonical(byte_text_path) << "\n";
+  std::cout << "construct index of text (" << std::filesystem::canonical(byte_text_path).string() << ")\n";
   sdsl::int_vector<> text;
   CalculateSymbolTableAndText(byte_text_path, text);
   {
@@ -271,7 +271,7 @@ uint64_t Index<max_factor_size>::Serialize
     std::filesystem::create_directories(index_path.parent_path());
   }
   std::fstream index_file {index_path, std::ios_base::out | std::ios_base::trunc};
-  std::cout << "serialize index to " << std::filesystem::canonical(index_path) << "\n";
+  std::cout << "serialize index to " << std::filesystem::canonical(index_path).string() << "\n";
   uint64_t size_in_bytes {};
   if (!root)
   {
@@ -303,7 +303,7 @@ template <uint8_t max_factor_size>
 void Index<max_factor_size>::Load (std::filesystem::path const &index_path)
 {
   std::ifstream index_file {index_path};
-  std::cout << "load index from " << std::filesystem::canonical(index_path) << "\n";
+  std::cout << "load index from " << std::filesystem::canonical(index_path).string() << "\n";
   uint8_t loaded_max_factor_size {};
   sdsl::read_member(loaded_max_factor_size, index_file);
   if (loaded_max_factor_size != kMaxFactorSize)
