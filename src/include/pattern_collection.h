@@ -85,7 +85,7 @@ PatternCollection::PatternCollection
       std::cout << " \"mutated\"";
     }
     std::cout << " patterns of length " << length
-    << " from " << std::filesystem::canonical(byte_text_path) << "\n";
+    << " from " << std::filesystem::canonical(byte_text_path).string() << "\n";
     amount_ = amount;
     length_ = length;
     concatenated_patterns_.resize(amount_ * length_);
@@ -132,7 +132,7 @@ PatternCollection::PatternCollection
       std::filesystem::create_directories(metadata_path.parent_path());
     }
     std::ofstream out {metadata_path};
-    std::cout << "write metadata of patterns to " << std::filesystem::canonical(metadata_path) << "\n";
+    std::cout << "write metadata of patterns to " << std::filesystem::canonical(metadata_path).string() << "\n";
     out
     << "# 1st line is byte byte_text path\n"
     << "# 2nd line is amount of patterns\n"
@@ -140,7 +140,7 @@ PatternCollection::PatternCollection
     << "# 4th to last lines are related offsets of pattern\n"
     << "# if pattern is mutated, mutation is done by swapping 2 characters on pattern\n"
     << "# format: [begin offset on byte_text] [[first swapped offset on pattern] [second swapped offset on pattern]]\n"
-    << std::filesystem::canonical(byte_text_path) << "\n"
+    << std::filesystem::canonical(byte_text_path).string() << "\n"
     << amount_ << "\n"
     << length_ << "\n";
     for (uint64_t i {}; i != amount_; ++i)
@@ -163,7 +163,7 @@ void PatternCollection::Serialize (std::filesystem::path const& pattern_path)
   if (std::size(concatenated_patterns_) == (amount_ * length_))
   {
     std::ofstream out {pattern_path, std::ios_base::out | std::ios_base::trunc};
-    std::cout << "serialize patterns to " << std::filesystem::canonical(pattern_path) << "\n";
+    std::cout << "serialize patterns to " << std::filesystem::canonical(pattern_path).string() << "\n";
     sdsl::write_member(amount_, out);
     sdsl::write_member(length_, out);
     sdsl::serialize(concatenated_patterns_, out);
@@ -174,7 +174,7 @@ void PatternCollection::Serialize (std::filesystem::path const& pattern_path)
 void PatternCollection::Load (std::filesystem::path const& pattern_path)
 {
   std::ifstream in {pattern_path};
-  std::cout << "load patterns from " << std::filesystem::canonical(pattern_path) << "\n";
+  std::cout << "load patterns from " << std::filesystem::canonical(pattern_path).string() << "\n";
   sdsl::read_member(amount_, in);
   sdsl::read_member(length_, in);
   concatenated_patterns_.load(in);
