@@ -1,7 +1,9 @@
 #pragma once
 
-#include <cmath>
+#include <sys/wait.h>
 
+#include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -182,5 +184,75 @@ std::ostream& operator<<
     }
   }
   return out;
+}
+
+void DecompressCompressedCorpus
+(
+  std::filesystem::path const& compressed_corpus_path,
+  std::filesystem::path const& corpus_path
+)
+{
+  if (!std::filesystem::exists(corpus_path))
+  {
+    std::filesystem::create_directories(corpus_path);
+  }
+  for (auto const& entry : std::filesystem::directory_iterator(compressed_corpus_path))
+  {
+    if (entry.is_regular_file())
+    {
+      auto compressed_text_path {entry.path()};
+      auto decompressed_text_to_path {corpus_path / entry.path().stem()};
+      if (!std::filesystem::exists(decompressed_text_to_path))
+      {
+        if (compressed_text_path.extension() == ".7z")
+        {
+          {
+            auto code {system(("p7zip -k -d " + compressed_text_path.string()).c_str())};
+            if (WIFSIGNALED(code) && (WTERMSIG(code) == SIGINT || WTERMSIG(code) == SIGQUIT))
+            {
+              throw std::runtime_error
+              (
+                "\033[31mfailed at decompressing " +
+                std::filesystem::canonical(compressed_text_path).string() +
+                "\033[0m\n"
+              );
+            }
+          }
+          {
+            auto decompressed_text_from_path {decompressed_text_to_path.filename()};
+            auto code {system(("mv " + decompressed_text_from_path.string() + " " + decompressed_text_to_path.string()).c_str())};
+            if (WIFSIGNALED(code) && (WTERMSIG(code) == SIGINT || WTERMSIG(code) == SIGQUIT))
+            {
+              throw std::runtime_error("\033[31mfailed at moving decompressed text");
+            }
+          }
+        }
+        else if (compressed_text_path.extension() == ".xz")
+        {
+          {
+            auto code {system(("xz -kdv -T0 " + compressed_text_path.string()).c_str())};
+            if (WIFSIGNALED(code) && (WTERMSIG(code) == SIGINT || WTERMSIG(code) == SIGQUIT))
+            {
+              throw std::runtime_error
+              (
+                "\033[31mfailed at decompressing " +
+                std::filesystem::canonical(compressed_text_path).string() +
+                "\033[0m\n"
+              );
+            }
+            {
+              auto decompressed_text_from_path {compressed_corpus_path / compressed_text_path.stem()};
+              auto code {system(("mv " + decompressed_text_from_path.string() + " " + decompressed_text_to_path.string()).c_str())};
+              if (WIFSIGNALED(code) && (WTERMSIG(code) == SIGINT || WTERMSIG(code) == SIGQUIT))
+              {
+                throw std::runtime_error("\033[31mfailed at moving decompressed text");
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return;
 }
 }
