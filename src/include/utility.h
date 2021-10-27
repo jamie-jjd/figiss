@@ -66,6 +66,30 @@ void Print
   return;
 }
 
+void GeneratePrefix
+(
+  std::filesystem::path const& text_path,
+  uint64_t const size_in_megabytes
+)
+{
+  sdsl::int_vector<8> text;
+  sdsl::load_vector_from_file(text, text_path);
+  auto path
+  {
+    std::filesystem::path
+    {
+      text_path.filename().string()
+      + "." + std::to_string(size_in_megabytes) + "mb"
+    }
+  };
+  std::fstream fout {path, std::ios_base::out | std::ios_base::trunc};
+  for (uint64_t i {}; i != (size_in_megabytes * (1ULL << 20)); ++i)
+  {
+    fout << text[i];
+  }
+  return;
+}
+
 template <typename Size>
 std::string ProperSizeRepresentation (Size const size)
 {
@@ -196,6 +220,10 @@ void DecompressCompressedCorpus
   {
     std::filesystem::create_directories(corpus_path);
   }
+  std::cout
+  << "\n\tdecompress " << std::filesystem::canonical(compressed_corpus_path).string() << "/* to "
+  << std::filesystem::canonical(corpus_path).string() << "/*\n"
+  << "\t(xz and p7zip are required for decompression)\n";
   for (auto const& entry : std::filesystem::directory_iterator(compressed_corpus_path))
   {
     if (entry.is_regular_file())
