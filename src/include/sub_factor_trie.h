@@ -103,9 +103,13 @@ class SubFactorTrie
 public:
 
   SubFactorTrie () = default;
+  SubFactorTrie (SubFactorTrie const&) = delete;
+  SubFactorTrie (SubFactorTrie&&);
   SubFactorTrie (Trie const &trie);
-  SubFactorTrie (SubFactorTrie const &) = default;
-  SubFactorTrie& operator= (SubFactorTrie &&);
+  SubFactorTrie& operator= (SubFactorTrie const&) = delete;
+  SubFactorTrie& operator= (SubFactorTrie&&);
+
+  void Swap (SubFactorTrie&);
 
   uint64_t Serialize
   (
@@ -128,6 +132,14 @@ private:
   sdsl::int_vector<> counts_;
 
 };
+
+SubFactorTrie::SubFactorTrie (SubFactorTrie&& sub_factor_trie)
+{
+  if (this != &sub_factor_trie)
+  {
+    this->Swap(sub_factor_trie);
+  }
+}
 
 SubFactorTrie::SubFactorTrie (Trie const &trie)
 {
@@ -173,13 +185,24 @@ SubFactorTrie& SubFactorTrie::operator= (SubFactorTrie &&sub_factor_trie)
 {
   if (this != &sub_factor_trie)
   {
-    level_order_bits_ = std::move(sub_factor_trie.level_order_bits_);
-    level_order_select_1_ = std::move(sub_factor_trie.level_order_select_1_);
-    level_order_select_1_.set_vector(&level_order_bits_);
-    labels_ = std::move(sub_factor_trie.labels_);
-    counts_ = std::move(sub_factor_trie.counts_);
+    SubFactorTrie temp {std::move(sub_factor_trie)};
+    this->Swap(temp);
   }
   return *this;
+}
+
+void SubFactorTrie::Swap (SubFactorTrie& sub_factor_trie)
+{
+  if (this != &sub_factor_trie)
+  {
+    level_order_bits_.swap(sub_factor_trie.level_order_bits_);
+    level_order_select_1_.swap(sub_factor_trie.level_order_select_1_);
+    level_order_select_1_.set_vector(&level_order_bits_);
+    sub_factor_trie.level_order_select_1_.set_vector(&sub_factor_trie.level_order_bits_);
+    labels_.swap(sub_factor_trie.labels_);
+    counts_.swap(sub_factor_trie.counts_);
+  }
+  return;
 }
 
 uint64_t SubFactorTrie::Serialize

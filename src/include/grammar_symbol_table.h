@@ -9,8 +9,13 @@ class GrammarSymbolTable
 public:
 
   GrammarSymbolTable () = default;
+  GrammarSymbolTable (GrammarSymbolTable const&) = delete;
+  GrammarSymbolTable (GrammarSymbolTable&&);
   GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers);
-  GrammarSymbolTable& operator= (GrammarSymbolTable &&);
+  GrammarSymbolTable& operator= (GrammarSymbolTable const&) = delete;
+  GrammarSymbolTable& operator= (GrammarSymbolTable&&);
+
+  void Swap (GrammarSymbolTable&);
 
   uint64_t Serialize
   (
@@ -37,20 +42,39 @@ private:
 
 };
 
+GrammarSymbolTable::GrammarSymbolTable (GrammarSymbolTable&& grammar_symbol_table)
+{
+  if (this != &grammar_symbol_table)
+  {
+    this->Swap(grammar_symbol_table);
+  }
+}
+
 GrammarSymbolTable::GrammarSymbolTable (std::vector<uint64_t> &sorted_factor_integers)
 {
   factor_integer_bits_ = decltype(factor_integer_bits_)(std::begin(sorted_factor_integers), std::end(sorted_factor_integers));
   factor_integer_rank_1_.set_vector(&factor_integer_bits_);
 }
 
-GrammarSymbolTable& GrammarSymbolTable::operator= (GrammarSymbolTable &&grammar_symbol_table)
+GrammarSymbolTable& GrammarSymbolTable::operator= (GrammarSymbolTable&& grammar_symbol_table)
 {
   if (this != &grammar_symbol_table)
   {
-    factor_integer_bits_ = std::move(grammar_symbol_table.factor_integer_bits_);
-    factor_integer_rank_1_.set_vector(&factor_integer_bits_);
+    GrammarSymbolTable temp {std::move(grammar_symbol_table)};
+    this->Swap(temp);
   }
   return *this;
+}
+
+void GrammarSymbolTable::Swap (GrammarSymbolTable& grammar_symbol_table)
+{
+  if (this != &grammar_symbol_table)
+  {
+    factor_integer_bits_.swap(grammar_symbol_table.factor_integer_bits_);
+    factor_integer_rank_1_.set_vector(&factor_integer_bits_);
+    grammar_symbol_table.factor_integer_rank_1_.set_vector(&grammar_symbol_table.factor_integer_bits_);
+  }
+  return;
 }
 
 uint64_t GrammarSymbolTable::Serialize

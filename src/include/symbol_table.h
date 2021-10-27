@@ -9,8 +9,13 @@ class SymbolTable
 public:
 
   SymbolTable () = default;
+  SymbolTable (SymbolTable const&) = delete;
+  SymbolTable (SymbolTable&&);
   SymbolTable (sdsl::int_vector<8> const &byte_text);
+  SymbolTable& operator= (SymbolTable const&) = delete;
   SymbolTable& operator= (SymbolTable &&);
+
+  void Swap (SymbolTable&);
 
   uint64_t Serialize
   (
@@ -37,6 +42,14 @@ private:
 
 };
 
+SymbolTable::SymbolTable (SymbolTable&& symbol_table)
+{
+  if (this != &symbol_table)
+  {
+    this->Swap(symbol_table);
+  }
+}
+
 SymbolTable::SymbolTable (sdsl::int_vector<8> const &byte_text)
 {
   alphabet_bits_.resize(*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1);
@@ -53,12 +66,23 @@ SymbolTable& SymbolTable::operator= (SymbolTable &&symbol_table)
 {
   if (this != &symbol_table)
   {
-    effective_alphabet_width_ = std::move(symbol_table.effective_alphabet_width_);
-    alphabet_bits_ = std::move(symbol_table.alphabet_bits_);
-    alphabet_rank_1_ = std::move(symbol_table.alphabet_rank_1_);
-    alphabet_rank_1_.set_vector(&alphabet_bits_);
+    SymbolTable temp {std::move(symbol_table)};
+    this->Swap(temp);
   }
   return *this;
+}
+
+void SymbolTable::Swap (SymbolTable& symbol_table)
+{
+  if (this != &symbol_table)
+  {
+    std::swap(effective_alphabet_width_, symbol_table.effective_alphabet_width_);
+    alphabet_bits_.swap(symbol_table.alphabet_bits_);
+    alphabet_rank_1_.swap(symbol_table.alphabet_rank_1_);
+    alphabet_rank_1_.set_vector(&alphabet_bits_);
+    symbol_table.alphabet_rank_1_.set_vector(&symbol_table.alphabet_bits_);
+  }
+  return;
 }
 
 uint64_t SymbolTable::Serialize

@@ -9,8 +9,13 @@ class SymbolBucketOffsets
 public:
 
   SymbolBucketOffsets () = default;
+  SymbolBucketOffsets (SymbolBucketOffsets const&) = delete;
+  SymbolBucketOffsets (SymbolBucketOffsets&&);
   SymbolBucketOffsets (sdsl::int_vector<> const &offsets);
-  SymbolBucketOffsets& operator= (SymbolBucketOffsets &&);
+  SymbolBucketOffsets& operator= (SymbolBucketOffsets const&) = delete;
+  SymbolBucketOffsets& operator= (SymbolBucketOffsets&&);
+
+  void Swap (SymbolBucketOffsets&);
 
   uint64_t Serialize
   (
@@ -31,6 +36,14 @@ private:
 
 };
 
+SymbolBucketOffsets::SymbolBucketOffsets (SymbolBucketOffsets&& symbol_bucket_offsets)
+{
+  if (this != &symbol_bucket_offsets)
+  {
+    this->Swap(symbol_bucket_offsets);
+  }
+}
+
 SymbolBucketOffsets::SymbolBucketOffsets (sdsl::int_vector<> const &offsets)
 {
   offset_bits_ = decltype(offset_bits_)(std::begin(offsets), std::end(offsets));
@@ -41,10 +54,21 @@ SymbolBucketOffsets& SymbolBucketOffsets::operator= (SymbolBucketOffsets &&symbo
 {
   if (this != &symbol_bucket_offsets)
   {
-    offset_bits_ = std::move(symbol_bucket_offsets.offset_bits_);
-    offset_select_1_.set_vector(&offset_bits_);
+    SymbolBucketOffsets temp {std::move(symbol_bucket_offsets)};
+    this->Swap(temp);
   }
   return *this;
+}
+
+void SymbolBucketOffsets::Swap (SymbolBucketOffsets& symbol_bucket_offsets)
+{
+  if (this != &symbol_bucket_offsets)
+  {
+    offset_bits_.swap(symbol_bucket_offsets.offset_bits_);
+    offset_select_1_.swap(symbol_bucket_offsets.offset_select_1_);
+    offset_select_1_.set_vector(&offset_bits_);
+    symbol_bucket_offsets.offset_select_1_.set_vector(&symbol_bucket_offsets.offset_bits_);
+  }
 }
 
 uint64_t SymbolBucketOffsets::operator[] (uint64_t const symbol) const
