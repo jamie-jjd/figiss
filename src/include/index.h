@@ -31,7 +31,13 @@ public:
   static constexpr uint8_t kL {0};
 
   Index () = default;
-  Index (std::filesystem::path const &byte_text_path);
+  Index (Index const&) = delete;
+  Index (Index&&);
+  Index (std::filesystem::path const &byte_text_path, bool const is_parameter_written = false);
+  Index& operator= (Index const&) = delete;
+  Index& operator= (Index&&);
+
+  void Swap (Index&);
 
   uint64_t Serialize
   (
@@ -185,9 +191,37 @@ private:
 };
 
 template <uint8_t max_factor_size>
-Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
+Index<max_factor_size>::Index (Index&& index)
 {
-  std::cout << "construct index of text (" << std::filesystem::canonical(byte_text_path).string() << ")\n";
+  if (this != &index)
+  {
+    this->Swap(index);
+  }
+}
+
+template <uint8_t max_factor_size>
+void Index<max_factor_size>::Swap (Index& index)
+{
+  if (this != &index)
+  {
+    symbol_table_.Swap(index.symbol_table_);
+    sub_factor_trie_.Swap(index.sub_factor_trie_);
+    lex_symbol_table_.Swap(index.lex_symbol_table_);
+    colex_symbol_table_.Swap(index.colex_symbol_table_);
+    colex_to_lex_.swap(index.colex_to_lex_);
+    lex_symbol_bucket_offsets_.Swap(index.lex_symbol_bucket_offsets_);
+    lex_bwt_.swap(index.lex_bwt_);
+  }
+  return;
+}
+
+template <uint8_t max_factor_size>
+Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path, bool is_parameter_written)
+{
+  if (!is_parameter_written)
+  {
+    std::cout << "construct index of " << std::filesystem::canonical(byte_text_path).string() << "\n";
+  }
   sdsl::int_vector<> text;
   CalculateSymbolTableAndText(byte_text_path, text);
   {
@@ -253,7 +287,65 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path)
     CalculateLexBwt(lex_text);
     // std::cout << lex_bwt_ << "\n";
   }
+  if (is_parameter_written)
+  {
+    auto parameter_path {std::filesystem::path{"../data/parameter/" + byte_text_path.filename().string() + ".figiss.parameter"}};
+    if (!std::filesystem::exists(parameter_path.parent_path()))
+    {
+      std::filesystem::create_directories(parameter_path.parent_path());
+    }
+    std::ofstream out {parameter_path};
+    std::cout << "write figiss parameters to " << std::filesystem::canonical(parameter_path).string() << "\n";
+    out << "n," << std::size(text) << "\n";
+    out << "n'," << std::size(lex_text) << "\n";
+    {
+      sdsl::int_vector<> buffer;
+      sdsl::qsufsort::construct_sa(buffer, text);
+      uint64_t r {};
+      uint64_t prev_character {std::size(text)};
+      for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
+      {
+        if (*it != 0)
+        {
+          *it = lex_text[*it - 1];
+        }
+        if (*it != prev_character)
+        {
+          prev_character = *it;
+          ++r;
+        }
+      }
+      out << "r," << r << "\n";
+    }
+    {
+      uint64_t r {};
+      uint64_t prev_lex_rank {std::size(lex_bwt_)};
+      for (auto const& lex_rank : lex_bwt_)
+      {
+        if (prev_lex_rank != lex_rank)
+        {
+          prev_lex_rank = lex_rank;
+          ++r;
+        }
+      }
+      out << "r'," << r << "\n";
+    }
+    out << "sigma," << (*std::max_element(std::begin(text), std::end(text)) + 1) << "\n";
+    out << "sigma'," << std::size(colex_to_lex_) << "\n";
+  }
 }
+
+template <uint8_t max_factor_size>
+Index<max_factor_size>& Index<max_factor_size>::operator= (Index&& index)
+{
+  if (this != &index)
+  {
+    Index<max_factor_size> temp {std::move(index)};
+    this->Swap(temp);
+  }
+  return *this;
+}
+
 
 template <uint8_t max_factor_size>
 uint64_t Index<max_factor_size>::Serialize
@@ -275,7 +367,6 @@ uint64_t Index<max_factor_size>::Serialize
   uint64_t size_in_bytes {};
   if (!root)
   {
-    sdsl::write_member(kMaxFactorSize, index_file);
     symbol_table_.Serialize(index_file);
     sub_factor_trie_.Serialize(index_file);
     lex_symbol_table_.Serialize(index_file);
@@ -286,7 +377,6 @@ uint64_t Index<max_factor_size>::Serialize
   }
   else
   {
-    root->AddLeaf("kMaxFactorSize", sdsl::write_member(kMaxFactorSize, index_file));
     root->AccumalateSizeInBytes(symbol_table_.Serialize(index_file, root, "symbol_table_"));
     root->AccumalateSizeInBytes(sub_factor_trie_.Serialize(index_file, root, "sub_factor_trie_"));
     root->AccumalateSizeInBytes(lex_symbol_table_.Serialize(index_file, root, "lex_symbol_table_"));
@@ -304,12 +394,6 @@ void Index<max_factor_size>::Load (std::filesystem::path const &index_path)
 {
   std::ifstream index_file {index_path};
   std::cout << "load index from " << std::filesystem::canonical(index_path).string() << "\n";
-  uint8_t loaded_max_factor_size {};
-  sdsl::read_member(loaded_max_factor_size, index_file);
-  if (loaded_max_factor_size != kMaxFactorSize)
-  {
-    throw std::runtime_error("wrong max_factor_size");
-  }
   symbol_table_.Load(index_file);
   sub_factor_trie_.Load(index_file);
   lex_symbol_table_.Load(index_file);
