@@ -307,7 +307,7 @@ Index<max_factor_size>::Index (std::filesystem::path const &byte_text_path, bool
       {
         if (*it != 0)
         {
-          *it = lex_text[*it - 1];
+          *it = text[*it - 1];
         }
         if (*it != prev_character)
         {
@@ -363,10 +363,10 @@ uint64_t Index<max_factor_size>::Serialize
     std::filesystem::create_directories(index_path.parent_path());
   }
   std::fstream index_file {index_path, std::ios_base::out | std::ios_base::trunc};
-  std::cout << "serialize index to " << std::filesystem::canonical(index_path).string() << "\n";
   uint64_t size_in_bytes {};
   if (!root)
   {
+    std::cout << "serialize index to " << std::filesystem::canonical(index_path).string() << "\n";
     symbol_table_.Serialize(index_file);
     sub_factor_trie_.Serialize(index_file);
     lex_symbol_table_.Serialize(index_file);
