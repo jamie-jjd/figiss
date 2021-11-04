@@ -35,30 +35,38 @@ void TestCounting
     << min_length << " and " << max_length << " from text\n";
     for (uint64_t length {min_length}; length <= max_length; length <<= 1)
     {
-      PatternCollection patterns;
       for (uint8_t is_mutated {}; is_mutated != 2; ++is_mutated)
       {
-        patterns = PatternCollection(byte_text_path, pattern_parent_path, amount, length, is_mutated);
+        PatternCollection patterns;
+        auto pattern_path
+        {
+          pattern_parent_path /
+          byte_text_path.filename() /
+          std::filesystem::path
+          {
+            std::to_string(amount) + "/" +
+            std::to_string(length) + "/" +
+            ((is_mutated) ? "mutated/" : "") +
+            "pattern"
+          }
+        };
+        if (!std::filesystem::exists(pattern_path))
+        {
+          std::filesystem::create_directories(pattern_path.parent_path());
+          patterns = PatternCollection(byte_text_path, pattern_parent_path, amount, length, is_mutated);
+          patterns.Serialize(pattern_path);
+        }
+        else
+        {
+          patterns.Load(pattern_path);
+        }
         if (patterns)
         {
-          auto pattern_path
-          {
-            pattern_parent_path /
-            byte_text_path.filename() /
-            std::filesystem::path
-            {
-              std::to_string(patterns.GetAmount()) +
-              "_" + std::to_string(patterns.GetLength()) +
-              ((is_mutated) ? ".mutated" : "") +
-              ".pattern"
-            }
-          };
           {
             std::cout << "test " << amount << " random "
             << ((is_mutated) ? "mutated" : "")
             << "existed patterns of length " << length << "\n";
           }
-          patterns.Serialize(pattern_path);
           auto begin {std::begin(patterns)};
           auto end {begin};
           for (uint64_t i {}; i != patterns.GetAmount(); ++i)
