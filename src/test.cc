@@ -21,19 +21,10 @@ int main ()
       auto pattern_parent_path {std::filesystem::path{"../data/pattern"}};
       for (uint8_t max_factor_size {1}; max_factor_size <= 8; ++max_factor_size)
       {
-        auto index_path
-        {
-          std::filesystem::path
-          {
-            "../data/index/figiss/" +
-            std::to_string(max_factor_size) + "/" +
-            entry.path().filename().string()
-            + ".figiss"
-          }
-        };
+        auto index_path {std::filesystem::path {"../data/index/figiss/" + std::to_string(max_factor_size) + "/index"}};
         figiss::Index index {byte_text_path, max_factor_size};
         index.Serialize(index_path);
-        figiss::TestCounting(byte_text_path, index_path, pattern_parent_path, 256, 1, 256);
+        figiss::TestCounting(byte_text_path, index_path, pattern_parent_path);
       }
     }
   }
