@@ -6,9 +6,11 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <map>
 #include <memory>
+#include <random>
 
 namespace figiss
 {
@@ -281,6 +283,55 @@ void DecompressCompressedCorpus
       }
     }
   }
+  return;
+}
+
+void GenerateGenerationalDnaSequence
+(
+  uint64_t const size,
+  uint64_t const amount_copies,
+  uint64_t const mutative_rate,
+  std::filesystem::path const& path
+)
+{
+  if (!path.parent_path().empty() && !std::filesystem::exists(path.parent_path()))
+  {
+    std::filesystem::create_directories(path.parent_path());
+  }
+  auto out {std::ofstream{path}};
+  auto engine {std::mt19937_64(std::random_device{}())};
+  auto const bases {std::array<char, 4>({'A', 'C', 'G', 'T'})};
+  auto dist_base {std::uniform_int_distribution<uint64_t>(0, 3)};
+  auto dist_other_base {std::uniform_int_distribution<uint64_t>(1, 3)};
+  auto dist_mutation {std::uniform_int_distribution<uint64_t>(0, 99)};
+  auto base_sequence {std::string()};
+  for (uint64_t i {}; i != size; ++i)
+  {
+    base_sequence.push_back(dist_base(engine));
+  }
+  for (uint64_t i {}; i != amount_copies; ++i)
+  {
+    for (uint64_t j {}; j != size; ++j)
+    {
+      auto dice {dist_mutation(engine)};
+      if (dice < mutative_rate)
+      {
+        if (dice & 1)
+        {
+          base_sequence.push_back((base_sequence[j] + dist_other_base(engine)) % 4);
+        }
+      }
+      else
+      {
+        base_sequence.push_back(base_sequence[j]);
+      }
+    }
+  }
+  for (auto& base : base_sequence)
+  {
+    base = bases[base];
+  }
+  out << base_sequence;
   return;
 }
 }
