@@ -25,12 +25,7 @@ public:
   Index () = default;
   Index (Index const&) = delete;
   Index (Index&&);
-  Index
-  (
-    std::filesystem::path const &byte_text_path,
-    uint8_t const max_factor_size_ = 4,
-    bool const is_parameter_written = false
-  );
+  Index (std::filesystem::path const &byte_text_path, uint8_t const max_factor_size_);
   Index& operator= (Index const&) = delete;
   Index& operator= (Index&&);
 
@@ -45,6 +40,8 @@ public:
 
   template <typename Iterator>
   uint64_t Count (Iterator begin, Iterator end);
+
+  void PrintParameters (std::filesystem::path const& parameter_path) const;
 
   friend std::ostream& operator<<  (std::ostream &out, Index const &index);
 
@@ -212,12 +209,7 @@ void Index::Swap (Index& index)
   return;
 }
 
-Index::Index
-(
-  std::filesystem::path const &byte_text_path,
-  uint8_t const max_factor_size,
-  bool is_parameter_written
-)
+Index::Index (std::filesystem::path const &byte_text_path, uint8_t const max_factor_size)
 {
   if (max_factor_size == 0 || max_factor_size > 8)
   {
@@ -227,10 +219,7 @@ Index::Index
     return;
   }
   max_factor_size_ = max_factor_size;
-  if (!is_parameter_written)
-  {
-    std::cout << "construct index of " << std::filesystem::canonical(byte_text_path).string() << "\n";
-  }
+  std::cout << "construct index of " << std::filesystem::canonical(byte_text_path).string() << "\n";
   sdsl::int_vector<> text;
   CalculateSymbolTableAndText(byte_text_path, text);
   {
@@ -295,52 +284,6 @@ Index::Index
   {
     CalculateLexBwt(lex_text);
     // std::cout << lex_bwt_ << "\n";
-  }
-  if (is_parameter_written)
-  {
-    auto parameter_path {std::filesystem::path{"../data/parameter/" + byte_text_path.filename().string() + ".figiss.parameter"}};
-    if (!std::filesystem::exists(parameter_path.parent_path()))
-    {
-      std::filesystem::create_directories(parameter_path.parent_path());
-    }
-    std::ofstream out {parameter_path};
-    std::cout << "write figiss parameters to " << std::filesystem::canonical(parameter_path).string() << "\n";
-    out << "n," << std::size(text) << "\n";
-    out << "n'," << std::size(lex_text) << "\n";
-    {
-      sdsl::int_vector<> buffer;
-      sdsl::qsufsort::construct_sa(buffer, text);
-      uint64_t r {};
-      uint64_t prev_character {std::size(text)};
-      for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
-      {
-        if (*it != 0)
-        {
-          *it = text[*it - 1];
-        }
-        if (*it != prev_character)
-        {
-          prev_character = *it;
-          ++r;
-        }
-      }
-      out << "r," << r << "\n";
-    }
-    {
-      uint64_t r {};
-      uint64_t prev_lex_rank {std::size(lex_bwt_)};
-      for (auto const& lex_rank : lex_bwt_)
-      {
-        if (prev_lex_rank != lex_rank)
-        {
-          prev_lex_rank = lex_rank;
-          ++r;
-        }
-      }
-      out << "r'," << r << "\n";
-    }
-    out << "sigma," << (*std::max_element(std::begin(text), std::end(text)) + 1) << "\n";
-    out << "sigma'," << std::size(colex_to_lex_) << "\n";
   }
 }
 
@@ -463,6 +406,32 @@ uint64_t Index::Count (Iterator begin, Iterator end)
     }
   }
   return count;
+}
+
+void Index::PrintParameters (std::filesystem::path const& parameter_path) const
+{
+  if (!std::filesystem::exists(parameter_path.parent_path()))
+  {
+    std::filesystem::create_directories(parameter_path.parent_path());
+  }
+  std::ofstream out {parameter_path};
+  std::cout << "write figiss parameters to " << std::filesystem::canonical(parameter_path).string() << "\n";
+  out << "n'," << std::size(lex_bwt_) << "\n";
+  {
+    uint64_t amount_bwt_runs {};
+    uint64_t prev_lex_rank {std::size(lex_bwt_)};
+    for (auto const& lex_rank : lex_bwt_)
+    {
+      if (prev_lex_rank != lex_rank)
+      {
+        prev_lex_rank = lex_rank;
+        ++amount_bwt_runs;
+      }
+    }
+    out << "r'," << amount_bwt_runs << "\n";
+  }
+  out << "\u03C3'," << std::size(colex_to_lex_) << "\n";
+  return;
 }
 
 std::ostream& operator<< (std::ostream &out, Index const &index)
