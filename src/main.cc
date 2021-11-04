@@ -28,25 +28,39 @@ int main (int argc, char** argv)
     auto option {std::string(argv[1])};
     if (option == "cs")
     {
-      auto max_factor_size {std::stoull(argv[2])};
-      auto byte_text_path {std::filesystem::path(argv[3])};
-      auto index_path {std::filesystem::path(argv[4])};
-      figiss::Index index {byte_text_path, static_cast<uint8_t>(max_factor_size)};
-      index.Serialize(index_path);
+      if (argc != 5)
+      {
+        PrintUsage();
+      }
+      else
+      {
+        auto max_factor_size {std::stoull(argv[2])};
+        auto byte_text_path {std::filesystem::path(argv[3])};
+        auto index_path {std::filesystem::path(argv[4])};
+        figiss::Index index {byte_text_path, static_cast<uint8_t>(max_factor_size)};
+        index.Serialize(index_path);
+      }
     }
     else if (option == "lc")
     {
-      auto index_path {std::filesystem::path(argv[2])};
-      auto pattern_path {std::filesystem::path(argv[3])};
-      sdsl::int_vector<8> pattern;
-      sdsl::load_vector_from_file(pattern, pattern_path);
-      figiss::Index index;
-      index.Load(index_path);
-      std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
+      if (argc != 4)
+      {
+        PrintUsage();
+      }
+      else
+      {
+        auto index_path {std::filesystem::path(argv[2])};
+        auto pattern_path {std::filesystem::path(argv[3])};
+        sdsl::int_vector<8> pattern;
+        sdsl::load_vector_from_file(pattern, pattern_path);
+        figiss::Index index;
+        index.Load(index_path);
+        std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";        
+      }
     }
     else
     {
-      Usage();
+      PrintUsage();
     }
   }
   return 0;
