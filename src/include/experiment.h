@@ -18,77 +18,77 @@ std::string ProperTimeRepresentation (double const nanoseconds)
 {
   std::stringstream stringstream;
   stringstream << std::fixed << std::setprecision(2);
-  if (nanoseconds >= 1'000'000'000.0)
-  {
-    stringstream << (nanoseconds / 1'000'000'000.0);
-    return (stringstream.str() + "s");
-  }
-  else if (nanoseconds >= 1'000'000.0)
-  {
-    stringstream << (nanoseconds / 1'000'000.0);
-    return (stringstream.str() + "ms");
-  }
-  else if (nanoseconds >= 1'000.0)
-  {
-    stringstream << (nanoseconds / 1'000.0);
-    return (stringstream.str() + "us");
-  }
-  else
+  if (nanoseconds < 1'000.0)
   {
     stringstream << nanoseconds;
     return (stringstream.str() + "ns");
   }
+  else if (nanoseconds < 1'000'000.0)
+  {
+    stringstream << (nanoseconds / 1'000.0);
+    return (stringstream.str() + "us");
+  }
+  else if (nanoseconds < 1'000'000'000.0)
+  {
+    stringstream << (nanoseconds / 1'000'000.0);
+    return (stringstream.str() + "ms");
+  }
+  else
+  {
+    stringstream << (nanoseconds / 1'000'000'000.0);
+    return (stringstream.str() + "s");
+  }
   return "0.00";
 }
 
-void PrintSpace
+void PrintIndexSpace
 (
   std::filesystem::path const& index_path,
+  std::filesystem::path const& index_space_path,
   bool const is_proper_representation = false
 )
 {
-  auto space_path {std::filesystem::path{"../data/space/" + index_path.filename().string() + ".space"}};
-  if (!std::filesystem::exists(space_path.parent_path()))
+  if (!std::filesystem::exists(index_space_path.parent_path()))
   {
-    std::filesystem::create_directories(space_path.parent_path());
+    std::filesystem::create_directories(index_space_path.parent_path());
   }
-  std::ofstream out {space_path};
-  std::cout << "write index space to " << std::filesystem::canonical(space_path).string() << "\n";
+  std::ofstream out {index_space_path};
+  std::cout << "write index space to " << std::filesystem::canonical(index_space_path).string() << "\n";
   {
     if (is_proper_representation)
     {
-      out << "index space," << ProperSizeRepresentation(std::filesystem::file_size(index_path)) << "B\n";
+      out << "index space:" << ProperSizeRepresentation(std::filesystem::file_size(index_path)) << "B\n";
     }
     else
     {
-      out << "index space (B)," << std::filesystem::file_size(index_path);
+      out << "index space(B):" << std::filesystem::file_size(index_path);
     }
   }
   return;
 }
 
-void PrintDetailedSpace
+void PrintDetailedIndexSpace
 (
   std::filesystem::path const& index_path,
-  Index<>& index,
+  std::filesystem::path const& detailed_index_space_path,
   bool const is_proper_representation = false
 )
 {
-  auto detailed_space_path {std::filesystem::path{"../data/space/" + index_path.filename().string() + ".detailed.space"}};
-  if (!std::filesystem::exists(detailed_space_path.parent_path()))
+  if (!std::filesystem::exists(detailed_index_space_path.parent_path()))
   {
-    std::filesystem::create_directories(detailed_space_path.parent_path());
+    std::filesystem::create_directories(detailed_index_space_path.parent_path());
   }
-  std::ofstream out {detailed_space_path};
+  std::ofstream out {detailed_index_space_path};
   {
-    auto root {std::make_shared<SpaceNode>("index")};
+    Index index;
     index.Load(index_path);
+    auto root {std::make_shared<SpaceNode>("index")};
     {
       auto dummy_index_path {std::filesystem::path{"_.figiss"}};
       index.Serialize(dummy_index_path, root);
       std::filesystem::remove(dummy_index_path);
     }
-    std::cout << "write detailed space to " << std::filesystem::canonical(detailed_space_path).string() << "\n";
+    std::cout << "write detailed index space to " << std::filesystem::canonical(detailed_index_space_path).string() << "\n";
     out << std::make_pair(root, is_proper_representation);
   }
   return;
@@ -101,26 +101,30 @@ void PrintConstructionTimeAndPeakMemory
   bool is_proper_representation = false
 )
 {
+  if (!std::filesystem::exists(construction_path.parent_path()))
+  {
+    std::filesystem::create_directories(construction_path.parent_path());
+  }
   auto begin_time {std::stoull(json.substr(json.find_last_of(":", json.find_last_of(":") - 1) + 1))};
   auto end_time {std::stoull(json.substr(json.find_last_of(":", json.find_last_of(":", json.find_last_of(":") - 1) - 1) + 1))};
   auto duration {end_time - begin_time + 1};
   auto peak_memory {std::stoull(json.substr(json.find(":", json.find(":", json.find(":") + 1) + 1) + 1))};
   std::cout
-  << "construction time:" << ProperTimeRepresentation(duration) << "\n"
+  << "time:" << ProperTimeRepresentation(duration * 1'000'000) << "\n"
   << "peak memory:" << ProperSizeRepresentation(peak_memory) << "B\n";
   std::ofstream out {construction_path};
   std::cout << "write construction time and peak memory to " << std::filesystem::canonical(construction_path).string() << "\n";
   if (is_proper_representation)
   {
     out
-    << "construction time," << ProperTimeRepresentation(duration) << "\n"
-    << "peak memory," << ProperSizeRepresentation(peak_memory) << "B\n";
+    << "time:" << ProperTimeRepresentation(duration * 1'000'000) << "\n"
+    << "peak memory:" << ProperSizeRepresentation(peak_memory) << "B\n";
   }
   else
   {
     out
-    << "construction time (ns)," << duration << "\n"
-    << "peak memory (B)," << peak_memory << "\n";
+    << "time(ns):" << (duration * 1'000'000)<< "\n"
+    << "peak memory(B):" << peak_memory << "\n";
   }
 }
 
@@ -128,30 +132,94 @@ template <typename Index>
 void ConstructAndSerialize
 (
   std::filesystem::path const& byte_text_path,
-  std::filesystem::path const& construction_parent_path,
-  std::filesystem::path const& index_parent_path
+  uint8_t const max_factor_size,
+  std::string const& index_name
 )
 {
   Index index;
-  std::cout << "--- construct & serialize figiss ---\n";
+  std::cout << "--- construct & serialize " << index_name << " (\u03BB = " << std::to_string(max_factor_size) << ") ---\n";
   auto root {tdc::StatPhase("construction")};
   tdc::StatPhase::wrap
   (
-    "figiss",
+    index_name.c_str(),
     [&] ()
     {
-      index = Index{byte_text_path};
+      index = Index {byte_text_path, max_factor_size};
     }
   );
+  auto middle_path {std::filesystem::path{byte_text_path.filename().string() + "/" + index_name + "/" + std::to_string(max_factor_size)}};
   {
-    auto construction_path {construction_parent_path / std::filesystem::path{byte_text_path.filename().string() + ".figiss.construction"}};
+    auto construction_path {std::filesystem::path{"../data/construction"} / middle_path / std::filesystem::path{"construction"}};
     PrintConstructionTimeAndPeakMemory(construction_path, root.to_json().str());
   }
   {
-    auto index_path {index_parent_path / std::filesystem::path{byte_text_path.filename().string() + ".figiss"}};
+    auto parameter_path {std::filesystem::path{"../data/parameter"} / middle_path / std::filesystem::path{"parameter"}};
+    index.PrintParameters(parameter_path);
+  }
+  {
+    auto index_path {std::filesystem::path{"../data/index"} / middle_path / std::filesystem::path{"index"}};
     index.Serialize(index_path);
-    PrintSpace(index_path);
-    PrintDetailedSpace(index_path, index);
+    {
+      auto index_space_path {std::filesystem::path{"../data/index_space"} / middle_path / std::filesystem::path{"index_space"}};
+      PrintIndexSpace(index_path, index_space_path);
+    }
+    {
+      auto detailed_index_space_path {std::filesystem::path{"../data/index_space"} / middle_path / std::filesystem::path{"detailed_index_space"}};
+      PrintDetailedIndexSpace(index_path, detailed_index_space_path);
+    }
+  }
+  return;
+}
+
+template <typename Index>
+void ConstructAndSerialize
+(
+  std::filesystem::path const& byte_text_path,
+  std::string const& index_name
+);
+
+template <>
+void ConstructAndSerialize
+<sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF>>
+(
+  std::filesystem::path const& byte_text_path,
+  std::string const& index_name
+)
+{
+  sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF> index;
+  std::cout << "--- construct & serialize " << index_name << " ---\n";
+  std::cout << "construct " << index_name << " of " << std::filesystem::canonical(byte_text_path).string() << "\n";
+  auto root {tdc::StatPhase("construction")};
+  tdc::StatPhase::wrap
+  (
+    index_name.c_str(),
+    [&] ()
+    {
+      sdsl::int_vector<8> byte_text;
+      sdsl::load_vector_from_file(byte_text, byte_text_path);
+      sdsl::construct_im(index, byte_text);
+    }
+  );
+  auto middle_path {byte_text_path.filename() / std::filesystem::path{index_name}};
+  {
+    auto construction_path {std::filesystem::path{"../data/construction"} / middle_path / std::filesystem::path{"construction"}};
+    PrintConstructionTimeAndPeakMemory(construction_path, root.to_json().str());
+  }
+  {
+    auto index_path {std::filesystem::path{"../data/index"} / middle_path / std::filesystem::path{"index"}};
+    if (!std::filesystem::exists(index_path.parent_path()))
+    {
+      std::filesystem::create_directories(index_path.parent_path());
+    }
+    {
+      std::ofstream out {index_path};
+      std::cout << "serialize " + index_name + " to " << std::filesystem::canonical(index_path).string() << "\n";
+      index.serialize(out);
+    }
+    {
+      auto index_space_path {std::filesystem::path{"../data/index_space"} / middle_path / std::filesystem::path{"index_space"}};
+      PrintIndexSpace(index_path, index_space_path);
+    }
   }
   return;
 }
@@ -161,17 +229,16 @@ void ConstructAndSerialize
 <sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF>>
 (
   std::filesystem::path const& byte_text_path,
-  std::filesystem::path const& construction_parent_path,
-  std::filesystem::path const& index_parent_path
+  std::string const& index_name
 )
 {
   sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> index;
-  std::cout << "--- construct & serialize rlfm ---\n";
-  std::cout << "construct rlfm of " << std::filesystem::canonical(byte_text_path).string() << "\n";
+  std::cout << "--- construct & serialize " << index_name << " ---\n";
+  std::cout << "construct " << index_name << " of " << std::filesystem::canonical(byte_text_path).string() << "\n";
   auto root {tdc::StatPhase("construction")};
   tdc::StatPhase::wrap
   (
-    "rlfm",
+    index_name.c_str(),
     [&] ()
     {
       sdsl::int_vector<8> byte_text;
@@ -179,53 +246,26 @@ void ConstructAndSerialize
       sdsl::construct_im(index, byte_text);
     }
   );
+  auto middle_path {byte_text_path.filename() / std::filesystem::path{index_name}};
   {
-    auto construction_path {construction_parent_path / std::filesystem::path{byte_text_path.filename().string() + ".rlfm.construction"}};
+    auto construction_path {std::filesystem::path{"../data/construction"} / middle_path / std::filesystem::path{"construction"}};
     PrintConstructionTimeAndPeakMemory(construction_path, root.to_json().str());
   }
   {
-    auto index_path {index_parent_path / std::filesystem::path{byte_text_path.filename().string() + ".rlfm"}};
-    std::ofstream out {index_path};
-    std::cout << "serialize rlfm to " << std::filesystem::canonical(index_path).string() << "\n";
-    index.serialize(out);
-    PrintSpace(index_path);
-  }
-  return;
-}
-
-template <>
-void ConstructAndSerialize
-<sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF>>
-(
-  std::filesystem::path const& byte_text_path,
-  std::filesystem::path const& construction_parent_path,
-  std::filesystem::path const& index_parent_path
-)
-{
-  sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF> index;
-  std::cout << "--- construct & serialize faster-minuter ---\n";
-  std::cout << "construct faster-minuter of " << std::filesystem::canonical(byte_text_path).string() << "\n";
-  auto root {tdc::StatPhase("construction")};
-  tdc::StatPhase::wrap
-  (
-    "faster-minuter",
-    [&] ()
+    auto index_path {std::filesystem::path{"../data/index"} / middle_path / std::filesystem::path{"index"}};
+    if (!std::filesystem::exists(index_path.parent_path()))
     {
-      sdsl::int_vector<8> byte_text;
-      sdsl::load_vector_from_file(byte_text, byte_text_path);
-      sdsl::construct_im(index, byte_text);
+      std::filesystem::create_directories(index_path.parent_path());
     }
-  );
-  {
-    auto construction_path {construction_parent_path / std::filesystem::path{byte_text_path.filename().string() + ".faster-minuter.construction"}};
-    PrintConstructionTimeAndPeakMemory(construction_path, root.to_json().str());
-  }
-  {
-    auto index_path {index_parent_path / std::filesystem::path{byte_text_path.filename().string() + ".faster-minuter"}};
-    std::ofstream out {index_path};
-    std::cout << "serialize faster-minuter to " << std::filesystem::canonical(index_path).string() << "\n";
-    index.serialize(out);
-    PrintSpace(index_path);
+    {
+      std::ofstream out {index_path};
+      std::cout << "serialize " + index_name + " to " << std::filesystem::canonical(index_path).string() << "\n";
+      index.serialize(out);
+    }
+    {
+      auto index_space_path {std::filesystem::path{"../data/index_space"} / middle_path / std::filesystem::path{"index_space"}};
+      PrintIndexSpace(index_path, index_space_path);
+    }
   }
   return;
 }
@@ -235,16 +275,15 @@ void ConstructAndSerialize
 <CSA::RLCSA>
 (
   std::filesystem::path const& byte_text_path,
-  std::filesystem::path const& construction_parent_path,
-  std::filesystem::path const& index_parent_path
+  std::string const& index_name
 )
 {
-  std::cout << "--- construct & serialize rlcsa ---\n";
-  std::cout << "construct rlcsa of " << std::filesystem::canonical(byte_text_path).string() << "\n";
+  std::cout << "--- construct & serialize " << index_name << " ---\n";
+  std::cout << "construct " << index_name << " of " << std::filesystem::canonical(byte_text_path).string() << "\n";
   auto root {tdc::StatPhase("construction")};
   tdc::StatPhase::wrap
   (
-    "rlcsa",
+    index_name.c_str(),
     [&] ()
     {
       sdsl::int_vector<8> byte_text;
@@ -253,35 +292,29 @@ void ConstructAndSerialize
       CSA::RLCSA index((CSA::uchar*)byte_text.data(), std::size(byte_text), 32, 0, 1, false);
     }
   );
+  auto middle_path {byte_text_path.filename() / std::filesystem::path{index_name}};
   {
-    auto construction_path {construction_parent_path / std::filesystem::path{byte_text_path.filename().string() + ".rlcsa.construction"}};
+    auto construction_path {std::filesystem::path{"../data/construction"} / middle_path / std::filesystem::path{"construction"}};
     PrintConstructionTimeAndPeakMemory(construction_path, root.to_json().str());
   }
   {
-    auto index_path {index_parent_path / std::filesystem::path{byte_text_path.filename().string() + ".rlcsa.array"}};
-    sdsl::int_vector<8> byte_text;
-    sdsl::load_vector_from_file(byte_text, byte_text_path);
-    sdsl::append_zero_symbol(byte_text);
-    CSA::RLCSA index((CSA::uchar*)byte_text.data(), std::size(byte_text), 32, 0, 1, false);
-    index.writeTo(byte_text_path.string());
+    auto index_base_path {std::filesystem::path{"../data/index"} / middle_path / byte_text_path.filename()};
+    auto index_path {std::filesystem::path{index_base_path.string() + ".rlcsa.array"}};
+    if (!std::filesystem::exists(index_path.parent_path()))
     {
-      auto index_from_path {std::filesystem::path{byte_text_path.string() + ".rlcsa.array"}};
-      auto index_parameters_from_path {byte_text_path.parent_path() / std::filesystem::path{index_from_path.stem().string() + ".parameters"}};
-      auto index_parameters_to_path {index_parent_path / std::filesystem::path{index_path.stem().string() + ".parameters"}};
-      auto code {system(("mv " + index_from_path.string() + " " + index_path.string()).c_str())};
-      if (WIFSIGNALED(code) && (WTERMSIG(code) == SIGINT || WTERMSIG(code) == SIGQUIT))
-      {
-        throw std::runtime_error("\033[31mfailed at moving rlcsa");
-      }
-      code = system(("mv " + index_parameters_from_path.string() + " " + index_parameters_to_path.string()).c_str());
-      if (WIFSIGNALED(code) && (WTERMSIG(code) == SIGINT || WTERMSIG(code) == SIGQUIT))
-      {
-        throw std::runtime_error("\033[31mfailed at moving rlcsa parameters");
-      }
-      std::cout << "serialize rlcsa to " << std::filesystem::canonical(index_path).string() << "\n";
-      std::cout << "write rlcsa parameters to " << std::filesystem::canonical(index_parameters_to_path).string() << "\n";
+      std::filesystem::create_directories(index_path.parent_path());
     }
-    PrintSpace(index_path);
+    {
+      sdsl::int_vector<8> byte_text;
+      sdsl::load_vector_from_file(byte_text, byte_text_path);
+      sdsl::append_zero_symbol(byte_text);
+      CSA::RLCSA index((CSA::uchar*)byte_text.data(), std::size(byte_text), 32, 0, 1, false);
+      index.writeTo(index_base_path.string());
+    }
+    {
+      auto index_space_path {std::filesystem::path{"../data/index_space"} / middle_path / std::filesystem::path{"index_space"}};
+      PrintIndexSpace(index_path, index_space_path);
+    }
   }
   return;
 }
@@ -299,9 +332,9 @@ uint64_t Count (sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF>& index, 
 }
 
 template <typename Iterator>
-void Count (sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF>& index, Iterator begin, Iterator end)
+uint64_t Count (sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF>& index, Iterator begin, Iterator end)
 {
-  sdsl::count(index, begin, end);
+  return sdsl::count(index, begin, end);
 }
 
 template <typename Iterator>
@@ -362,7 +395,7 @@ void MeasureCountingTime
     auto duration {static_cast<double>((std::chrono::steady_clock::now() - begin_time).count())};
     duration /= (pattern_collection.GetAmount() * pattern_collection.GetLength());
     {
-      if (!time_path.parent_path().empty() && !std::filesystem::exists(time_path.parent_path()))
+      if (!std::filesystem::exists(time_path.parent_path()))
       {
         std::filesystem::create_directories(time_path.parent_path());
       }
@@ -380,11 +413,11 @@ void MeasureCountingTime
       std::cout << "write counting time to " << std::filesystem::canonical(time_path) << "\n";
       if (is_proper_representation)
       {
-        out << "average counting time per character," << ProperTimeRepresentation(duration) << "\n";
+        out << "average counting time per character:" << ProperTimeRepresentation(duration) << "\n";
       }
       else
       {
-        out << "average counting time per character (ns)," << duration << "\n";
+        out << "average counting time per character(ns):" << duration << "\n";
       }
     }
   }
