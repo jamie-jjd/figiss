@@ -200,7 +200,7 @@ void Index::Swap (Index& index)
 {
   if (this != &index)
   {
-    std::swap(index.max_factor_size_, index.max_factor_size_);
+    std::swap(max_factor_size_, index.max_factor_size_);
     symbol_table_.Swap(index.symbol_table_);
     sub_factor_trie_.Swap(index.sub_factor_trie_);
     lex_symbol_table_.Swap(index.lex_symbol_table_);
@@ -499,16 +499,10 @@ void Index::CalculateSymbolTableAndText
   // std::cout << symbol_table_;
   text.width(symbol_table_.GetEffectiveAlphabetWidth());
   text.resize(std::size(byte_text));
-  std::transform
-  (
-    std::begin(byte_text),
-    std::end(byte_text),
-    std::begin(text),
-    [&] (auto const byte)
-    {
-      return symbol_table_[byte];
-    }
-  );
+  for (uint64_t i {}; i != std::size(byte_text); ++i)
+  {
+    text[i] = symbol_table_[byte_text[i]];
+  }
   // Print(text, std::cout);
 }
 
@@ -801,7 +795,10 @@ void Index::CalculateLexSymbolBucketOffsets
   {
     ++offsets[lex_symbol];
   }
-  std::partial_sum(std::begin(offsets), std::end(offsets), std::begin(offsets));
+  for (uint64_t i {1}; i != std::size(offsets); ++i)
+  {
+    offsets[i] += offsets[i - 1];
+  }
   lex_symbol_bucket_offsets_ = decltype(lex_symbol_bucket_offsets_)(offsets);
   return;
 }
