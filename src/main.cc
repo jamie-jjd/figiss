@@ -5,7 +5,7 @@
 
 #include "index.h"
 
-void Usage ()
+void PrintUsage ()
 {
   std::cout << "usage:\n"
   << "./figiss cs \u03bb \"text path\" \"index path\"\n"
@@ -17,11 +17,11 @@ void Usage ()
   return;
 }
 
-int main (int argc, char **argv)
+int main (int argc, char** argv)
 {
   if (argc < 4 || argc > 5)
   {
-    Usage();
+    PrintUsage();
   }
   else
   {
