@@ -1,11 +1,11 @@
 #pragma once
 
+#include <faster-minuter/wt_fbb.hpp>
 #include <sdsl/csa_wt.hpp>
 #include <sdsl/suffix_array_algorithm.hpp>
 
 #include "index.h"
 #include "pattern_collection.h"
-
 
 namespace figiss
 {
@@ -19,11 +19,11 @@ void TestCounting
   uint64_t const max_length = 32768
 )
 {
-  sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF> rlfm;
+  sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF> faster_minuter;
   {
     sdsl::int_vector<8> byte_text;
     sdsl::load_vector_from_file(byte_text, byte_text_path);
-    sdsl::construct_im(rlfm, byte_text);
+    sdsl::construct_im(faster_minuter, byte_text);
   }
   Index index;
   {
@@ -65,15 +65,15 @@ void TestCounting
           {
             begin = end;
             end = std::next(begin, patterns.GetLength());
-            auto rlfm_count {sdsl::count(rlfm, begin, end)};
+            auto count {sdsl::count(faster_minuter, begin, end)};
             auto index_count {index.Count(begin, end)};
-            if (rlfm_count != index_count)
+            if (count != index_count)
             {
               std::string pattern {begin, end};
               throw std::runtime_error
               (
                 "\033[31mfailed at pattern:" + pattern
-                + ",genuine count:" + std::to_string(rlfm_count)
+                + ",genuine count:" + std::to_string(count)
                 + ",count:" + std::to_string(index_count)
                 + "\033[0m");
             }
