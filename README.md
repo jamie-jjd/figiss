@@ -38,7 +38,7 @@ To compile this project and run testing and experiments, you need the following 
  - [sdsl-lite](https://github.com/simongog/sdsl-lite)
  - `p7zip`
  - `xz`
- - 
+ 
 ### ⚙️ Compilation
 
 The FIGISS index consists in a single executable called `figiss`.
