@@ -12,6 +12,8 @@
 #include <memory>
 #include <random>
 
+#include <sdsl/suffix_array_algorithm.hpp>
+
 namespace figiss
 {
 template <typename File, typename Container>
@@ -70,24 +72,24 @@ void Print
 
 void GeneratePrefix
 (
-  std::filesystem::path const& text_path,
+  std::filesystem::path const& byte_text_path,
   uint64_t const size_in_megabytes
 )
 {
-  sdsl::int_vector<8> text;
-  sdsl::load_vector_from_file(text, text_path);
-  auto path
+  sdsl::int_vector<8> byte_text;
+  sdsl::load_vector_from_file(byte_text, byte_text_path);
+  auto prefix_path
   {
     std::filesystem::path
     {
-      text_path.filename().string()
+      byte_text_path.filename().string()
       + "." + std::to_string(size_in_megabytes) + "mb"
     }
   };
-  std::fstream fout {path, std::ios_base::out | std::ios_base::trunc};
+  std::fstream out {prefix_path, std::ios_base::out | std::ios_base::trunc};
   for (uint64_t i {}; i != (size_in_megabytes * (1ULL << 20)); ++i)
   {
-    fout << text[i];
+    out << byte_text[i];
   }
   return;
 }
@@ -333,5 +335,42 @@ void GenerateGenerationalDnaSequence
   }
   out << base_sequence;
   return;
+}
+
+void PrintTextParameters (std::filesystem::path const& byte_text_path)
+{
+  auto parameter_path {std::filesystem::path{"../data/parameter/" + byte_text_path.filename().string() + "/parameter"}};
+  if (!std::filesystem::exists(parameter_path.parent_path()))
+  {
+    std::filesystem::create_directories(parameter_path.parent_path());
+  }
+  auto out {std::ofstream(parameter_path)};
+  std::cout << "write text parameters to " + std::filesystem::canonical(parameter_path).string() << "\n";
+  {
+    sdsl::int_vector<8> byte_text;
+    sdsl::load_vector_from_file(byte_text, byte_text_path);
+    sdsl::append_zero_symbol(byte_text);
+    out << "n:" << std::size(byte_text) << "\n";
+    {
+      sdsl::int_vector<> buffer;
+      sdsl::qsufsort::construct_sa(buffer, byte_text);
+      uint64_t r {};
+      uint64_t prev_character {std::size(byte_text)};
+      for (auto it {std::begin(buffer)}; it != std::end(buffer); ++it)
+      {
+        if (*it != 0)
+        {
+          *it = byte_text[*it - 1];
+        }
+        if (*it != prev_character)
+        {
+          prev_character = *it;
+          ++r;
+        }
+      }
+      out << "r," << r << "\n";
+    }
+    out << "\u03C3," << (*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1) << "\n";
+  }
 }
 }
