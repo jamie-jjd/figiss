@@ -18,5 +18,5 @@ experiment: experiment.cc
 
 clean:
 	rm -f figiss test experiment
-	# rm -rf ../data/corpus ../data/construction ../data/index ../data/space ../data/parameter ../data/pattern ../data/counting
+	rm -rf ../data/corpus ../data/parameter ../data/construction ../data/index ../data/index_space  ../data/pattern ../data/counting_time
 .PHONY: all clean
