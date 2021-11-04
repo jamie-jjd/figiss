@@ -12,8 +12,6 @@
 #include <memory>
 #include <random>
 
-#include <sdsl/suffix_array_algorithm.hpp>
-
 namespace figiss
 {
 template <typename File, typename Container>
@@ -370,7 +368,14 @@ void PrintTextParameters (std::filesystem::path const& byte_text_path)
       }
       out << "r," << r << "\n";
     }
-    out << "\u03C3," << (*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1) << "\n";
+    {
+      std::set<uint8_t> byte_alphabet;
+      for (auto const& byte : byte_text)
+      {
+        byte_alphabet.insert(byte);
+      }
+      out << "\u03C3," << std::size(byte_alphabet) << "\n";
+    }
   }
 }
 }
