@@ -103,7 +103,7 @@ class SubFactorTrie
 public:
 
   SubFactorTrie () = default;
-  SubFactorTrie (SubFactorTrie const&) = delete;
+  SubFactorTrie (SubFactorTrie const&);
   SubFactorTrie (SubFactorTrie&&);
   SubFactorTrie (Trie const &trie);
   SubFactorTrie& operator= (SubFactorTrie const&) = delete;
@@ -132,6 +132,21 @@ private:
   sdsl::int_vector<> counts_;
 
 };
+
+SubFactorTrie::SubFactorTrie (SubFactorTrie const& sub_factor_trie)
+{
+  if (this != &sub_factor_trie)
+  {
+    auto temp {SubFactorTrie()};
+    this->Swap(temp);
+    {
+      level_order_bits_ = decltype(level_order_bits_)(sub_factor_trie.level_order_bits_);
+      level_order_select_1_ = decltype(level_order_select_1_)(&sub_factor_trie.level_order_bits_);
+      labels_ = decltype(labels_)(sub_factor_trie.labels_);
+      counts_ = decltype(counts_)(sub_factor_trie.counts_);
+    }
+  }
+}
 
 SubFactorTrie::SubFactorTrie (SubFactorTrie&& sub_factor_trie)
 {
