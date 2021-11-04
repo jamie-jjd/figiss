@@ -8,12 +8,12 @@
 void PrintUsage ()
 {
   std::cout << "usage:\n"
-  << "./figiss cs \u03bb \"text path\" \"index path\"\n"
-  << "\tconstruct index of (ASCII-encoded) text at \"text path\"\n"
+  << "./figiss cs \u03bb \"byte-text path\" \"index path\"\n"
+  << "\tconstruct index of (ASCII-encoded) text at \"byte-text path\"\n"
   << "\twith max factor size being \u03bb, which can only be an integer in [1..8]\n"
   << "\tand serialize it to \"index path\"\n"
-  << "./figiss lc \"index path\" \"pattern path\"\n"
-  << "\tload index from \"index path\" and report number of occurences of (ACSII-encoded) pattern at \"pattern path\"\n";
+  << "./figiss lc \"index path\" \"byte-pattern path\"\n"
+  << "\tload index from \"index path\" and report number of occurences of (ACSII-encoded) pattern at \"byte-pattern path\"\n";
   return;
 }
 
@@ -55,7 +55,7 @@ int main (int argc, char** argv)
         sdsl::load_vector_from_file(pattern, pattern_path);
         figiss::Index index;
         index.Load(index_path);
-        std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";        
+        std::cout << index.Count(std::begin(pattern), std::end(pattern)) << "\n";
       }
     }
     else
