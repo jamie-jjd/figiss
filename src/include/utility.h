@@ -366,7 +366,7 @@ void PrintTextParameters (std::filesystem::path const& byte_text_path)
           ++r;
         }
       }
-      out << "r," << r << "\n";
+      out << "r:" << r << "\n";
     }
     {
       std::set<uint8_t> byte_alphabet;
@@ -374,7 +374,7 @@ void PrintTextParameters (std::filesystem::path const& byte_text_path)
       {
         byte_alphabet.insert(byte);
       }
-      out << "\u03C3," << std::size(byte_alphabet) << "\n";
+      out << "\u03C3:" << std::size(byte_alphabet) << "\n";
     }
   }
 }
