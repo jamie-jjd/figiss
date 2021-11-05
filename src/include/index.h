@@ -416,7 +416,7 @@ void Index::PrintParameters (std::filesystem::path const& parameter_path) const
   }
   std::ofstream out {parameter_path};
   std::cout << "write figiss parameters to " << std::filesystem::canonical(parameter_path).string() << "\n";
-  out << "n'," << std::size(lex_bwt_) << "\n";
+  out << "n':" << std::size(lex_bwt_) << "\n";
   {
     uint64_t amount_bwt_runs {};
     uint64_t prev_lex_rank {std::size(lex_bwt_)};
@@ -428,9 +428,9 @@ void Index::PrintParameters (std::filesystem::path const& parameter_path) const
         ++amount_bwt_runs;
       }
     }
-    out << "r'," << amount_bwt_runs << "\n";
+    out << "r':" << amount_bwt_runs << "\n";
   }
-  out << "\u03C3'," << std::size(colex_to_lex_) << "\n";
+  out << "\u03C3':" << std::size(colex_to_lex_) << "\n";
   return;
 }
 
