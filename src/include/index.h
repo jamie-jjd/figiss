@@ -8,9 +8,8 @@
 #include <sdsl/wavelet_trees.hpp>
 
 #include "byte_alphabet.h"
-#include "grammar_symbol_table.h"
+#include "sparse_prefix_sum.h"
 #include "sub_factor_trie.h"
-#include "symbol_bucket_offsets.h"
 #include "utility.h"
 
 namespace figiss
@@ -24,7 +23,7 @@ public:
 
   Index () = default;
   Index (Index const&) = delete;
-  Index (Index&&);
+  Index (Index&&) = default;
   Index (std::filesystem::path const &byte_text_path, uint8_t const max_factor_size_);
   Index& operator= (Index const&) = delete;
   Index& operator= (Index&&);
@@ -170,10 +169,10 @@ private:
   uint8_t max_factor_size_;
   ByteAlphabet byte_alphabet_;
   SubFactorTrie sub_factor_trie_;
-  GrammarSymbolTable lex_symbol_table_;
-  GrammarSymbolTable colex_symbol_table_;
+  SparsePrefixSum lex_symbol_table_;
+  SparsePrefixSum colex_symbol_table_;
   sdsl::int_vector<> colex_to_lex_;
-  SymbolBucketOffsets lex_symbol_bucket_offsets_;
+  SparsePrefixSum lex_symbol_bucket_offsets_;
   sdsl::wt_rlmn
   <
     sdsl::sd_vector<>,
@@ -184,14 +183,6 @@ private:
   lex_bwt_;
 
 };
-
-Index::Index (Index&& index)
-{
-  if (this != &index)
-  {
-    this->Swap(index);
-  }
-}
 
 void Index::Swap (Index& index)
 {
@@ -754,20 +745,16 @@ void Index::CalculateLexSymbolBucketOffsets
   sdsl::int_vector<> const &lex_text
 )
 {
-  sdsl::int_vector<> offsets
-  (
-    lex_text_alphabet_size + 1,
-    0,
-    sdsl::bits::hi(std::size(lex_text)) + 1
-  );
+  std::vector<uint64_t> offsets(lex_text_alphabet_size + 1);
   for (auto const lex_symbol : lex_text)
   {
     ++offsets[lex_symbol];
   }
-  for (uint64_t i {1}; i != std::size(offsets); ++i)
-  {
-    offsets[i] += offsets[i - 1];
-  }
+  std::partial_sum(std::begin(offsets), std::end(offsets), std::begin(offsets));
+  // for (uint64_t i {1}; i != std::size(offsets); ++i)
+  // {
+  //   offsets[i] += offsets[i - 1];
+  // }
   lex_symbol_bucket_offsets_ = decltype(lex_symbol_bucket_offsets_)(offsets);
   return;
 }
@@ -828,8 +815,8 @@ void Index::CountWithinSlFactor
         {
           temp_pattern_range =
           {
-            lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
-            lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
+            lex_symbol_bucket_offsets_.Select(std::get<0>(lex_symbol_range)),
+            lex_symbol_bucket_offsets_.Select(std::get<1>(lex_symbol_range) + 1) - 1
           };
         }
       }
@@ -883,9 +870,9 @@ std::pair<uint64_t, uint64_t> Index::CalculateSymbolRange
   factor_integer += *it * base;
   if (step == -1)
   {
-    return colex_symbol_table_.SymbolRange(factor_integer, factor_integer + base - 1);
+    return colex_symbol_table_.RankRange(factor_integer, factor_integer + base - 1);
   }
-  return lex_symbol_table_.SymbolRange(factor_integer, factor_integer + base - 1);
+  return lex_symbol_table_.RankRange(factor_integer, factor_integer + base - 1);
 }
 
 template <typename Iterator, typename Range>
@@ -907,7 +894,7 @@ void Index::BackwardSearchInfixFactors
     auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
     if (lex_symbol != 0)
     {
-      auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+      auto begin_offset {lex_symbol_bucket_offsets_.Select(lex_symbol)};
       pattern_range =
       {
         begin_offset + lex_bwt_.rank(std::get<0>(pattern_range), lex_symbol),
@@ -949,7 +936,7 @@ void Index::BackwardSearchPrefixSlFactor
     auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
     if (lex_symbol != 0)
     {
-      auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+      auto begin_offset {lex_symbol_bucket_offsets_.Select(lex_symbol)};
       temp_pattern_range =
       {
         begin_offset + lex_bwt_.rank(std::get<0>(temp_pattern_range), lex_symbol),
@@ -1143,8 +1130,8 @@ void Index::BackwardSearchSuffixSlFactor
   {
     pattern_range =
     {
-      lex_symbol_bucket_offsets_[std::get<0>(lex_symbol_range)],
-      lex_symbol_bucket_offsets_[std::get<1>(lex_symbol_range) + 1] - 1
+      lex_symbol_bucket_offsets_.Select(std::get<0>(lex_symbol_range)),
+      lex_symbol_bucket_offsets_.Select(std::get<1>(lex_symbol_range) + 1) - 1
     };
     if (rlast != rend)
     {
@@ -1174,7 +1161,7 @@ void Index::BackwardSearchInfix
     auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
     if (lex_symbol != 0)
     {
-      auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+      auto begin_offset {lex_symbol_bucket_offsets_.Select(lex_symbol)};
       if (IsNotEmptyRange(pattern_range_s))
       {
         pattern_range_s =
@@ -1223,7 +1210,7 @@ void Index::BackwardSearchPrefix
     auto lex_symbol {lex_symbol_table_[SymbolsToInteger(std::next(rlast), std::next(rfirst))]};
     if (lex_symbol != 0)
     {
-      auto begin_offset {lex_symbol_bucket_offsets_[lex_symbol]};
+      auto begin_offset {lex_symbol_bucket_offsets_.Select(lex_symbol)};
       if (IsNotEmptyRange(temp_pattern_range_s))
       {
         temp_pattern_range_s =
