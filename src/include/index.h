@@ -7,10 +7,10 @@
 
 #include <sdsl/wavelet_trees.hpp>
 
+#include "byte_alphabet.h"
 #include "grammar_symbol_table.h"
 #include "sub_factor_trie.h"
 #include "symbol_bucket_offsets.h"
-#include "symbol_table.h"
 #include "utility.h"
 
 namespace figiss
@@ -168,7 +168,7 @@ private:
   );
 
   uint8_t max_factor_size_;
-  SymbolTable symbol_table_;
+  ByteAlphabet byte_alphabet_;
   SubFactorTrie sub_factor_trie_;
   GrammarSymbolTable lex_symbol_table_;
   GrammarSymbolTable colex_symbol_table_;
@@ -198,7 +198,7 @@ void Index::Swap (Index& index)
   if (this != &index)
   {
     std::swap(max_factor_size_, index.max_factor_size_);
-    symbol_table_.Swap(index.symbol_table_);
+    byte_alphabet_.Swap(index.byte_alphabet_);
     sub_factor_trie_.Swap(index.sub_factor_trie_);
     lex_symbol_table_.Swap(index.lex_symbol_table_);
     colex_symbol_table_.Swap(index.colex_symbol_table_);
@@ -317,7 +317,7 @@ uint64_t Index::Serialize
   {
     std::cout << "serialize index to " << std::filesystem::canonical(index_path).string() << "\n";
     sdsl::write_member(max_factor_size_, out);
-    symbol_table_.Serialize(out);
+    byte_alphabet_.Serialize(out);
     sub_factor_trie_.Serialize(out);
     lex_symbol_table_.Serialize(out);
     colex_symbol_table_.Serialize(out);;
@@ -328,7 +328,7 @@ uint64_t Index::Serialize
   else
   {
     root->AddLeaf("max_factor_size_", sdsl::write_member(max_factor_size_, out));
-    root->AccumalateSizeInBytes(symbol_table_.Serialize(out, root, "symbol_table_"));
+    root->AccumalateSizeInBytes(byte_alphabet_.Serialize(out, root, "byte_alphabet_"));
     root->AccumalateSizeInBytes(sub_factor_trie_.Serialize(out, root, "sub_factor_trie_"));
     root->AccumalateSizeInBytes(lex_symbol_table_.Serialize(out, root, "lex_symbol_table_"));
     root->AccumalateSizeInBytes(colex_symbol_table_.Serialize(out, root, "colex_symbol_table_"));
@@ -345,7 +345,7 @@ void Index::Load (std::filesystem::path const &index_path)
   std::ifstream in {index_path};
   std::cout << "load index from " << std::filesystem::canonical(index_path).string() << "\n";
   sdsl::read_member(max_factor_size_, in);
-  symbol_table_.Load(in);
+  byte_alphabet_.Load(in);
   sub_factor_trie_.Load(in);
   lex_symbol_table_.Load(in);
   colex_symbol_table_.Load(in);
@@ -436,7 +436,7 @@ void Index::PrintParameters (std::filesystem::path const& parameter_path) const
 
 std::ostream& operator<< (std::ostream &out, Index const &index)
 {
-  out << index.symbol_table_;
+  out << index.byte_alphabet_;
   out << std::make_pair(index.sub_factor_trie_, true);
   out << index.lex_symbol_table_;
   out << index.colex_symbol_table_;
@@ -464,13 +464,13 @@ void Index::CalculateSymbolTableAndText
     }
     sdsl::append_zero_symbol(byte_text);
   }
-  symbol_table_ = decltype(symbol_table_)(byte_text);
-  // std::cout << symbol_table_;
-  text.width(symbol_table_.GetEffectiveAlphabetWidth());
+  byte_alphabet_ = decltype(byte_alphabet_)(byte_text);
+  // std::cout << byte_alphabet_;
+  text.width(byte_alphabet_.GetEffectiveAlphabetWidth());
   text.resize(std::size(byte_text));
   for (uint64_t i {}; i != std::size(byte_text); ++i)
   {
-    text[i] = symbol_table_[byte_text[i]];
+    text[i] = byte_alphabet_[byte_text[i]];
   }
   // Print(text, std::cout);
 }
@@ -541,7 +541,7 @@ uint64_t Index::SymbolsToInteger (Iterator it, Iterator end, int8_t const step)
   uint64_t result {};
   for (auto k {max_factor_size_}; (it != end) && (k != 0); it += step, --k)
   {
-    result += *it * (1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * (k - 1)));
+    result += *it * (1ULL << (byte_alphabet_.GetEffectiveAlphabetWidth() * (k - 1)));
   }
   return result;
 }
@@ -549,7 +549,7 @@ uint64_t Index::SymbolsToInteger (Iterator it, Iterator end, int8_t const step)
 std::deque<uint64_t> Index::IntegerToSymbols (uint64_t integer)
 {
   std::deque<uint64_t> symbols;
-  auto const base {1ULL << symbol_table_.GetEffectiveAlphabetWidth()};
+  auto const base {1ULL << byte_alphabet_.GetEffectiveAlphabetWidth()};
   if (integer == 0)
   {
     symbols.emplace_back(0);
@@ -790,12 +790,12 @@ void Index::CalculateLexBwt (sdsl::int_vector<> const &lex_text)
 template <typename Iterator>
 bool Index::CalculatePattern (Iterator begin, Iterator end, sdsl::int_vector<> &pattern)
 {
-  pattern.width(symbol_table_.GetEffectiveAlphabetWidth());
+  pattern.width(byte_alphabet_.GetEffectiveAlphabetWidth());
   pattern.resize(std::distance(begin, end));
   auto pattern_it {std::begin(pattern)};
   for (auto it {begin}; it != end; ++it, ++pattern_it)
   {
-    *pattern_it = symbol_table_[*it];
+    *pattern_it = byte_alphabet_[*it];
     if (*pattern_it == 0)
     {
       return false;
@@ -876,10 +876,10 @@ std::pair<uint64_t, uint64_t> Index::CalculateSymbolRange
   auto k {max_factor_size_};
   while (it != std::prev(end, step))
   {
-    factor_integer += *it * (1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * ((k--) - 1)));
+    factor_integer += *it * (1ULL << (byte_alphabet_.GetEffectiveAlphabetWidth() * ((k--) - 1)));
     it += step;
   }
-  auto base {1ULL << (symbol_table_.GetEffectiveAlphabetWidth() * (k - 1))};
+  auto base {1ULL << (byte_alphabet_.GetEffectiveAlphabetWidth() * (k - 1))};
   factor_integer += *it * base;
   if (step == -1)
   {

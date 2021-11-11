@@ -4,18 +4,19 @@
 
 namespace figiss
 {
-class SymbolTable
+class ByteAlphabet
 {
 public:
 
-  SymbolTable () = default;
-  SymbolTable (SymbolTable const&) = delete;
-  SymbolTable (SymbolTable&&);
-  SymbolTable (sdsl::int_vector<8> const &byte_text);
-  SymbolTable& operator= (SymbolTable const&) = delete;
-  SymbolTable& operator= (SymbolTable &&);
+  ByteAlphabet () = default;
+  ByteAlphabet (ByteAlphabet const&) = delete;
+  ByteAlphabet (ByteAlphabet&&);
+  ByteAlphabet (sdsl::int_vector<8> const& byte_text);
+  ByteAlphabet& operator= (ByteAlphabet const&) = delete;
+  ByteAlphabet& operator= (ByteAlphabet &&);
+  ~ByteAlphabet () = default;
 
-  void Swap (SymbolTable&);
+  void Swap (ByteAlphabet&);
 
   uint64_t Serialize
   (
@@ -32,7 +33,7 @@ public:
 
   uint64_t operator[] (uint64_t const byte) const;
 
-  friend std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table);
+  friend std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet);
 
 private:
 
@@ -42,15 +43,18 @@ private:
 
 };
 
-SymbolTable::SymbolTable (SymbolTable&& symbol_table)
+ByteAlphabet::ByteAlphabet (ByteAlphabet&& byte_alphabet)
 {
-  if (this != &symbol_table)
+  if (this != &byte_alphabet)
   {
-    this->Swap(symbol_table);
+    effective_alphabet_width_ = std::move(byte_alphabet.effective_alphabet_width_);
+    alphabet_bits_ = std::move(byte_alphabet.alphabet_bits_);
+    alphabet_rank_1_ = std::move(byte_alphabet.alphabet_rank_1_);
+    alphabet_rank_1_.set_vector(&alphabet_bits_);
   }
 }
 
-SymbolTable::SymbolTable (sdsl::int_vector<8> const &byte_text)
+ByteAlphabet::ByteAlphabet (sdsl::int_vector<8> const &byte_text)
 {
   alphabet_bits_.resize(*std::max_element(std::begin(byte_text), std::end(byte_text)) + 1);
   sdsl::util::set_to_value(alphabet_bits_, 0);
@@ -62,30 +66,30 @@ SymbolTable::SymbolTable (sdsl::int_vector<8> const &byte_text)
   effective_alphabet_width_ = sdsl::bits::hi(alphabet_rank_1_(std::size(alphabet_bits_)) - 1) + 1;
 }
 
-SymbolTable& SymbolTable::operator= (SymbolTable &&symbol_table)
+ByteAlphabet& ByteAlphabet::operator= (ByteAlphabet &&byte_alphabet)
 {
-  if (this != &symbol_table)
+  if (this != &byte_alphabet)
   {
-    SymbolTable temp {std::move(symbol_table)};
+    ByteAlphabet temp {std::move(byte_alphabet)};
     this->Swap(temp);
   }
   return *this;
 }
 
-void SymbolTable::Swap (SymbolTable& symbol_table)
+void ByteAlphabet::Swap (ByteAlphabet& byte_alphabet)
 {
-  if (this != &symbol_table)
+  if (this != &byte_alphabet)
   {
-    std::swap(effective_alphabet_width_, symbol_table.effective_alphabet_width_);
-    alphabet_bits_.swap(symbol_table.alphabet_bits_);
-    alphabet_rank_1_.swap(symbol_table.alphabet_rank_1_);
+    std::swap(effective_alphabet_width_, byte_alphabet.effective_alphabet_width_);
+    alphabet_bits_.swap(byte_alphabet.alphabet_bits_);
+    alphabet_rank_1_.swap(byte_alphabet.alphabet_rank_1_);
     alphabet_rank_1_.set_vector(&alphabet_bits_);
-    symbol_table.alphabet_rank_1_.set_vector(&symbol_table.alphabet_bits_);
+    byte_alphabet.alphabet_rank_1_.set_vector(&byte_alphabet.alphabet_bits_);
   }
   return;
 }
 
-uint64_t SymbolTable::Serialize
+uint64_t ByteAlphabet::Serialize
 (
   std::ostream &out,
   std::shared_ptr<SpaceNode> parent,
@@ -111,7 +115,7 @@ uint64_t SymbolTable::Serialize
   return size_in_bytes;
 }
 
-void SymbolTable::Load (std::istream &in)
+void ByteAlphabet::Load (std::istream &in)
 {
   sdsl::read_member(effective_alphabet_width_, in);
   alphabet_bits_.load(in);
@@ -120,7 +124,7 @@ void SymbolTable::Load (std::istream &in)
   return;
 }
 
-uint64_t SymbolTable::operator[] (uint64_t const byte) const
+uint64_t ByteAlphabet::operator[] (uint64_t const byte) const
 {
   if ((byte < std::size(alphabet_bits_)) && alphabet_bits_[byte])
   {
@@ -129,17 +133,17 @@ uint64_t SymbolTable::operator[] (uint64_t const byte) const
   return 0;
 }
 
-std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table)
+std::ostream& operator<< (std::ostream &out, ByteAlphabet const &byte_alphabet)
 {
   {
     out << "value:\n";
     out << "effective_alphabet_width_:\n";
-    out << static_cast<uint64_t>(symbol_table.effective_alphabet_width_) << "\n";
+    out << static_cast<uint64_t>(byte_alphabet.effective_alphabet_width_) << "\n";
     out << "byte alphabet:\n";
     out << 0 << ":" << 0 << "\n";
-    for (uint64_t i {1}; i != std::size(symbol_table.alphabet_bits_); ++i)
+    for (uint64_t i {1}; i != std::size(byte_alphabet.alphabet_bits_); ++i)
     {
-      auto symbol {symbol_table[i]};
+      auto symbol {byte_alphabet[i]};
       if (symbol != 0)
       {
         out << symbol << ":" << i << "\n";
@@ -148,9 +152,9 @@ std::ostream& operator<< (std::ostream &out, SymbolTable const &symbol_table)
   }
   {
     out << "space:\n";
-    out << "effective_alphabet_width_: " << sizeof(symbol_table.effective_alphabet_width_) << "B\n";
-    out << "alphabet_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_table.alphabet_bits_)) << "B\n";
-    out << "alphabet_rank_1_: " << ProperSizeRepresentation(sdsl::size_in_bytes(symbol_table.alphabet_rank_1_)) << "B\n";
+    out << "effective_alphabet_width_: " << sizeof(byte_alphabet.effective_alphabet_width_) << "B\n";
+    out << "alphabet_bits_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.alphabet_bits_)) << "B\n";
+    out << "alphabet_rank_1_: " << ProperSizeRepresentation(sdsl::size_in_bytes(byte_alphabet.alphabet_rank_1_)) << "B\n";
   }
   return out;
 }
