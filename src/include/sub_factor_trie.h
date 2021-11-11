@@ -108,6 +108,7 @@ public:
   SubFactorTrie (Trie const &trie);
   SubFactorTrie& operator= (SubFactorTrie const&) = delete;
   SubFactorTrie& operator= (SubFactorTrie&&);
+  ~SubFactorTrie () = default;
 
   void Swap (SubFactorTrie&);
 
@@ -137,14 +138,10 @@ SubFactorTrie::SubFactorTrie (SubFactorTrie const& sub_factor_trie)
 {
   if (this != &sub_factor_trie)
   {
-    auto temp {SubFactorTrie()};
-    this->Swap(temp);
-    {
-      level_order_bits_ = decltype(level_order_bits_)(sub_factor_trie.level_order_bits_);
-      level_order_select_1_ = decltype(level_order_select_1_)(&sub_factor_trie.level_order_bits_);
-      labels_ = decltype(labels_)(sub_factor_trie.labels_);
-      counts_ = decltype(counts_)(sub_factor_trie.counts_);
-    }
+    level_order_bits_ = decltype(level_order_bits_)(sub_factor_trie.level_order_bits_);
+    level_order_select_1_ = decltype(level_order_select_1_)(&sub_factor_trie.level_order_bits_);
+    labels_ = decltype(labels_)(sub_factor_trie.labels_);
+    counts_ = decltype(counts_)(sub_factor_trie.counts_);
   }
 }
 
@@ -152,7 +149,11 @@ SubFactorTrie::SubFactorTrie (SubFactorTrie&& sub_factor_trie)
 {
   if (this != &sub_factor_trie)
   {
-    this->Swap(sub_factor_trie);
+    level_order_bits_ = std::move(sub_factor_trie.level_order_bits_);
+    level_order_select_1_ = std::move(sub_factor_trie.level_order_select_1_);
+    level_order_select_1_.set_vector(&level_order_bits_);
+    labels_ = std::move(sub_factor_trie.labels_);
+    counts_ = std::move(sub_factor_trie.counts_);
   }
 }
 
@@ -289,7 +290,7 @@ uint64_t SubFactorTrie::Count (Iterator it, Iterator end)
   return 0;
 }
 
-std::ostream& operator<< (std::ostream &out, std::pair<SubFactorTrie, bool> const &pair)
+std::ostream& operator<< (std::ostream &out, std::pair<SubFactorTrie, bool> const& pair)
 {
   out << "trie:\n";
   auto const &trie {std::get<0>(pair)};
