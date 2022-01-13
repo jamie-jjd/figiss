@@ -319,6 +319,52 @@ void ConstructAndSerialize
   return;
 }
 
+template <>
+void ConstructAndSerialize
+<sdsl::csa_wt<sdsl::wt_blcd<>, 0xFFFF'FFFF, 0xFFFF'FFFF>>
+(
+  std::filesystem::path const& byte_text_path,
+  std::string const& index_name
+)
+{
+  sdsl::csa_wt<sdsl::wt_blcd<>, 0xFFFF'FFFF, 0xFFFF'FFFF> index;
+  std::cout << "--- construct & serialize " << index_name << " ---\n";
+  std::cout << "construct " << index_name << " of " << std::filesystem::canonical(byte_text_path).string() << "\n";
+  auto root {tdc::StatPhase("construction")};
+  tdc::StatPhase::wrap
+  (
+    index_name.c_str(),
+    [&] ()
+    {
+      sdsl::int_vector<8> byte_text;
+      sdsl::load_vector_from_file(byte_text, byte_text_path);
+      sdsl::construct_im(index, byte_text);
+    }
+  );
+  auto middle_path {byte_text_path.filename() / std::filesystem::path{index_name}};
+  {
+    auto construction_path {std::filesystem::path{"../data/construction"} / middle_path / std::filesystem::path{"construction"}};
+    PrintConstructionTimeAndPeakMemory(construction_path, root.to_json().str());
+  }
+  {
+    auto index_path {std::filesystem::path{"../data/index"} / middle_path / std::filesystem::path{"index"}};
+    if (!std::filesystem::exists(index_path.parent_path()))
+    {
+      std::filesystem::create_directories(index_path.parent_path());
+    }
+    {
+      std::ofstream out {index_path};
+      std::cout << "serialize " + index_name + " to " << std::filesystem::canonical(index_path).string() << "\n";
+      index.serialize(out);
+    }
+    {
+      auto index_space_path {std::filesystem::path{"../data/index_space"} / middle_path / std::filesystem::path{"index_space"}};
+      PrintIndexSpace(index_path, index_space_path);
+    }
+  }
+  return;
+}
+
 template <typename Index, typename Iterator>
 uint64_t Count (Index& index, Iterator begin, Iterator end)
 {
@@ -353,6 +399,12 @@ uint64_t Count (CSA::RLCSA& index, Iterator begin, Iterator end)
     return CSA::length(pattern_range);
   }
   return 0;
+}
+
+template <typename Iterator>
+uint64_t Count (sdsl::csa_wt<sdsl::wt_blcd<>, 0xFFFF'FFFF, 0xFFFF'FFFF>& index, Iterator begin, Iterator end)
+{
+  return sdsl::count(index, begin, end);
 }
 
 template <typename Index>
