@@ -5,7 +5,7 @@ LIB_PATH						:= -L./lib/others -L./lib
 DEBUG_FLAGS					:= -DNDEBUG
 PARALLEL_FLAGS			:= -D_GLIBCXX_PARALLEL -fopenmp
 WARNING_ERROR_FLAGS	:= -Wall -Wextra -Wpedantic -Werror -Wfatal-errors
-LIBS 								:= -ldivsufsort -ldivsufsort64 -lm -lrlcsa -lsdsl -lstdc++fs -ltudocomp_stat
+LIBS 								:= -llz -ldivsufsort -ldivsufsort64 -lm -lrlcsa -lsdsl -lstdc++fs -ltudocomp_stat
 
 all: main.cc
 	${CC} ${CXX_FLAGS} ${INCLUDE_PATH} ${LIB_PATH} ${DEBUG_FLAGS} ${WARNING_ERROR_FLAGS} $^ -o figiss ${LIBS}
