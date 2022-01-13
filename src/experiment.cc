@@ -46,9 +46,10 @@ int main (int argc, char** argv)
           {
             figiss::ConstructAndSerialize<figiss::Index>(byte_text_path, max_factor_size, "figiss");
           }
-          figiss::ConstructAndSerialize<sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF>>(byte_text_path, "faster-minuter");
+          figiss::ConstructAndSerialize<sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF>>(byte_text_path, "fm_fbb");
           figiss::ConstructAndSerialize<sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF>>(byte_text_path, "rlfm");
           figiss::ConstructAndSerialize<CSA::RLCSA>(byte_text_path, "rlcsa");
+          figiss::ConstructAndSerialize<sdsl::csa_wt<sdsl::wt_blcd<>, 0xFFFF'FFFF, 0xFFFF'FFFF>>(byte_text_path, "fm");
         }
         for (auto length {1ULL << lower_power}; length <= (1ULL << upper_power); length <<= 1)
         {
@@ -90,7 +91,7 @@ int main (int argc, char** argv)
             }
           }
           {
-            std::string const& index_name {"faster-minuter"};
+            std::string const& index_name {"fm_fbb"};
             auto middle_path {byte_text_path.filename().string() + "/" + index_name};
             auto middle_pattern_path {middle_path / std::filesystem::path{std::to_string(amount) + "/" + std::to_string(length)}};
             std::cout << "--- measure " << index_name << " counting time ---\n";
@@ -129,6 +130,21 @@ int main (int argc, char** argv)
             CSA::RLCSA index(index_subpath.string());
             auto counting_time_path {std::filesystem::path{"../data/counting_time"} / middle_pattern_path / std::filesystem::path{"counting_time"}};
             figiss::MeasureCountingTime(pattern_path, index, counting_time_path);
+          }
+          {
+            std::string const& index_name {"fm"};
+            auto middle_path {byte_text_path.filename().string() + "/" + index_name};
+            auto middle_pattern_path {middle_path / std::filesystem::path{std::to_string(amount) + "/" + std::to_string(length)}};
+            std::cout << "--- measure " << index_name << " counting time ---\n";
+            auto index_path {std::filesystem::path{"../data/index"} / middle_path / std::filesystem::path{"index"}};
+            std::ifstream in {index_path};
+            std::cout << "load " << index_name << " from " << std::filesystem::canonical(index_path).string() << "\n";
+            sdsl::csa_wt<sdsl::wt_blcd<>, 0xFFFF'FFFF, 0xFFFF'FFFF> index;
+            index.load(in);
+            {
+              auto counting_time_path {std::filesystem::path{"../data/counting_time"} / middle_pattern_path / std::filesystem::path{"counting_time"}};
+              figiss::MeasureCountingTime(pattern_path, index, counting_time_path);
+            }
           }
         }
       }
