@@ -2,6 +2,7 @@
 
 #include <chrono>
 
+#include <lz/static_selfindex.h>
 #include <faster-minuter/wt_fbb.hpp>
 #include <rlcsa/rlcsa.h>
 #include <sdsl/csa_wt.hpp>
@@ -365,28 +366,82 @@ void ConstructAndSerialize
   return;
 }
 
+template <>
+void ConstructAndSerialize
+<lz77index::static_selfindex_lzend>
+(
+  std::filesystem::path const& byte_text_path,
+  std::string const& index_name
+)
+{
+  std::cout << "--- construct & serialize " << index_name << " ---\n";
+  std::cout << "construct " << index_name << " of " << std::filesystem::canonical(byte_text_path).string() << "\n";
+  auto middle_path {byte_text_path.filename() / std::filesystem::path{index_name}};
+  auto index_path {std::filesystem::path{"../data/index"} / middle_path / std::filesystem::path{"index"}};
+  if (!std::filesystem::exists(index_path.parent_path()))
+  {
+    std::filesystem::create_directories(index_path.parent_path());
+  }
+  auto root {tdc::StatPhase("construction")};
+  tdc::StatPhase::wrap
+  (
+    index_name.c_str(),
+    [&] ()
+    {
+      lz77index::static_selfindex_lzend::build
+      (
+        (char*)byte_text_path.string().c_str(),
+        (char*)index_path.string().c_str(),
+        1,
+        1,
+        0
+      );
+    }
+  );
+  {
+    std::cout << "remove auxiliary files:\n";
+    auto root_path {std::filesystem::path{byte_text_path.string() + ".alph"}};
+    auto extensions {std::vector<std::string>{"", ".char", ".len", ".rev", ".rev.sa", ".start"}};
+    for (auto const& extension : extensions)
+    {
+      auto path {std::filesystem::path{root_path.string() + extension}};
+      std::cout << std::filesystem::canonical(path).string() << "\n";
+      std::filesystem::remove(path);
+    }
+  }
+  {
+    auto construction_path {std::filesystem::path{"../data/construction"} / middle_path / std::filesystem::path{"construction"}};
+    PrintConstructionTimeAndPeakMemory(construction_path, root.to_json().str());
+  }
+  {
+    auto index_space_path {std::filesystem::path{"../data/index_space"} / middle_path / std::filesystem::path{"index_space"}};
+    PrintIndexSpace(index_path, index_space_path);
+  }
+  return;
+}
+
 template <typename Index, typename Iterator>
 uint64_t Count (Index& index, Iterator begin, Iterator end)
 {
-  return index.Count(begin, end);
+  return index.Count(begin, std::prev(end));
 }
 
 template <typename Iterator>
 uint64_t Count (sdsl::csa_wt<sdsl::wt_rlmn<>, 0xFFFF'FFFF, 0xFFFF'FFFF>& index, Iterator begin, Iterator end)
 {
-  return sdsl::count(index, begin, end);
+  return sdsl::count(index, begin, std::prev(end));
 }
 
 template <typename Iterator>
 uint64_t Count (sdsl::csa_wt<wt_fbb<>, 0xFFFF'FFFF, 0xFFFF'FFFF>& index, Iterator begin, Iterator end)
 {
-  return sdsl::count(index, begin, end);
+  return sdsl::count(index, begin, std::prev(end));
 }
 
 template <typename Iterator>
 uint64_t Count (CSA::RLCSA& index, Iterator begin, Iterator end)
 {
-  auto it {std::prev(end)};
+  auto it {std::prev(end, 2)};
   auto rend {std::prev(begin)};
   auto pattern_range {index.getCharRange(*it)};
   while (!CSA::isEmpty(pattern_range) && --it != rend)
@@ -404,7 +459,13 @@ uint64_t Count (CSA::RLCSA& index, Iterator begin, Iterator end)
 template <typename Iterator>
 uint64_t Count (sdsl::csa_wt<sdsl::wt_blcd<>, 0xFFFF'FFFF, 0xFFFF'FFFF>& index, Iterator begin, Iterator end)
 {
-  return sdsl::count(index, begin, end);
+  return sdsl::count(index, begin, std::prev(end));
+}
+
+template <typename Iterator>
+uint64_t Count (lz77index::static_selfindex*& index, Iterator begin, Iterator end)
+{
+  return index->count(&(*begin), std::distance(begin, std::prev(end)));
 }
 
 template <typename Index>
@@ -429,8 +490,8 @@ void MeasureCountingTime
     auto begin {std::begin(pattern_collection)};
     while (begin != std::end(pattern_collection))
     {
-      auto end {std::next(begin, pattern_collection.GetLength())};
-      Count(index, begin, end);
+      auto end {std::next(begin, pattern_collection.GetLength() + 1)};
+      std::cout << Count(index, begin, end) << "\n";
       begin = end;
     }
   }
@@ -440,7 +501,7 @@ void MeasureCountingTime
     auto begin_time {std::chrono::steady_clock::now()};
     while (begin != std::end(pattern_collection))
     {
-      auto end {std::next(begin, pattern_collection.GetLength())};
+      auto end {std::next(begin, pattern_collection.GetLength() + 1)};
       Count(index, begin, end);
       begin = end;
     }
