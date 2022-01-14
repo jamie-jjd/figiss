@@ -102,7 +102,7 @@ PatternCollection::PatternCollection
     << " from " << std::filesystem::canonical(byte_text_path).string() << "\n";
     amount_ = amount;
     length_ = length;
-    concatenated_patterns_.resize(amount_ * length_);
+    concatenated_patterns_.resize(amount_ * (length_ + 1));
   }
   std::mt19937 engine {std::random_device{}()};
   std::uniform_int_distribution<uint64_t> dist_text {0, std::size(byte_text) - length_};
@@ -123,6 +123,7 @@ PatternCollection::PatternCollection
       );
     }
     it = std::next(it, length_);
+    *it++ = 0;
   }
   {
     auto metadata_path
@@ -187,7 +188,7 @@ void PatternCollection::Swap (PatternCollection& pattern_collection)
 
 void PatternCollection::Serialize (std::filesystem::path const& pattern_path)
 {
-  if (std::size(concatenated_patterns_) == (amount_ * length_))
+  if (std::size(concatenated_patterns_) == (amount_ * (length_ + 1)))
   {
     std::ofstream out {pattern_path, std::ios_base::out | std::ios_base::trunc};
     std::cout << "serialize pattern collection to " << std::filesystem::canonical(pattern_path).string() << "\n";
